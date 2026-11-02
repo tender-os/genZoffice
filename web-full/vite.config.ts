@@ -128,6 +128,17 @@ function reviewFitZoom(): Plugin {
   }
 }
 
+const shows = (key: string) => `(window.desktop.menuShows?.('${key}') ?? true)`
+const insertColumn = (key: string, command: string) => [
+  `['${key}', ${command}],`,
+  `...(${shows(key)} ? [['${key}', ${command}]] : []),`,
+]
+const insertEntryEdits = [
+  insertColumn('ribbonInsertLeft', 'addColumnBefore'),
+  insertColumn('ribbonInsertRight', 'addColumnAfter'),
+  [`onClick={run(() => onTableDialog('insertCells'))}`, `style={${shows('ribbonInsertCells')} ? undefined : { display: 'none' }} onClick={run(() => onTableDialog('insertCells'))}`],
+]
+
 // The embed leaves some context-menu entries out (reviewMenu.ts): each one renders only when the shim's
 // menuShows says so. Outside the embed the shim answers true.
 function reviewMenu(): Plugin {
@@ -142,7 +153,12 @@ function reviewMenu(): Plugin {
         const needle = `item(t('${key}'),`
         const found = out.split(needle).length - 1
         if (found !== 1) throw new Error(`review-menu: "${needle}" found ${found} times, expected 1; update the transform`)
-        out = out.replace(needle, `(window.desktop.menuShows?.('${key}') ?? true) && ${needle}`)
+        out = out.replace(needle, `${shows(key)} && ${needle}`)
+      }
+      for (const [needle, replacement] of insertEntryEdits) {
+        const found = out.split(needle).length - 1
+        if (found !== 1) throw new Error(`review-menu: "${needle}" found ${found} times, expected 1; update the transform`)
+        out = out.replace(needle, replacement)
       }
       return { code: out, map: null }
     },

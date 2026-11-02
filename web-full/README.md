@@ -132,7 +132,10 @@ offers only Paste as Plain Text.
 The app's context menu opens in review mode, also on a protected form (the `hostDecidesEditability`
 transform lifts its protection gate with the editing lock). The embed leaves entries out (`reviewMenu.ts`,
 the `reviewMenu` transform asks the shim's `menuShows` before each one): the AI entries and hiding text
-from the AI always, and in review mode formatted Paste, the field commands and New Comment.
+from the AI always, and in review mode formatted Paste, the field commands, New Comment and every command
+that changes a form's structure: deleting from or merging, splitting, distributing and resizing a table,
+table properties, inserting columns or cells, and list numbering. Inserting rows stays, since forms such as
+reference lists need more of them.
 
 Formatting shortcuts work, as in Word: bold, italic, underline, alignment, the font, paragraph and
 hyperlink dialogs, line spacing, paragraph styles, font size, super- and subscript, indents, clearing
