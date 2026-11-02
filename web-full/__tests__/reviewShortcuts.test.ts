@@ -7,8 +7,21 @@ const ctrl = { ctrlKey: true }
 const cmd = { metaKey: true }
 
 describe('blockedInReview', () => {
-  it("blocks the editor's and the app's formatting shortcuts", () => {
+  it('blocks the document tools the host does not follow and File › Open', () => {
     const blocked = [
+      // fields, track changes, new comment, footnote and endnote, date and time fields, AI proofread
+      keys({ key: 'F9', code: 'F9' }), keys({ altKey: true, key: 'F9', code: 'F9' }),
+      letter('e', { ...ctrl, shiftKey: true }), letter('a', { ...ctrl, altKey: true }), letter('f', { ...ctrl, altKey: true }),
+      letter('d', { ...ctrl, altKey: true }), letter('d', { altKey: true, shiftKey: true }), letter('t', { altKey: true, shiftKey: true }),
+      keys({ key: 'F7', code: 'F7' }),
+      // File › Open: another file would replace the reviewed document
+      letter('o', ctrl),
+    ]
+    expect(blocked.filter((event) => !blockedInReview(event, false))).toEqual([])
+  })
+
+  it('keeps the formatting shortcuts, as Word does', () => {
+    const formatting = [
       // bold, italic, underline; alignment left, center, right, justify
       ...['b', 'i', 'u', 'l', 'e', 'r', 'j'].map((key) => letter(key, ctrl)),
       // font dialog, hyperlink, paragraph dialog
@@ -25,15 +38,9 @@ describe('blockedInReview', () => {
       // hanging indent, indent / outdent, clear character and paragraph formatting, change case
       letter('t', ctrl), letter('t', { ...ctrl, shiftKey: true }), letter('m', ctrl), letter('m', { ...ctrl, shiftKey: true }),
       keys({ ...ctrl, key: ' ', code: 'Space' }), letter('q', ctrl), keys({ shiftKey: true, key: 'F3', code: 'F3' }),
-      // fields, track changes, new comment, footnote and endnote, date and time fields, AI proofread
-      keys({ key: 'F9', code: 'F9' }), keys({ altKey: true, key: 'F9', code: 'F9' }),
-      letter('e', { ...ctrl, shiftKey: true }), letter('a', { ...ctrl, altKey: true }), letter('f', { ...ctrl, altKey: true }),
-      letter('d', { ...ctrl, altKey: true }), letter('d', { altKey: true, shiftKey: true }), letter('t', { altKey: true, shiftKey: true }),
-      keys({ key: 'F7', code: 'F7' }),
-      // File › Open: another file would replace the reviewed document
-      letter('o', ctrl),
     ]
-    expect(blocked.filter((event) => !blockedInReview(event, false))).toEqual([])
+    expect(formatting.filter((event) => blockedInReview(event, false))).toEqual([])
+    expect(formatting.map((event) => ({ ...event, ctrlKey: false, metaKey: true })).filter((event) => blockedInReview(event, true))).toEqual([])
   })
 
   it('keeps undo, redo, clipboard, select-all, save, find, zoom, navigation and typing', () => {
@@ -52,13 +59,14 @@ describe('blockedInReview', () => {
   })
 
   it('uses Command on the Mac and keeps its native Control navigation', () => {
-    expect(blockedInReview(letter('b', cmd), true)).toBe(true)
+    expect(blockedInReview(letter('b', cmd), true)).toBe(false)
     expect(blockedInReview(letter('o', cmd), true)).toBe(true)
     // the endnote shortcut is ⌥⌘E on the Mac, Ctrl+Alt+D elsewhere
     expect(blockedInReview(letter('´', { ...cmd, altKey: true, code: 'KeyE' }), true)).toBe(true)
     expect(blockedInReview(letter('∂', { ...cmd, altKey: true, code: 'KeyD' }), true)).toBe(false)
-    // the app also aligns on ⌃E; the blocker stops that, the native end-of-line move stays
+    // the app also aligns on ⌃E and bolds on ⌃B; the blocker stops that, the native move stays
     expect(blockedInReview(letter('e', ctrl), true)).toBe(true)
+    expect(blockedInReview(letter('b', ctrl), true)).toBe(true)
     expect(keepsNativeAction(letter('e', ctrl), true)).toBe(true)
     expect(keepsNativeAction(letter('e', cmd), true)).toBe(false)
     expect(keepsNativeAction(letter('e', ctrl), false)).toBe(false)

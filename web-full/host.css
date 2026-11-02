@@ -22,6 +22,8 @@ html.vound-embedded .rb-big:has(.ai-feature-icon) { display: none !important; }
 /* the floating "Ask AI" button on a text selection (AiAskPopover.tsx) and its popover */
 html.vound-embedded .ai-ask-trigger { display: none !important; }
 html.vound-embedded .ai-ask-pop { display: none !important; }
+/* the context menu's AI entries are left out in the embed (reviewMenu.ts): no separator above their empty slot */
+html.vound-embedded .ctx-sep:has(+ .ctx-item-wrap:empty + .ctx-sep) { display: none !important; }
 /* the host reports the real save outcome: the editor's "Saved" toast (it only means the bytes went to the host)
    stays hidden, error toasts show */
 html.vound-embedded .app-toast.success { display: none !important; }
@@ -45,8 +47,17 @@ html.vound-review .ribbon-tabs { display: none !important; }
 html.vound-review .status-bar { display: none !important; }
 html.vound-review .paste-chip { display: none !important; }
 @media screen { html.vound-review .editor-scroll { padding-top: var(--vound-review-top) !important; } }
-/* the page at the left of the canvas: all spare width lies right of it, for the field chip (reviewGutter.ts) */
-html.vound-review .doc-zoom { margin-left: 0; }
+/* The page centred in the canvas with a gutter right of it for the field chip (reviewGutter.ts): a grid of
+   three columns, the page in the middle. Both sides share the spare width; the right one never gets less
+   than --vound-gutter, so a narrow canvas moves the page left (to the canvas edge at the width fit). */
+html.vound-review { --vound-gutter: 110px; }
+@media screen {
+  html.vound-review .editor-scroll { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(var(--vound-gutter), 1fr); align-content: start; align-items: start; }
+  html.vound-review .editor-scroll > * { grid-column: 2; }
+}
+/* Word's empty form field result (five en spaces) in review mode (reviewMode.ts): no width, so the caret and
+   the typed text start at the field's left edge; the en spaces stay in the document */
+html.vound-review .vound-blank { letter-spacing: -0.5em; }
 /* Review-mode field look (spec 4.2): a soft tint and a 2px leading state bar, no outline. Proposed is violet,
    a field that still needs a value (gap, conditional, refused) amber, accepted cyan with a check after its
    text, rejected white with a rose bar and edge. The bar is a background layer and the ring a box shadow,

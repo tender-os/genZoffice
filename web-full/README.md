@@ -115,7 +115,7 @@ host reports the real outcome; error toasts still show.
 ## Review mode
 
 `vound:open` with `mode: 'review'` opens the document in review mode (`reviewMode.ts`): the host shows
-its own bar, and the editor works like a text field. `host.css` hides the ribbon, its tab row, the
+its own bar, and the editor edits like Word without the ribbon. `host.css` hides the ribbon, its tab row, the
 status bar and the paste-options chip under `html.vound-review`, and pads the top of the page scroll
 container (`.editor-scroll`) by `--vound-review-top` (52px) for the host's bar. Typing, deleting, keyboard
 undo/redo, clipboard shortcuts, select-all, save, find, zoom and keyboard selection work as usual.
@@ -127,13 +127,17 @@ takes the paste DOM event, because the app's own paste handlers are direct edito
 asks before any plugin, and some of them insert formatted content. A paste that skips the DOM event
 (`view.pasteHTML`) meets the app's `handlePaste` first and reaches the plugin's only when that declines,
 so review mode closes the app's ways in: the paste-options chip is hidden, and the app's context menu
-does not open (a window capture listener stops the `contextmenu` event before React sees it). The
-browser's own menu opens instead; its Paste is an ordinary paste event.
+offers only Paste as Plain Text.
 
-Formatting and document-tool shortcuts do nothing (`reviewShortcuts.ts`): bold, italic, underline,
-alignment, the font, paragraph and hyperlink dialogs, line spacing, paragraph styles, font size, super-
-and subscript, indents, clearing formatting, change case, fields, track changes, comments, footnotes and
-endnotes, and AI proofread. A window capture listener stops them before the editors' keymaps (main
+The app's context menu opens in review mode, also on a protected form (the `hostDecidesEditability`
+transform lifts its protection gate with the editing lock). The embed leaves entries out (`reviewMenu.ts`,
+the `reviewMenu` transform asks the shim's `menuShows` before each one): the AI entries and hiding text
+from the AI always, and in review mode formatted Paste, the field commands and New Comment.
+
+Formatting shortcuts work, as in Word: bold, italic, underline, alignment, the font, paragraph and
+hyperlink dialogs, line spacing, paragraph styles, font size, super- and subscript, indents, clearing
+formatting and change case. Document-tool shortcuts do nothing (`reviewShortcuts.ts`): fields, track
+changes, comments, footnotes and endnotes, AI proofread and File › Open. A window capture listener stops them before the editors' keymaps (main
 editor, header and footer, text boxes) and App.tsx's window handler, which acts without looking at
 `defaultPrevented`. On the Mac, Control+letter is text navigation (⌃E end of line): the app and the
 editor do not see it, the browser's own action stays.
@@ -173,7 +177,9 @@ wherever the caret sits in it: in a table cell, where the field's result is the 
 mode replaces any paragraph of en spaces only with the first typed text (field paragraphs are not marked
 in the editor); in a field passthrough, the editor's
 field commit drops the blank (or an empty line's placeholder NBSP) around the typed text, also when the
-caret sat in the middle of it.
+caret sat in the middle of it. In review mode the blank shows no width (a `vound-blank` decoration,
+negative letter spacing in `host.css`), so the caret and the typed text start at the field's edge; the en
+spaces stay in the document.
 
 ## Field chip
 
@@ -200,12 +206,13 @@ page's right edge, less the 10px distance and 16px of slack): its `max-width` is
 field's label that does not fit beside its buttons takes a line of its own above them and is cut short,
 with the full label in its `title`. Only a gutter narrower than the buttons hides the chip; the host's bar
 offers the current field's buttons then. Review mode keeps that gutter free (`reviewGutter.ts`):
-`host.css` puts the page at the left of the canvas (`.doc-zoom` without its left auto margin), so all
-spare width lies right of it, and the `reviewFitZoom` transform in `vite.config.ts` makes App.tsx's width
+`host.css` centres the page in a three-column grid whose right column never gets less than
+`--vound-gutter` (`GUTTER_RESERVE_PX`), so a narrow canvas moves the page left, to the canvas edge at the
+width fit, and the `reviewFitZoom` transform in `vite.config.ts` makes App.tsx's width
 fit (`rawFitWidth`, the overflow clamp, and `fitZoomFor`, Page Width / Text Width / One Page and the fit
 mode that follows resizes) measure the canvas through the shim's `reviewFitWidth`, which subtracts
-`GUTTER_RESERVE_PX` (84px: a two-button chip, its distance and its slack), and cap the fit at 100 % through
-`reviewFitZoom`. A canvas narrower than the page plus the reserve zooms the page out (900px: 96 % for A4),
+`GUTTER_RESERVE_PX` (110px: a three-button chip, its distance and its slack), and cap the fit at 100 % through
+`reviewFitZoom`. A canvas narrower than the page plus the reserve zooms the page out (900px: 93 % for A4),
 also when the app locked into fit mode at mount; a wide one keeps 100 %. A zoom the reviewer picks by hand
 is not capped; above the fit the chip may not show. Outside review mode the shim returns width and zoom
 unchanged.

@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 import { familyVerticalMetrics } from '../packages/font-metrics/src/index'
+import { AI_MENU_KEYS, REVIEW_MENU_KEYS } from './reviewMenu'
 const root = resolve(__dirname, '..')
 const saveDir = process.env.GENOFFICE_SAVE_DIR ?? resolve(__dirname, 'saved')
 function hostEndpoints(): Plugin {
@@ -49,7 +50,15 @@ function hostDecidesEditability(): Plugin {
       if (!id.endsWith('/apps/docs/src/renderer/App.tsx')) return null
       const needle = 'editor.setEditable(!readMode && !isProtected)'
       if (code.split(needle).length !== 2) throw new Error('host-editability: App.tsx gate not found once, update the spike')
-      return { code: code.replace(needle, 'editor.setEditable(!readMode, editor.isEditable !== !readMode)'), map: null }
+      // the editor's context menu follows the same rule: it opens on a protected form too
+      const menuGate = 'if (readMode || isProtected) return'
+      if (code.split(menuGate).length !== 2) throw new Error('host-editability: App.tsx context menu gate not found once, update the spike')
+      return {
+        code: code
+          .replace(needle, 'editor.setEditable(!readMode, editor.isEditable !== !readMode)')
+          .replace(menuGate, menuGate.replace('readMode || isProtected', 'readMode')),
+        map: null,
+      }
     },
   }
 }
@@ -119,6 +128,27 @@ function reviewFitZoom(): Plugin {
   }
 }
 
+// The embed leaves some context-menu entries out (reviewMenu.ts): each one renders only when the shim's
+// menuShows says so. Outside the embed the shim answers true.
+function reviewMenu(): Plugin {
+  return {
+    name: 'genoffice-review-menu',
+    // on the source, before esbuild rewrites the quotes the needles contain
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.endsWith('/apps/docs/src/renderer/components/ContextMenu.tsx')) return null
+      let out = code
+      for (const key of [...AI_MENU_KEYS, ...REVIEW_MENU_KEYS]) {
+        const needle = `item(t('${key}'),`
+        const found = out.split(needle).length - 1
+        if (found !== 1) throw new Error(`review-menu: "${needle}" found ${found} times, expected 1; update the transform`)
+        out = out.replace(needle, `(window.desktop.menuShows?.('${key}') ?? true) && ${needle}`)
+      }
+      return { code: out, map: null }
+    },
+  }
+}
+
 // Spike-only fix for a GenOffice rendering bug: header/footer strips sit outside .doc-page, so runs that
 // inherit the document's default (theme) font fell back to the UI font stack. Extend the per-document
 // base font rule to the strips. Upstream candidate: apps/docs/src/renderer/doc-style-css.ts.
@@ -138,7 +168,7 @@ export default defineConfig({
   // relative asset URLs so the built host can be served under any path (e.g. /editor/)
   base: './',
   build: { outDir: resolve(__dirname, 'dist'), emptyOutDir: true, target: 'es2022' },
-  plugins: [react(), hostEndpoints(), hostDecidesEditability(), hostReportsDirty(), hostEditorHandle(), reviewFitZoom(), headerStripFont()],
+  plugins: [react(), hostEndpoints(), hostDecidesEditability(), hostReportsDirty(), hostEditorHandle(), reviewFitZoom(), reviewMenu(), headerStripFont()],
   resolve: {
     alias: {
       '@genoffice/docx-engine/lazy-media': resolve(root, 'packages/docx-engine/src/lazy-media.ts'),

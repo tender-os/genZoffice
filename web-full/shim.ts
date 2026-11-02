@@ -24,6 +24,7 @@ import { applyFieldValue, placeCaret } from './fieldWrite'
 import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, setMarkers, resetMarkers } from './markersPlugin'
 import { enterReviewMode, leaveReviewMode } from './reviewMode'
 import { reviewFitWidth, reviewFitZoom } from './reviewGutter'
+import { menuShows } from './reviewMenu'
 type Handler = (...args: unknown[]) => void
 const calls: string[] = []
 let openHandler: Handler | null = null
@@ -123,6 +124,7 @@ const known: Record<string, unknown> = {
   hostEditor: handOverEditor,
   reviewFitWidth: (canvasWidth: number) => reviewFitWidth(canvasWidth, reviewMode),
   reviewFitZoom: (zoom: number) => reviewFitZoom(zoom, reviewMode),
+  menuShows: (key: string) => menuShows(key, embedded, reviewMode),
 }
 export function installDesktopShim() {
   const w = window as unknown as Record<string, unknown>

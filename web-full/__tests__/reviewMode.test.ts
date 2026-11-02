@@ -13,7 +13,7 @@ import { EditorState, NodeSelection, TextSelection, type Plugin } from '@tiptap/
 import { EditorView, type EditorProps } from '@tiptap/pm/view'
 import { mountFieldChip } from '../fieldChip'
 import { fieldReportingKey } from '../fieldReporting'
-import { enterReviewMode, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
+import { enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
 import { doc, fieldPara, para, schema } from './markerSchema'
 
 // the chip itself is tested in fieldChip.test.ts; here only that review mode mounts and unmounts it
@@ -115,43 +115,29 @@ describe('enterReviewMode', () => {
     return ed
   }
 
-  it('formatting shortcuts reach neither the editor keymaps nor the app in review mode', () => {
+  it('formatting shortcuts reach the editor keymaps and the app in review mode, document tools do not', () => {
     const ed = tiptap()
-    // control: outside review mode the editor's keymap bolds and the app's handler edits
+    enterReviewMode(ed, post)
     press(ed, 'b')
     expect(markNames(ed)).toEqual(['bold'])
-    press(ed, 'b')
     press(ed, 'e')
     expect(ed.getText()).toBe('Mitte Hallo Welt')
+    expect(appShortcuts).toHaveBeenCalledTimes(2)
+    // new comment ⌥⌘A and File › Open stay with the blocker
+    press(ed, 'a', { ...mod, altKey: true })
+    press(ed, 'o')
+    expect(appShortcuts).toHaveBeenCalledTimes(2)
+    leaveReviewMode(ed)
+    press(ed, 'o')
     expect(appShortcuts).toHaveBeenCalledTimes(3)
-    const before = ed.state.doc
-
-    enterReviewMode(ed, post)
-    for (const key of ['b', 'i', 'u', 'e', 'l', 'r', 'j']) press(ed, key)
-    expect(ed.state.doc.eq(before)).toBe(true)
-    expect(appShortcuts).toHaveBeenCalledTimes(3)
-    // undo, copy and plain typing keys still travel
-    press(ed, 'z')
-    press(ed, 'c')
-    press(ed, 'e', {})
-    expect(appShortcuts).toHaveBeenCalledTimes(6)
   })
 
-  it("the app's context menu stays shut in review mode, the browser's own one opens", () => {
+  it("the app's context menu opens in review mode", () => {
     const ed = tiptap()
     const appMenu = vi.fn()
     document.body.addEventListener('contextmenu', appMenu)
-    const rightClick = () => {
-      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
-      ed.view.dom.dispatchEvent(event)
-      return event
-    }
     enterReviewMode(ed, post)
-    const event = rightClick()
-    expect(appMenu).not.toHaveBeenCalled()
-    expect(event.defaultPrevented).toBe(false)
-    leaveReviewMode(ed)
-    rightClick()
+    ed.view.dom.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
     expect(appMenu).toHaveBeenCalledTimes(1)
     document.body.removeEventListener('contextmenu', appMenu)
   })
@@ -272,5 +258,14 @@ describe("typing into Word's empty form field result in review mode", () => {
     const mixed = caretIn(`${enSpaces}Muster`, 5)
     typeAtCaret(mixed, 'x')
     expect(mixed.state.doc.child(1).textContent).toBe(`${enSpaces}xMuster`)
+  })
+
+  it('gives the blank no width, so the caret starts at the field edge, and keeps its en spaces', () => {
+    const v = caretIn(enSpaces, 5)
+    const blank = v.dom.querySelector(`.${FORM_FIELD_BLANK_CLASS}`)
+    expect(blank?.textContent).toBe(enSpaces)
+    expect(v.dom.querySelectorAll(`.${FORM_FIELD_BLANK_CLASS}`)).toHaveLength(1)
+    typeAtCaret(v, '0')
+    expect(v.dom.querySelector(`.${FORM_FIELD_BLANK_CLASS}`)).toBeNull()
   })
 })
