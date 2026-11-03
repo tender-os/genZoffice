@@ -1,4 +1,6 @@
+import { isOn } from './checkbox-control'
 import { decodeEntities } from './parse-xml-text'
+import type { Run } from './types'
 import { escapeXmlText } from './xml-utils'
 
 /**
@@ -218,10 +220,12 @@ function patchOneParagraph(paraXml: string, newText: string, skipLeading: boolea
  */
 export function patchFieldParagraphText(
   originalParaXml: string,
-  runs: ReadonlyArray<{ text: string }>,
+  runs: ReadonlyArray<WtMappedRun>,
 ): string | null {
   if (!/<w:fldChar\b|<w:sdt\b/.test(originalParaXml)) return null
-  const joined = runs.map((r) => r.text).join('')
+  if (/<w:noBreakHyphen\b|<w:softHyphen\b|<w:ruby\b/.test(originalParaXml)) return null
+  if (!sameContentOutsideWt(originalParaXml, runs)) return null
+  const joined = runs.map(wtTextOf).join('')
   if (/[\f\v\u001e]/.test(joined)) return null
   // tabs and line breaks are their own elements, not w:t text: as long as the edit did
   // not add or remove one, they stay where they are and the w:t mapping ignores them
@@ -244,4 +248,44 @@ export function patchFieldParagraphText(
       .replace(/<w:showingPlcHdr\s*\/>/g, '')
       .replace(/<w:rStyle w:val="(?:[^"]*Platzhalter[^"]*|[^"]*Placeholder[^"]*)"\s*\/>/gi, '')
   })
+}
+
+type WtMappedRun = Pick<Run, 'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml'>
+
+/** A run's text that lives in w:t: note markers, symbols, formulas, tracked deletions and legacy box glyphs do not. */
+function wtTextOf(run: WtMappedRun): string {
+  return run.noteRef || run.sym || run.math || run.del || run.fldBeginXml ? '' : run.text
+}
+
+/** Added, removed or changed content outside w:t needs the rebuild: a w:t patch would not reach it. */
+function sameContentOutsideWt(paraXml: string, runs: ReadonlyArray<WtMappedRun>): boolean {
+  const runCount = (kind: 'noteRef' | 'sym' | 'math') => runs.filter((r) => r[kind]).length
+  const xmlCount = (element: RegExp) => paraXml.match(element)?.length ?? 0
+  const runText = (kind: 'del' | 'fldBeginXml') =>
+    runs
+      .filter((r) => r[kind])
+      .map((r) => r.text)
+      .join('')
+  const deletedText = [...paraXml.matchAll(/<w:delText(?:\s[^>]*)?>([\s\S]*?)<\/w:delText>/g)]
+    .map((m) => decodeEntities(m[1]))
+    .join('')
+  return (
+    runCount('noteRef') === xmlCount(/<w:(?:footnote|endnote)Reference\b/g) &&
+    runCount('sym') === xmlCount(/<w:sym\b/g) &&
+    runCount('math') === xmlCount(/<m:oMath\b/g) &&
+    runText('del') === deletedText &&
+    runText('fldBeginXml') === legacyBoxGlyphs(paraXml)
+  )
+}
+
+/** The glyphs the parser shows for the paragraph's legacy checkboxes: w:checked wins over w:default. */
+function legacyBoxGlyphs(paraXml: string): string {
+  const boxes = paraXml.match(/<w:checkBox\b(?:[^>]*\/>|[\s\S]*?<\/w:checkBox>)/g) ?? []
+  return boxes
+    .map((box) => {
+      const state = /<w:checked\b[^>]*>/.exec(box) ?? /<w:default\b[^>]*>/.exec(box)
+      if (!state) return '☐'
+      return isOn(/w:val="([^"]*)"/.exec(state[0])?.[1]) ? '☒' : '☐'
+    })
+    .join('')
 }
