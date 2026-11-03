@@ -14,7 +14,7 @@ const attrsOf = (decoration: Decoration) => Reflect.get(Reflect.get(decoration, 
 const described = (decoration: Decoration) =>
   ({ from: decoration.from, to: decoration.to, spec: decoration.spec, attrs: attrsOf(decoration) })
 const node = (from: number, to: number, slotIds: string[], className: string) =>
-  ({ from, to, spec: { slotIds }, attrs: { class: className, 'data-vound-slot': slotIds.join(' ') } })
+  ({ from, to, spec: { slotIds, isField: false }, attrs: { class: className, 'data-vound-slot': slotIds.join(' ') } })
 
 describe('markerDecorations', () => {
   it('decorates the paragraph node with the index, a protected block too, and the cell for cell scope', () => {

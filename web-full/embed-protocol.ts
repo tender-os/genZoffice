@@ -11,6 +11,7 @@
  *                  { type: 'vound:setFieldValue', requestId, block, previous, value }
  *                                                                              replace a field's value in one block
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
+ *                  { type: 'vound:editScope', scope: EditScope }               review mode: what the reviewer may type in (editScope.ts)
  * Iframe → host:   { type: 'vound:ready' }                                     the editor subscribed to open requests
  *                  { type: 'vound:saved', name: string, bytes: ArrayBuffer }   every save (⌘S, File › Save, 'save' command)
  *                  { type: 'vound:dirty', dirty: boolean }                     unsaved changes appeared or were saved; sent on change
@@ -24,6 +25,7 @@
  *                  { type: 'vound:caretBlock', ids: string[], leftWith? }      the caret entered a marked block, or left
  *                                                                              one (ids [], leftWith 'Tab' | 'other')
  *                  { type: 'vound:fieldValueResult', requestId, ok, reason? }  the answer to vound:setFieldValue
+ *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
  *
  * Both sides check the sender. The editor accepts a message only when event.origin is its own origin
  * and event.source is window.parent (embedMessages.ts); the host should accept one only from the
@@ -49,6 +51,8 @@ export type SlotMarker = {
 /** The block a field write or caret placement targets, named like a marker: the source paragraph
  *  index, and whether the block is that paragraph or the table cell around it. */
 export type BlockRef = { paragraph: number; scope: 'paragraph' | 'cell' }
+/** 'fields': only the blocks of markers offering actions take edits. 'everything': the whole document does. */
+export type EditScope = 'fields' | 'everything'
 export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBlock'
 export type HostToEditor =
   | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: 'review' }
@@ -58,6 +62,7 @@ export type HostToEditor =
   | { type: 'vound:focus'; id: string | null }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string }
   | { type: 'vound:placeCaret'; block: BlockRef }
+  | { type: 'vound:editScope'; scope: EditScope }
 export type EditorToHost =
   | { type: 'vound:ready' }
   | { type: 'vound:saved'; name: string; bytes: ArrayBuffer }
@@ -67,4 +72,5 @@ export type EditorToHost =
   | { type: 'vound:blockEdited'; ids: string[] }
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal }
+  | { type: 'vound:editRefused' }
 export const isEmbedded = (): boolean => window.parent !== window
