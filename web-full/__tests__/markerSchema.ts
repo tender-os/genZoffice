@@ -27,6 +27,7 @@ export const schema = new Schema({
     text: { group: 'inline' },
   },
   marks: {
+    instrField: { inclusive: false, attrs: { instr: { default: '' } }, toDOM: () => ['span', 0] },
     docTextStyle: {
       attrs: { bold: { default: null }, font: { default: null } },
       toDOM: (mark) => ['span', { 'data-bold': mark.attrs.bold, 'data-font': mark.attrs.font }, 0],
