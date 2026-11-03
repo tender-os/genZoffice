@@ -78,5 +78,8 @@ export function readHostMessage(data: unknown): HostToEditor | null {
     const block = readBlock(data.block)
     return block ? { type: 'vound:placeCaret', block } : null
   }
+  if (data.type === 'vound:editScope' && (data.scope === 'fields' || data.scope === 'everything')) {
+    return { type: 'vound:editScope', scope: data.scope }
+  }
   return null
 }

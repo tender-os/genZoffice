@@ -15,6 +15,7 @@ import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
 import { boxTickKey, boxTickPlugin } from './boxTick'
+import { editScopeKey, editScopePlugin } from './editScope'
 import { mountFieldChip } from './fieldChip'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
 import { clipboardText } from './pasteText'
@@ -126,6 +127,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   if (!reviewModeKey.get(editor.state)) editor.registerPlugin(reviewModePlugin, first)
   if (!fieldReportingKey.get(editor.state)) editor.registerPlugin(fieldReportingPlugin(post), first)
   if (!boxTickKey.get(editor.state)) editor.registerPlugin(boxTickPlugin, first)
+  if (!editScopeKey.get(editor.state)) editor.registerPlugin(editScopePlugin(post), first)
   if (chip?.view === editor.view) return
   chip?.unmount()
   chip = { view: editor.view, unmount: mountFieldChip(editor.view, post) }
@@ -138,6 +140,7 @@ export function leaveReviewMode(editor: Editor): void {
   if (reviewModeKey.get(editor.state)) editor.unregisterPlugin(reviewModeKey)
   if (fieldReportingKey.get(editor.state)) editor.unregisterPlugin(fieldReportingKey)
   if (boxTickKey.get(editor.state)) editor.unregisterPlugin(boxTickKey)
+  if (editScopeKey.get(editor.state)) editor.unregisterPlugin(editScopeKey)
   chip?.unmount()
   chip = null
 }

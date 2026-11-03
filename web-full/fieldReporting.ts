@@ -33,12 +33,12 @@ const isHostWrite = (tr: Transaction) =>
 /** A change the reviewer made. Not: a host write, a document opening (whole-document replace), or a change
  *  kept out of the undo history, which the app uses for its own refreshes (TOC page numbers, pagination
  *  and formatting stamps) and never for typing. */
-const isUserEdit = (tr: Transaction) =>
+export const isUserEdit = (tr: Transaction) =>
   tr.docChanged && !isHostWrite(tr) && tr.getMeta('addToHistory') !== false && !replacedWholeDocument(tr)
 
 /** The ranges the reviewer's steps changed, both in the document before all `trs` (where a joined-away
  *  paragraph still carries its marker) and in the document after them. */
-function editedRanges(trs: readonly Transaction[]) {
+export function editedRanges(trs: readonly Transaction[]) {
   const maps: StepMap[] = trs.flatMap((tr) => tr.mapping.maps)
   const before: Range[] = []
   const after: Range[] = []

@@ -20,6 +20,7 @@ import { isEmbedded, type EditorToHost, type SlotMarker } from './embed-protocol
 import { acceptsHostMessage, readHostMessage } from './embedMessages'
 import { embeddedSave } from './embeddedSave'
 import { embedLang } from './embedLocale'
+import { setEditScope } from './editScope'
 import { applyFieldValue, placeCaret } from './fieldWrite'
 import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, setMarkers, resetMarkers } from './markersPlugin'
 import { enterReviewMode, leaveReviewMode } from './reviewMode'
@@ -179,6 +180,9 @@ export function installDesktopShim() {
         }
         case 'vound:placeCaret':
           if (hostEditor) placeCaret(hostEditor.view, msg.block)
+          break
+        case 'vound:editScope':
+          setEditScope(msg.scope)
           break
       }
     })

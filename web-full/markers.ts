@@ -74,7 +74,7 @@ function nodeDecoration(target: Located, markers: SlotMarker[], currentId: strin
     target.pos,
     target.pos + target.node.nodeSize,
     { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${current}`, 'data-vound-slot': slotIds.join(' ') },
-    { slotIds },
+    { slotIds, isField: markers.some((marker) => marker.actions.length > 0) },
   )
 }
 
