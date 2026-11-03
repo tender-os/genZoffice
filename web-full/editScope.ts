@@ -15,6 +15,7 @@ let scope: EditScope = 'everything'
 /** what the reviewer may edit from now on (vound:editScope); it stays across saves and opens */
 export const setEditScope = (next: EditScope) => {
   scope = next
+  document.documentElement.classList.toggle('vound-fields-only', next === 'fields')
 }
 
 const fieldBlocks = (state: EditorState) =>

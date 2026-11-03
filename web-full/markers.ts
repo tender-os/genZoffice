@@ -8,6 +8,8 @@ export const MARKER_CLASS = 'vound-slot'
 export const CURRENT_CLASS = 'vound-slot-current'
 /** the block under the pointer in review mode (fieldChip.ts) */
 export const HOT_CLASS = 'vound-slot-hot'
+/** a block the reviewer can still type in while the document is locked to the fields (host.css) */
+export const FIELD_CLASS = 'vound-slot-field'
 
 const cellTypes = ['docTableCell', 'docTableHeader']
 
@@ -70,11 +72,13 @@ function nodeDecoration(target: Located, markers: SlotMarker[], currentId: strin
   const slotIds = markers.map((marker) => marker.id)
   const shown = markers.reduce((top, marker) => (attentionRank(marker) < attentionRank(top) ? marker : top))
   const current = currentId !== null && slotIds.includes(currentId) ? ` ${CURRENT_CLASS}` : ''
+  const isField = markers.some((marker) => marker.actions.length > 0)
+  const field = isField ? ` ${FIELD_CLASS}` : ''
   return Decoration.node(
     target.pos,
     target.pos + target.node.nodeSize,
-    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${current}`, 'data-vound-slot': slotIds.join(' ') },
-    { slotIds, isField: markers.some((marker) => marker.actions.length > 0) },
+    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${current}`, 'data-vound-slot': slotIds.join(' ') },
+    { slotIds, isField },
   )
 }
 

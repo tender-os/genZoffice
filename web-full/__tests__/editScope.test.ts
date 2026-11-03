@@ -88,6 +88,20 @@ describe('editScopePlugin', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
+  it('marks the page only while locked to the fields', () => {
+    const locked = () => document.documentElement.classList.contains('vound-fields-only')
+    setEditScope('fields')
+    expect(locked()).toBe(true)
+    setEditScope('everything')
+    expect(locked()).toBe(false)
+  })
+
+  it('classes a field block, not a marked change', () => {
+    const { v } = lockedView([field(1), changeMarker(2)])
+    expect(v.dom.querySelectorAll('.vound-slot-field')).toHaveLength(1)
+    expect(v.dom.querySelectorAll('.vound-slot')).toHaveLength(2)
+  })
+
   it('keeps a document with no field markers editable', () => {
     const { v } = lockedView([changeMarker(2)])
     typeAt(v, 0)
