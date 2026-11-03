@@ -128,6 +128,21 @@ function reviewFitZoom(): Plugin {
   }
 }
 
+// The desktop app leaves the contextmenu event's default on, so Electron can relay spelling data to the
+// app's menu. In a browser that default is the browser's own menu, which would open over the app's.
+const docMenuNeedle = 'const seq = ++ctxSeq.current'
+function appMenuOnly(): Plugin {
+  return {
+    name: 'genoffice-app-menu-only',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.endsWith('/apps/docs/src/renderer/App.tsx')) return null
+      if (code.split(docMenuNeedle).length !== 2) throw new Error('app-menu-only: App.tsx context menu not found once, update the transform')
+      return { code: code.replace(docMenuNeedle, `e.preventDefault();\n${docMenuNeedle}`), map: null }
+    },
+  }
+}
+
 const shows = (key: string) => `(window.desktop.menuShows?.('${key}') ?? true)`
 const insertColumn = (key: string, command: string) => [
   `['${key}', ${command}],`,
@@ -184,7 +199,7 @@ export default defineConfig({
   // relative asset URLs so the built host can be served under any path (e.g. /editor/)
   base: './',
   build: { outDir: resolve(__dirname, 'dist'), emptyOutDir: true, target: 'es2022' },
-  plugins: [react(), hostEndpoints(), hostDecidesEditability(), hostReportsDirty(), hostEditorHandle(), reviewFitZoom(), reviewMenu(), headerStripFont()],
+  plugins: [react(), hostEndpoints(), hostDecidesEditability(), hostReportsDirty(), hostEditorHandle(), reviewFitZoom(), appMenuOnly(), reviewMenu(), headerStripFont()],
   resolve: {
     alias: {
       '@genoffice/docx-engine/lazy-media': resolve(root, 'packages/docx-engine/src/lazy-media.ts'),
