@@ -1,6 +1,7 @@
 // Click-to-tick in review mode: a click on a box drawn as a text glyph toggles it, the way a reviewer
 // expects a form to behave. It is an ordinary editor transaction, so it undoes and saves as typing does.
-// Word's own checkbox controls and symbol-font boxes are not text glyphs and are left alone.
+// Word's legacy form boxes show as a glyph carrying the field's mark, which the save needs to keep the field.
+// Word's other checkbox controls and symbol-font boxes are not text glyphs and are left alone.
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 
 const TOGGLED: Record<string, string> = { '☐': '☒', '☒': '☐', '☑': '☐' }
@@ -20,7 +21,7 @@ function boxAt(state: EditorState, pos: number) {
 export function toggleBoxAt(state: EditorState, pos: number): Transaction | null {
   const box = boxAt(state, pos)
   if (!box) return null
-  const marks = state.doc.resolve(box.from + 1).marks()
+  const marks = state.doc.nodeAt(box.from)?.marks
   return state.tr.replaceWith(box.from, box.from + 1, state.schema.text(TOGGLED[box.char], marks))
 }
 

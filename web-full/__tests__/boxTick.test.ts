@@ -22,6 +22,17 @@ describe('toggleBoxAt', () => {
     expect(textAfter('Neubau', 1)).toBeUndefined()
   })
 
+  it('keeps a form field on its box, so the save keeps the field', () => {
+    const field = schema.marks.instrField.create({ instr: 'FORMCHECKBOX' })
+    const paragraph = schema.nodes.docParagraph.create(null, [schema.text('☒', [field]), schema.text(' Neubau')])
+    const state = EditorState.create({ schema, doc: doc(paragraph) })
+
+    const box = toggleBoxAt(state, 1)?.doc.nodeAt(1)
+
+    expect(box?.text).toBe('☐')
+    expect(box?.marks.map((mark) => mark.type.name)).toEqual(['instrField'])
+  })
+
   it('toggles the box that was clicked when a paragraph has several', () => {
     expect(textAfter('☐ Ja ☐ Nein', 6)).toBe('☐ Ja ☒ Nein')
   })
