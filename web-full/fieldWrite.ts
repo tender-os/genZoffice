@@ -17,7 +17,9 @@ export const HOST_WRITE_META = 'voundHostWrite'
 export const FIELD_TEXT_SELECTOR = '.doc-field-text'
 
 export type FieldValueResult = { ok: true } | { ok: false; reason: FieldValueRefusal }
-export type FieldValueWrite = { block: BlockRef; previous: string; value: string }
+// whenAbsent: the block's one form field belongs to this write, so `previous` being out of date (the reviewer
+// typed since the host last read it) replaces the field instead of refusing
+export type FieldValueWrite = { block: BlockRef; previous: string; value: string; whenAbsent?: 'replaceField' }
 
 /** One piece of a block's visible text: a paragraph's text, a field passthrough's result text
  *  (fieldDisplay.left, which the editor saves into the field result), or field text this rule leaves
@@ -141,11 +143,22 @@ function plan(units: TextUnit[], previous: string): Planned {
   return trimmedFieldMatch(units, previous.trim())
 }
 
+/** the whole of a block's one form field; a form field saved empty loads as an empty paragraph */
+function wholeField(units: TextUnit[]): Planned {
+  const fields = units.filter((unit) => unit.kind !== 'text')
+  if (fields.length === 1) return { unit: fields[0], from: 0, to: fields[0].text.length }
+  if (fields.length === 0 && units[0] && units.every((unit) => unit.text === '')) return { unit: units[0], from: 0, to: 0 }
+  return { refused: 'absent' }
+}
+
 /** vound:setFieldValue: write the value into the block, or refuse and leave the document as it is */
 export function applyFieldValue(view: EditorView, write: FieldValueWrite): FieldValueResult {
   const block = locateBlock(view.state.doc, write.block)
   if (!block) return { ok: false, reason: 'noBlock' }
-  const planned = plan(unitsOf(block.node, block.pos), write.previous)
+  const units = unitsOf(block.node, block.pos)
+  const matched = plan(units, write.previous)
+  const stale = 'refused' in matched && matched.refused === 'absent' && write.whenAbsent === 'replaceField'
+  const planned = stale ? wholeField(units) : matched
   if ('refused' in planned) return { ok: false, reason: planned.refused }
   if (planned.unit.kind === 'fixed') return { ok: false, reason: 'notEditable' }
   if (write.previous === write.value) return { ok: true }

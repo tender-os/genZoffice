@@ -62,6 +62,15 @@ function rebuild(doc: PmNode, state: MarkersState): MarkersState {
 export const replacedWholeDocument = (tr: Transaction) =>
   tr.steps.some((step, index) => step instanceof ReplaceStep && step.from === 0 && step.to === tr.docs[index].content.size)
 
+/** the document's paragraphs and block-level fields, at any depth */
+const blockCount = (doc: PmNode) => {
+  let count = 0
+  doc.descendants((node) => {
+    if (node.isTextblock || (node.isBlock && node.isAtom)) count += 1
+  })
+  return count
+}
+
 /** a document change: map the decorations, and walk the document again only when mapping cannot be trusted */
 function afterDocChange(tr: Transaction, old: MarkersState): MarkersState {
   if (replacedWholeDocument(tr)) {
@@ -71,7 +80,11 @@ function afterDocChange(tr: Transaction, old: MarkersState): MarkersState {
     // the re-parse after a review-mode save: the host's markers posted since the save name the saved file,
     // so they are built on it; older ones may name paragraphs the save renumbered, so they go
     if (old.afterSave === 'reconfirmed') return rebuild(tr.doc, { ...old, afterSave: 'idle', hot: null })
-    if (old.afterSave === 'awaitingReparse') return { ...initial, awaitingDocument: false, current: old.current }
+    // unless the paragraph count shows nothing was renumbered: then they stay until the host's arrive
+    if (old.afterSave === 'awaitingReparse') {
+      if (blockCount(tr.before) === blockCount(tr.doc)) return rebuild(tr.doc, { ...old, afterSave: 'idle', hot: null })
+      return { ...initial, awaitingDocument: false, current: old.current }
+    }
     // a document that came without vound:open (File > Open inside the editor, a new blank document) or
     // replaced everything afterwards: the host's indices name another document, so the markers go
     return { ...initial, awaitingDocument: false }
