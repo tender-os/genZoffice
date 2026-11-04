@@ -63,6 +63,7 @@ html.vound-review .vound-blank { letter-spacing: -0.5em; }
    field stays editable, so it keeps both. */
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) { cursor: default; caret-color: transparent; }
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .vound-slot-field { cursor: text; caret-color: auto; }
+html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .vound-slot-toggle { cursor: default; caret-color: transparent; }
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .ProseMirror-gapcursor { display: none; }
 /* Locked, nothing that reshapes the document is offered: table, picture and box handles, and the resize cursors. */
 html.vound-review.vound-fields-only:has(.vound-slot-field) :is(.doc-table-handle, .doc-table-resize, .column-resize-handle, .img-resize-handle, .box-resize-handle) { display: none !important; }

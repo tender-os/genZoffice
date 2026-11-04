@@ -49,6 +49,8 @@ export type SlotMarker = {
   tone: MarkerTone
   label: string
   actions: FieldAction[]
+  /** 'toggle': the field is a box, so locked to the fields the words on its line stay as they are */
+  entry?: 'toggle'
 }
 /** The block a field write or caret placement targets, named like a marker: the source paragraph
  *  index, and whether the block is that paragraph or the table cell around it. */

@@ -11,6 +11,7 @@ import { markersKey } from './markersPlugin'
 export const editScopeKey = new PluginKey('voundEditScope')
 
 let scope: EditScope = 'everything'
+const BOX_GLYPHS = /[☐☑☒]/g
 
 /** what the reviewer may edit from now on (vound:editScope); it stays across saves and opens */
 export const setEditScope = (next: EditScope) => {
@@ -29,8 +30,18 @@ const isWithin = (block: Decoration, range: { from: number; to: number }) =>
     ? block.from < range.from && range.from < block.to
     : block.from <= range.from && range.to <= block.to
 
+const wordsOf = (text: string) => text.replace(BOX_GLYPHS, '☐')
+
+/** a box's line may tick the box; its words are the form's own */
+const keepsItsWords = (tr: Transaction, block: Decoration) =>
+  !block.spec.togglesOnly ||
+  wordsOf(tr.before.textBetween(block.from, block.to)) ===
+    wordsOf(tr.doc.textBetween(tr.mapping.map(block.from, -1), tr.mapping.map(block.to, 1)))
+
 const staysInFields = (tr: Transaction, blocks: Decoration[]) =>
-  editedRanges([tr]).before.every((range) => blocks.some((block) => isWithin(block, range)))
+  editedRanges([tr]).before.every((range) =>
+    blocks.some((block) => isWithin(block, range) && keepsItsWords(tr, block))
+  )
 
 /** the plugin refusing edits outside the fields, reported through `post`; one per review-mode session */
 export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
