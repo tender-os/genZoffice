@@ -5,6 +5,7 @@
  * Host → iframe:   { type: 'vound:open', name: string, bytes: ArrayBuffer, mode?: 'review' }   open a document;
  *                                                                               'review' opens it in review mode
  *                  { type: 'vound:command', command: 'save' }                 save now (same path as ⌘S)
+ *                  { type: 'vound:command', command: 'fillWithAi' }           answer with vound:fillWithAi for the caret
  *                  { type: 'vound:markers', markers: SlotMarker[] }            replace the slot markers (all of them)
  *                  { type: 'vound:scrollTo', id: string }                      scroll a marker into view and make it current
  *                  { type: 'vound:focus', id: string | null }                  make a marker current without scrolling, or none
@@ -25,6 +26,7 @@
  *                  { type: 'vound:caretBlock', ids: string[], leftWith? }      the caret entered a marked block, or left
  *                                                                              one (ids [], leftWith 'Tab' | 'other')
  *                  { type: 'vound:fieldValueResult', requestId, ok, reason? }  the answer to vound:setFieldValue
+ *                  { type: 'vound:fillWithAi', ids, selected, paragraph }      the reviewer asked AI to fill the caret's place
  *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
  *
  * Both sides check the sender. The editor accepts a message only when event.origin is its own origin
@@ -56,7 +58,7 @@ export type EditScope = 'fields' | 'everything'
 export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBlock'
 export type HostToEditor =
   | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: 'review' }
-  | { type: 'vound:command'; command: 'save' }
+  | { type: 'vound:command'; command: 'save' | 'fillWithAi' }
   | { type: 'vound:markers'; markers: SlotMarker[] }
   | { type: 'vound:scrollTo'; id: string }
   | { type: 'vound:focus'; id: string | null }
@@ -71,6 +73,7 @@ export type EditorToHost =
   | { type: 'vound:fieldAction'; id: string; action: FieldAction }
   | { type: 'vound:blockEdited'; ids: string[] }
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
+  | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal }
   | { type: 'vound:editRefused' }
 export const isEmbedded = (): boolean => window.parent !== window

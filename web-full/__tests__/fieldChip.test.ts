@@ -95,8 +95,8 @@ describe('mountFieldChip', () => {
     expect(rowLabels()).toEqual(['Ort', 'Datum'])
     // a label cut short in a narrow gutter can still be read
     expect([...chip()!.querySelectorAll<HTMLElement>('.vound-chip-label')].map((l) => l.title)).toEqual(['Ort', 'Datum'])
-    expect(buttons().map((b) => b.title)).toEqual(['Wert eintragen', 'Agent fragen', 'KI-Wert wiederherstellen', 'Wert eintragen'])
-    expect(buttons().map((b) => b.text)).toEqual(['✎', '✦', '↺', '✎'])
+    expect(buttons().map((b) => b.title)).toEqual(['Wert eintragen', '', 'KI-Wert wiederherstellen', 'Wert eintragen'])
+    expect(buttons().map((b) => b.text)).toEqual(['✎', '', '↺', '✎'])
   })
 
   it('clicking ✕ posts fieldAction reject with the slot id', () => {

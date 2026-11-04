@@ -20,7 +20,10 @@ import { isEmbedded, type EditorToHost, type SlotMarker } from './embed-protocol
 import { acceptsHostMessage, readHostMessage } from './embedMessages'
 import { embeddedSave } from './embeddedSave'
 import { embedLang } from './embedLocale'
-import { setEditScope } from './editScope'
+import { isLockedToFields, setEditScope } from './editScope'
+import { embedLang } from './embedLocale'
+import { fillWithAiLabel, fillWithAiMessage } from './fillWithAi'
+import { caretIds } from './fieldReporting'
 import { applyFieldValue, placeCaret } from './fieldWrite'
 import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, setMarkers, resetMarkers } from './markersPlugin'
 import { enterReviewMode, leaveReviewMode } from './reviewMode'
@@ -126,6 +129,14 @@ const known: Record<string, unknown> = {
   reviewFitWidth: (canvasWidth: number) => reviewFitWidth(canvasWidth, reviewMode),
   reviewFitZoom: (zoom: number) => reviewFitZoom(zoom, reviewMode),
   menuShows: (key: string) => menuShows(key, embedded, reviewMode),
+  fillWithAiLabel: () => {
+    if (!embedded || !reviewMode || !hostEditor) return null
+    if (isLockedToFields() && caretIds(hostEditor.view).length === 0) return null
+    return fillWithAiLabel(embedLang(location.search, true))
+  },
+  fillWithAi: () => {
+    if (hostEditor) toHost(fillWithAiMessage(hostEditor.view))
+  },
 }
 export function installDesktopShim() {
   const w = window as unknown as Record<string, unknown>
@@ -160,7 +171,9 @@ export function installDesktopShim() {
           break
         }
         case 'vound:command':
-          if (menuHandler) menuHandler(msg.command)
+          if (msg.command === 'fillWithAi') {
+            if (hostEditor) toHost(fillWithAiMessage(hostEditor.view))
+          } else if (menuHandler) menuHandler(msg.command)
           else toHost({ type: 'vound:error', message: 'editor has no command handler yet' })
           break
         case 'vound:markers':

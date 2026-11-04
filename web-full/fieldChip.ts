@@ -14,6 +14,8 @@
 // the buttons hides the chip (the host's bar offers the current field's buttons then); the hover outline
 // stays. The outline is a decoration (markersPlugin.ts, setHot): a class written onto the block's DOM
 // would read as a DOM change to ProseMirror.
+import { embedLang } from './embedLocale'
+import { fillWithAiLabel } from './fillWithAi'
 import type { EditorView } from '@tiptap/pm/view'
 import type { EditorToHost, FieldAction, MarkerTone, SlotMarker } from './embed-protocol'
 import { MARKER_CLASS } from './markers'
@@ -72,6 +74,11 @@ function inColumns(view: EditorView, block: Element) {
 const narrowestChip = (fields: SlotMarker[]) => Math.max(...fields.map((marker) => chipRowWidth(marker.actions.length)))
 
 /** the document position the block's marker decoration starts at */
+const SPARKLES_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>' +
+  '<path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></svg>'
+
 function blockStart(view: EditorView, block: Element) {
   const decorations = markersKey.getState(view.state)?.set.find() ?? []
   return decorations.find((decoration) => view.nodeDOM(decoration.from) === block)?.from ?? null
@@ -81,9 +88,16 @@ function chipButton(marker: SlotMarker, action: FieldAction) {
   const button = document.createElement('button')
   button.type = 'button'
   button.className = `vound-chip-btn vound-chip-${action}`
-  button.textContent = BUTTONS[action].icon
-  button.title = BUTTONS[action].title
-  button.setAttribute('aria-label', BUTTONS[action].title)
+  if (action === 'ask') {
+    const label = fillWithAiLabel(embedLang(location.search, true))
+    button.innerHTML = SPARKLES_SVG
+    button.dataset.label = label
+    button.setAttribute('aria-label', label)
+  } else {
+    button.textContent = BUTTONS[action].icon
+    button.title = BUTTONS[action].title
+    button.setAttribute('aria-label', BUTTONS[action].title)
+  }
   button.dataset.id = marker.id
   button.dataset.action = action
   return button

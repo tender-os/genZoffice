@@ -61,7 +61,9 @@ export function readHostMessage(data: unknown): HostToEditor | null {
     const open = { type: 'vound:open', name: data.name, bytes: data.bytes } as const
     return data.mode === 'review' ? { ...open, mode: 'review' } : open
   }
-  if (data.type === 'vound:command' && data.command === 'save') return { type: 'vound:command', command: 'save' }
+  if (data.type === 'vound:command' && (data.command === 'save' || data.command === 'fillWithAi')) {
+    return { type: 'vound:command', command: data.command }
+  }
   if (data.type === 'vound:markers') {
     const markers = readMarkers(data.markers)
     return markers ? { type: 'vound:markers', markers } : null

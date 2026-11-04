@@ -148,7 +148,11 @@ const insertColumn = (key: string, command: string) => [
   `['${key}', ${command}],`,
   `...(${shows(key)} ? [['${key}', ${command}]] : []),`,
 ]
+// Fill with AI opens the context menu in review mode; the shim names it, or says it does not apply here.
+const fillWithAiEntry = `{window.desktop.fillWithAiLabel?.() && (<>{item(window.desktop.fillWithAiLabel(), { ai: true, onClick: run(() => window.desktop.fillWithAi()) })}<div className="ctx-sep" /></>)}`
+
 const insertEntryEdits = [
+  [`{item(t('appCut'), {`, `${fillWithAiEntry}\n      {item(t('appCut'), {`],
   insertColumn('ribbonInsertLeft', 'addColumnBefore'),
   insertColumn('ribbonInsertRight', 'addColumnAfter'),
   [`onClick={run(() => onTableDialog('insertCells'))}`, `style={${shows('ribbonInsertCells')} ? undefined : { display: 'none' }} onClick={run(() => onTableDialog('insertCells'))}`],

@@ -84,7 +84,7 @@ const idsAround = (view: EditorView, element: Element) =>
   slotIdsOf(markerDecorationsOf(view.state).filter((decoration) => view.nodeDOM(decoration.from)?.contains(element)))
 
 /** the slot ids of the marked blocks the caret is in (a marked paragraph inside a marked cell: both) */
-function caretIds(view: EditorView) {
+export function caretIds(view: EditorView) {
   const field = editedField(view)
   if (field) return idsAround(view, field)
   const { from } = view.state.selection

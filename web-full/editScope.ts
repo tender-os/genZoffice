@@ -18,6 +18,8 @@ export const setEditScope = (next: EditScope) => {
   document.documentElement.classList.toggle('vound-fields-only', next === 'fields')
 }
 
+export const isLockedToFields = () => scope === 'fields'
+
 const fieldBlocks = (state: EditorState) =>
   markersKey.getState(state)?.set.find().filter((decoration) => decoration.spec.isField) ?? []
 
