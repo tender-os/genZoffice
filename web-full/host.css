@@ -105,6 +105,7 @@ html.vound-review .vound-slot {
   border-radius: 4px;
   background: var(--vs-bar-image) left top / 2px 100% no-repeat, var(--vs-tint);
   box-shadow: var(--vs-edge);
+  transition: box-shadow .2s ease;
 }
 html.vound-review .vound-slot-gap,
 html.vound-review .vound-slot-conditional,
@@ -193,5 +194,5 @@ html.vound-review .vound-slot-hot:not(.vound-slot-current) { box-shadow: var(--v
 .vound-chip-ask { color: var(--vound-proposed-bar); }
 .vound-chip-ask:hover { background: var(--vound-proposed-bar); color: var(--vound-chip-on-fill); }
 .vound-chip-restore:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
-@media (prefers-reduced-motion: reduce) { .vound-chip-btn { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .vound-chip-btn, html.vound-review .vound-slot { transition: none; } }
 @media print { .vound-chip-layer { display: none !important; } }

@@ -9,6 +9,7 @@ import { Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 import type { BlockRef, FieldValueRefusal } from './embed-protocol'
 import { locateBlock } from './markers'
+import { glideIntoView } from './markersPlugin'
 
 /** transaction meta on every host write: not a user edit */
 export const HOST_WRITE_META = 'voundHostWrite'
@@ -197,10 +198,13 @@ function caretInParagraph(view: EditorView, unit: TextUnit) {
  *  typing replaces it. False when the block is not found or has no text to put a caret in. */
 export function placeCaret(view: EditorView, block: BlockRef): boolean {
   const located = locateBlock(view.state.doc, block)
-  const last = located ? unitsOf(located.node, located.pos).at(-1) : undefined
+  if (!located) return false
+  const last = unitsOf(located.node, located.pos).at(-1)
   if (!last || last.kind === 'fixed') return false
   if (last.kind === 'field') return enterFieldEditing(view, last)
-  view.dispatch(view.state.tr.setSelection(caretInParagraph(view, last)).scrollIntoView())
+  view.dispatch(view.state.tr.setSelection(caretInParagraph(view, last)))
+  const dom = view.nodeDOM(located.pos)
+  if (dom instanceof HTMLElement) glideIntoView(dom, 'nearest')
   view.focus()
   return true
 }
