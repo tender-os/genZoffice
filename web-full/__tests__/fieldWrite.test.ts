@@ -133,14 +133,25 @@ describe('applyFieldValue', () => {
     const v = viewOf(fieldPara(0, 'typed since'), para(2, 'x'), para(3))
     const stale = { block: paragraphBlock(0), previous: 'Muster GmbH', value: 'Neu' }
     expect(applyFieldValue(v, stale)).toEqual({ ok: false, reason: 'absent' })
-    expect(applyFieldValue(v, { ...stale, whenAbsent: 'replaceField' })).toEqual({ ok: true })
+    expect(applyFieldValue(v, { ...stale, replaces: 'wholeField' })).toEqual({ ok: true })
     expect(v.state.doc.child(0).attrs.fieldDisplay.left).toBe('Neu')
     // a form field that fills its paragraph loads as the paragraph's text
-    expect(applyFieldValue(v, { block: paragraphBlock(2), previous: 'gone', value: 'Neu', whenAbsent: 'replaceField' })).toEqual({ ok: true })
+    expect(applyFieldValue(v, { block: paragraphBlock(2), previous: 'gone', value: 'Neu', replaces: 'wholeField' })).toEqual({ ok: true })
     expect(texts(v)).toContain('Neu')
     // and saved empty, as an empty paragraph
-    expect(applyFieldValue(v, { block: paragraphBlock(3), previous: '\u2002', value: 'Y', whenAbsent: 'replaceField' })).toEqual({ ok: true })
+    expect(applyFieldValue(v, { block: paragraphBlock(3), previous: '\u2002', value: 'Y', replaces: 'wholeField' })).toEqual({ ok: true })
     expect(v.state.doc.lastChild?.textContent).toBe('Y')
+  })
+
+  it('takes the whole field when asked to, also when previous still matches part of it', () => {
+    const v = viewOf(para(0, 'Muster GmbHQ'), para(1, 'x'))
+    const block = paragraphBlock(0)
+    expect(applyFieldValue(v, { block, previous: 'Muster GmbH', value: 'Neu', replaces: 'wholeField' })).toEqual({ ok: true })
+    expect(v.state.doc.child(0).textContent).toBe('Neu')
+    // a value equal to previous still clears what was typed
+    const typed = viewOf(para(0, 'Muster GmbHQ'), para(1, 'x'))
+    applyFieldValue(typed, { block, previous: 'Muster GmbH', value: 'Muster GmbH', replaces: 'wholeField' })
+    expect(typed.state.doc.child(0).textContent).toBe('Muster GmbH')
   })
 
   it('refuses an index naming two nodes', () => {

@@ -17,9 +17,9 @@ export const HOST_WRITE_META = 'voundHostWrite'
 export const FIELD_TEXT_SELECTOR = '.doc-field-text'
 
 export type FieldValueResult = { ok: true } | { ok: false; reason: FieldValueRefusal }
-// whenAbsent: the block holds nothing but this write's form field, so `previous` being out of date (the
-// reviewer typed since the host last read it) replaces the field instead of refusing
-export type FieldValueWrite = { block: BlockRef; previous: string; value: string; whenAbsent?: 'replaceField' }
+// replaces: the block holds nothing but this write's form field, so the write takes the whole field, whatever
+// the reviewer typed since the host last read `previous`
+export type FieldValueWrite = { block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
 
 /** One piece of a block's visible text: a paragraph's text, a field passthrough's result text
  *  (fieldDisplay.left, which the editor saves into the field result), or field text this rule leaves
@@ -156,12 +156,11 @@ export function applyFieldValue(view: EditorView, write: FieldValueWrite): Field
   const block = locateBlock(view.state.doc, write.block)
   if (!block) return { ok: false, reason: 'noBlock' }
   const units = unitsOf(block.node, block.pos)
-  const matched = plan(units, write.previous)
-  const stale = 'refused' in matched && matched.refused === 'absent' && write.whenAbsent === 'replaceField'
-  const planned = stale ? wholeField(units) : matched
+  const whole = write.replaces === 'wholeField' ? wholeField(units) : null
+  const planned = whole && !('refused' in whole) ? whole : plan(units, write.previous)
   if ('refused' in planned) return { ok: false, reason: planned.refused }
   if (planned.unit.kind === 'fixed') return { ok: false, reason: 'notEditable' }
-  if (write.previous === write.value) return { ok: true }
+  if (planned.unit.text.slice(planned.from, planned.to) === write.value) return { ok: true }
   const tr = replaceInUnit(view.state.tr, planned.unit, planned.from, planned.to, write.value)
   view.dispatch(tr.setMeta(HOST_WRITE_META, true))
   return { ok: true }

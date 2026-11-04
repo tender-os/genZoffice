@@ -41,9 +41,22 @@ describe('patchFieldParagraphText (Vound fork)', () => {
     expect(out).not.toBeNull()
     expect(out).toContain('showingPlcHdr')
   })
-  test('falls back when a tab was added or removed, or when there is no field', () => {
-    expect(patchFieldParagraphText(placeholder, [{ text: 'Vergabe-Nr:2026' }])).toBeNull()
+  test('falls back when a tab was added around a plain field, or when there is no field', () => {
+    const pageField =
+      '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
+    expect(patchFieldParagraphText(pageField, [{ text: '\t1' }])).toBeNull()
     expect(patchFieldParagraphText('<w:p><w:r><w:t>plain</w:t></w:r></w:p>', [{ text: 'x' }])).toBeNull()
+  })
+  test('a form field keeps its paragraph when a line break or tab is added: each becomes a space', () => {
+    const out = patchFieldParagraphText(formtext, [{ text: 'Zeile 1\nZeile\t2' }])
+    expect(out).toContain('<w:ffData>')
+    expect(out).toContain('<w:t xml:space="preserve">Zeile 1 Zeile 2</w:t>')
+  })
+  test('a control keeps its paragraph when its tab is removed: the tab stays', () => {
+    const out = patchFieldParagraphText(placeholder, [{ text: 'Vergabe-Nr:2026' }])
+    expect(out).toContain('<w:sdt>')
+    expect(out).toContain('<w:tab/>')
   })
   test('falls back for a checkbox glyph that has no w:t to map onto', () => {
     const checkbox =
