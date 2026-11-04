@@ -203,6 +203,15 @@ describe('markersPlugin', () => {
     expect(decorated(state)).toEqual([])
   })
 
+  it('a re-parse that renumbered nothing keeps the markers until the host sends its own', () => {
+    let state = replaceDocument(stateWith(para(null)), paragraphs(0, 5))
+    state = withMeta(state, { markers: [marker('s1', 1), marker('s3', 3)] })
+    state = withMeta(state, saveMeta('review'))
+    state = replaceDocument(state, paragraphs(0, 5))
+    expect(decorated(state).map((d) => d.id)).toEqual(['s1', 's3'])
+    expect(markersKey.getState(state)!.afterSave).toBe('idle')
+  })
+
   it('after a review-mode save that the app does not re-parse, a later whole-document replace clears the markers', () => {
     let state = replaceDocument(stateWith(para(null)), paragraphs(0, 5))
     state = withMeta(state, { markers: [marker('s1', 1)] })

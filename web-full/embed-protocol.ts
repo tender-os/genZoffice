@@ -8,7 +8,7 @@
  *                  { type: 'vound:markers', markers: SlotMarker[] }            replace the slot markers (all of them)
  *                  { type: 'vound:scrollTo', id: string }                      scroll a marker into view and make it current
  *                  { type: 'vound:focus', id: string | null }                  make a marker current without scrolling, or none
- *                  { type: 'vound:setFieldValue', requestId, block, previous, value }
+ *                  { type: 'vound:setFieldValue', requestId, block, previous, value, whenAbsent? }
  *                                                                              replace a field's value in one block
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
  *                  { type: 'vound:editScope', scope: EditScope }               review mode: what the reviewer may type in (editScope.ts)
@@ -60,7 +60,7 @@ export type HostToEditor =
   | { type: 'vound:markers'; markers: SlotMarker[] }
   | { type: 'vound:scrollTo'; id: string }
   | { type: 'vound:focus'; id: string | null }
-  | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string }
+  | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string; whenAbsent?: 'replaceField' }
   | { type: 'vound:placeCaret'; block: BlockRef }
   | { type: 'vound:editScope'; scope: EditScope }
 export type EditorToHost =

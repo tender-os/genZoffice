@@ -120,8 +120,24 @@ describe('applyFieldValue', () => {
   it('refuses an empty previous in a non-empty paragraph', () => {
     const v = viewOf(para(0, 'Name:'), para(1))
     expect(write(v, paragraphBlock(0), '', 'X')).toEqual({ ok: false, reason: 'absent' })
-    // an empty paragraph is not an empty cell: the rule inserts only into cells
-    expect(write(v, paragraphBlock(1), '', 'X')).toEqual({ ok: false, reason: 'absent' })
+    expect(v.state.doc.child(0).textContent).toBe('Name:')
+  })
+
+  it('writes into an empty paragraph, so emptying it can be undone', () => {
+    const v = viewOf(para(0, 'Name:'), para(1))
+    expect(write(v, paragraphBlock(1), '', 'X')).toEqual({ ok: true })
+    expect(v.state.doc.child(1).textContent).toBe('X')
+  })
+
+  it("replaces a block's one form field when asked to, however out of date previous is", () => {
+    const v = viewOf(fieldPara(0, 'typed since'), fieldPara(1, 'a'), para(2, 'x'), fieldPara(2, 'b'), para(3))
+    const stale = { block: paragraphBlock(0), previous: 'Muster GmbH', value: 'Neu' }
+    expect(applyFieldValue(v, stale)).toEqual({ ok: false, reason: 'absent' })
+    expect(applyFieldValue(v, { ...stale, whenAbsent: 'replaceField' })).toEqual({ ok: true })
+    expect(v.state.doc.child(0).attrs.fieldDisplay.left).toBe('Neu')
+    // a form field saved empty loads as an empty paragraph
+    expect(applyFieldValue(v, { block: paragraphBlock(3), previous: '\u2002', value: 'Y', whenAbsent: 'replaceField' })).toEqual({ ok: true })
+    expect(v.state.doc.lastChild?.textContent).toBe('Y')
   })
 
   it('refuses an index naming two nodes', () => {

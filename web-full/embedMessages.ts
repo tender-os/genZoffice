@@ -72,7 +72,8 @@ export function readHostMessage(data: unknown): HostToEditor | null {
     const { requestId, previous, value } = data
     const block = readBlock(data.block)
     if (!block || typeof requestId !== 'string' || typeof previous !== 'string' || typeof value !== 'string') return null
-    return { type: 'vound:setFieldValue', requestId, block, previous, value }
+    const write = { type: 'vound:setFieldValue', requestId, block, previous, value } as const
+    return data.whenAbsent === 'replaceField' ? { ...write, whenAbsent: 'replaceField' } : write
   }
   if (data.type === 'vound:placeCaret') {
     const block = readBlock(data.block)
