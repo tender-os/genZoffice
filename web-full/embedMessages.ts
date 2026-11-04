@@ -36,7 +36,8 @@ function readMarker(value: unknown): SlotMarker | null {
   if (label !== undefined && typeof label !== 'string') return null
   const actions = readActions(value.actions)
   if (!actions) return null
-  return { id, paragraph, scope, tone: knownTone, label: label ?? id, actions }
+  const marker = { id, paragraph, scope, tone: knownTone, label: label ?? id, actions }
+  return value.entry === 'toggle' ? { ...marker, entry: 'toggle' } : marker
 }
 
 /** The block a field write or caret placement names, with exactly the known fields. */

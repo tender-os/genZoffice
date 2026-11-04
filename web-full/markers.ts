@@ -10,6 +10,7 @@ export const CURRENT_CLASS = 'vound-slot-current'
 export const HOT_CLASS = 'vound-slot-hot'
 /** a block the reviewer can still type in while the document is locked to the fields (host.css) */
 export const FIELD_CLASS = 'vound-slot-field'
+const TOGGLE_CLASS = 'vound-slot-toggle'
 
 const cellTypes = ['docTableCell', 'docTableHeader']
 
@@ -74,11 +75,13 @@ function nodeDecoration(target: Located, markers: SlotMarker[], currentId: strin
   const current = currentId !== null && slotIds.includes(currentId) ? ` ${CURRENT_CLASS}` : ''
   const isField = markers.some((marker) => marker.actions.length > 0)
   const field = isField ? ` ${FIELD_CLASS}` : ''
+  const togglesOnly = isField && markers.every((marker) => marker.entry === 'toggle')
+  const toggle = togglesOnly ? ` ${TOGGLE_CLASS}` : ''
   return Decoration.node(
     target.pos,
     target.pos + target.node.nodeSize,
-    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${current}`, 'data-vound-slot': slotIds.join(' ') },
-    { slotIds, isField },
+    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${toggle}${current}`, 'data-vound-slot': slotIds.join(' ') },
+    togglesOnly ? { slotIds, isField, togglesOnly } : { slotIds, isField },
   )
 }
 

@@ -36,6 +36,24 @@ const textOf = (v: EditorView, index: number) => v.state.doc.child(index).textCo
 const typeAt = (v: EditorView, index: number) => v.dispatch(v.state.tr.insertText('x', start(v, index) + 2))
 
 describe('editScopePlugin', () => {
+  it('keeps the words on a box line, and lets the box tick', () => {
+    const { v, post } = lockedView([{ ...field(1), entry: 'toggle' }])
+    v.dispatch(v.state.tr.insertText('☐', start(v, 1) + 1).setMeta(HOST_WRITE_META, true))
+    const before = v.state.doc
+    typeAt(v, 1)
+    expect(v.state.doc.eq(before)).toBe(true)
+    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused' })
+
+    v.dispatch(v.state.tr.insertText('☒', start(v, 1) + 1, start(v, 1) + 2))
+    expect(textOf(v, 1)).toContain('☒')
+  })
+
+  it('leaves a line with a box and a text field open to typing', () => {
+    const { v } = lockedView([{ ...field(1), entry: 'toggle' }, { ...field(1), id: 'text' }])
+    typeAt(v, 1)
+    expect(textOf(v, 1)).toContain('x')
+  })
+
   it('takes an edit inside a field', () => {
     const { v, post } = lockedView([field(1)])
     typeAt(v, 1)
