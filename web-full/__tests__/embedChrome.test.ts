@@ -11,7 +11,7 @@ const hostCss = readFileSync(resolve(__dirname, '../host.css'), 'utf8')
 afterEach(() => {
   document.head.innerHTML = ''
   document.body.innerHTML = ''
-  document.documentElement.classList.remove('vound-embedded')
+  document.documentElement.classList.remove('vound-embedded', 'vound-review', 'vound-fields-only')
 })
 
 function element(className: string) {
@@ -25,6 +25,20 @@ function element(className: string) {
 }
 
 describe('editor chrome in the embed', () => {
+  it('hides what reshapes the document only while locked to a document with fields', () => {
+    const handle = element('doc-table-resize')
+    const field = document.createElement('span')
+    field.className = 'vound-slot-field'
+    document.body.append(field)
+    expect(getComputedStyle(handle).display).not.toBe('none')
+
+    document.documentElement.classList.add('vound-review', 'vound-fields-only')
+    expect(getComputedStyle(handle).display).toBe('none')
+
+    field.remove()
+    expect(getComputedStyle(handle).display).not.toBe('none')
+  })
+
   it('hides the success toast when embedded and nowhere else', () => {
     const saved = element('app-toast success show')
     expect(getComputedStyle(saved).display).not.toBe('none')
