@@ -36,6 +36,7 @@ html.vound-embedded .app-toast.success { display: none !important; }
 .vound-slot-refused { background: #FBCFE047; outline-color: #FBCFE0E6; }
 .vound-slot-accepted { background: #1BF5A347; outline-color: #1BF5A3E6; }
 .vound-slot-rejected { background: #F53C1B47; outline-color: #F53C1BE6; }
+.vound-slot-otherParty { background: #F5490047; outline-color: #F54900E6; }
 .vound-slot-current { outline-width: 3px; outline-offset: 2px; box-shadow: 0 0 0 4px #0B5FFF40; }
 /* Review mode (reviewMode.ts sets html.vound-review on a vound:open with mode 'review'): the host's floating
    bar takes the place of the ribbon. No ribbon, no ribbon tab row, no status bar, no paste-options chip (its
@@ -65,7 +66,8 @@ html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .vound-s
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .ProseMirror-gapcursor { display: none; }
 /* Review-mode field look (spec 4.2): a soft tint and a 2px leading state bar, no outline. Proposed is violet,
    a field that still needs a value (gap, conditional, refused) amber, accepted cyan with a check after its
-   text, rejected white with a rose bar and edge. The bar is a background layer and the ring a box shadow,
+   text, rejected white with a rose bar and edge, a field we think is not the reviewer's to fill (otherParty) red.
+   The bar is a background layer and the ring a box shadow,
    so no rule changes the block's box or positions it. Colours are defined here once (theming rule: raw
    values only in custom-property definitions); the --vs-* properties carry the tone of one block. */
 html.vound-review {
@@ -78,6 +80,10 @@ html.vound-review {
   --vound-missing-halo: hsla(38 90% 50% / .14);
   --vound-missing-hover: hsla(38 90% 50% / .45);
   --vound-missing-ink: hsl(30 80% 32%);
+  --vound-other-party-tint: hsl(18 100% 95%);
+  --vound-other-party-bar: hsl(18 100% 48%);
+  --vound-other-party-halo: hsla(18 100% 48% / .14);
+  --vound-other-party-hover: hsla(18 100% 48% / .45);
   --vound-accepted-tint: hsl(195 90% 96%);
   --vound-accepted-bar: hsl(195 85% 42%);
   --vound-rejected-tint: #fff;
@@ -117,6 +123,13 @@ html.vound-review .vound-slot-refused {
   --vs-hover: var(--vound-missing-hover);
 }
 html.vound-review .vound-slot-conditional { --vs-bar-image: repeating-linear-gradient(to bottom, var(--vs-bar) 0 4px, transparent 4px 7px); }
+html.vound-review .vound-slot-otherParty {
+  --vs-tint: var(--vound-other-party-tint);
+  --vs-bar: var(--vound-other-party-bar);
+  --vs-ring: var(--vound-other-party-bar);
+  --vs-halo: var(--vound-other-party-halo);
+  --vs-hover: var(--vound-other-party-hover);
+}
 html.vound-review .vound-slot-accepted {
   --vs-tint: var(--vound-accepted-tint);
   --vs-bar: var(--vound-accepted-bar);
