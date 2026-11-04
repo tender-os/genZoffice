@@ -130,12 +130,15 @@ describe('applyFieldValue', () => {
   })
 
   it("replaces a block's one form field when asked to, however out of date previous is", () => {
-    const v = viewOf(fieldPara(0, 'typed since'), fieldPara(1, 'a'), para(2, 'x'), fieldPara(2, 'b'), para(3))
+    const v = viewOf(fieldPara(0, 'typed since'), para(2, 'x'), para(3))
     const stale = { block: paragraphBlock(0), previous: 'Muster GmbH', value: 'Neu' }
     expect(applyFieldValue(v, stale)).toEqual({ ok: false, reason: 'absent' })
     expect(applyFieldValue(v, { ...stale, whenAbsent: 'replaceField' })).toEqual({ ok: true })
     expect(v.state.doc.child(0).attrs.fieldDisplay.left).toBe('Neu')
-    // a form field saved empty loads as an empty paragraph
+    // a form field that fills its paragraph loads as the paragraph's text
+    expect(applyFieldValue(v, { block: paragraphBlock(2), previous: 'gone', value: 'Neu', whenAbsent: 'replaceField' })).toEqual({ ok: true })
+    expect(texts(v)).toContain('Neu')
+    // and saved empty, as an empty paragraph
     expect(applyFieldValue(v, { block: paragraphBlock(3), previous: '\u2002', value: 'Y', whenAbsent: 'replaceField' })).toEqual({ ok: true })
     expect(v.state.doc.lastChild?.textContent).toBe('Y')
   })

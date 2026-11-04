@@ -17,8 +17,8 @@ export const HOST_WRITE_META = 'voundHostWrite'
 export const FIELD_TEXT_SELECTOR = '.doc-field-text'
 
 export type FieldValueResult = { ok: true } | { ok: false; reason: FieldValueRefusal }
-// whenAbsent: the block's one form field belongs to this write, so `previous` being out of date (the reviewer
-// typed since the host last read it) replaces the field instead of refusing
+// whenAbsent: the block holds nothing but this write's form field, so `previous` being out of date (the
+// reviewer typed since the host last read it) replaces the field instead of refusing
 export type FieldValueWrite = { block: BlockRef; previous: string; value: string; whenAbsent?: 'replaceField' }
 
 /** One piece of a block's visible text: a paragraph's text, a field passthrough's result text
@@ -143,12 +143,12 @@ function plan(units: TextUnit[], previous: string): Planned {
   return trimmedFieldMatch(units, previous.trim())
 }
 
-/** the whole of a block's one form field; a form field saved empty loads as an empty paragraph */
+/** the whole of a block's one form field: a field node, or the paragraph a field that fills it loads as */
 function wholeField(units: TextUnit[]): Planned {
   const fields = units.filter((unit) => unit.kind !== 'text')
   if (fields.length === 1) return { unit: fields[0], from: 0, to: fields[0].text.length }
-  if (fields.length === 0 && units[0] && units.every((unit) => unit.text === '')) return { unit: units[0], from: 0, to: 0 }
-  return { refused: 'absent' }
+  if (fields.length > 1 || units.length !== 1) return { refused: 'absent' }
+  return { unit: units[0], from: 0, to: units[0].text.length }
 }
 
 /** vound:setFieldValue: write the value into the block, or refuse and leave the document as it is */
