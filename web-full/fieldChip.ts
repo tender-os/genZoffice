@@ -30,8 +30,8 @@ const BUTTONS: Record<FieldAction, { icon: string; title: string }> = {
   restore: { icon: '↺', title: 'KI-Wert wiederherstellen' },
 }
 
-/** tones of a field that still needs a value: their tether is amber */
-const MISSING_TONES: MarkerTone[] = ['gap', 'conditional', 'refused']
+/** tones of a field with no value yet: their tether is amber */
+const MISSING_TONES: MarkerTone[] = ['gap', 'conditional', 'refused', 'otherParty']
 
 /** the page's scroll container (App.tsx's main.editor-scroll); the editor root's parent without one */
 const scrollContainer = (view: EditorView) => view.dom.closest('.editor-scroll') ?? view.dom.parentElement

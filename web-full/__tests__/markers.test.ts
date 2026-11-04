@@ -65,8 +65,8 @@ describe('markerDecorations', () => {
     expect(attrsOf(markerDecorations(sample, shared, 'datum').decorations[0]).class).toBe('vound-slot vound-slot-gap vound-slot-current')
   })
 
-  it('ranks the tones rejected, gap, refused, conditional, proposed, accepted', () => {
-    const order: SlotMarker['tone'][] = ['rejected', 'gap', 'refused', 'conditional', 'proposed', 'accepted']
+  it('ranks the tones rejected, gap, refused, conditional, proposed, accepted, otherParty', () => {
+    const order: SlotMarker['tone'][] = ['rejected', 'gap', 'refused', 'conditional', 'proposed', 'accepted', 'otherParty']
     const shownTone = (tones: SlotMarker['tone'][]) =>
       attrsOf(markerDecorations(sample, tones.map((tone, i) => marker(`s${i}`, 0, 'paragraph', tone)), null).decorations[0]).class
     order.forEach((tone, i) => {

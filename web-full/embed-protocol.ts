@@ -32,7 +32,7 @@
  * iframe's contentWindow on its own origin. Both post with targetOrigin = window.location.origin, so
  * host and editor have to be served from the same origin. Bytes travel as transferable ArrayBuffers.
  */
-export type MarkerTone = 'proposed' | 'gap' | 'conditional' | 'refused' | 'accepted' | 'rejected'
+export type MarkerTone = 'proposed' | 'gap' | 'conditional' | 'refused' | 'accepted' | 'rejected' | 'otherParty'
 /** What a field's chip offers; the host sends the set per field. */
 export type FieldAction = 'accept' | 'reject' | 'fill' | 'ask' | 'restore'
 /** A highlight on one paragraph of the opened document, named by its source paragraph index: the

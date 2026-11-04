@@ -61,6 +61,11 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ type: 'vound:markers', markers: [bare] })).toEqual({ type: 'vound:markers', markers: [{ ...bare, label: 'slot:s2', actions: [] }] })
   })
 
+  it('reads an otherParty marker', () => {
+    const marker = { id: 'slot:s1', paragraph: 3, scope: 'paragraph', tone: 'otherParty', label: 'Ort', actions: ['ask'] }
+    expect(readHostMessage({ type: 'vound:markers', markers: [marker] })).toEqual({ type: 'vound:markers', markers: [marker] })
+  })
+
   it('rejects a marker with an unknown action', () => {
     const marker = { id: 'slot:s1', paragraph: 3, scope: 'cell', tone: 'proposed', label: 'Ort', actions: ['accept'] }
     expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, actions: ['accept', 'delete'] }] })).toBeNull()

@@ -14,7 +14,7 @@ export const FIELD_CLASS = 'vound-slot-field'
 const cellTypes = ['docTableCell', 'docTableHeader']
 
 /** the tone a node shows when several slots share it: the one that needs attention most comes first */
-const tonePriority: MarkerTone[] = ['rejected', 'gap', 'refused', 'conditional', 'proposed', 'accepted']
+const tonePriority: MarkerTone[] = ['rejected', 'gap', 'refused', 'conditional', 'proposed', 'accepted', 'otherParty']
 const attentionRank = (marker: SlotMarker) => tonePriority.indexOf(marker.tone)
 
 type Located = { pos: number; node: PmNode }
