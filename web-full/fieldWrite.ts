@@ -129,9 +129,9 @@ function trimmedFieldMatch(units: TextUnit[], needle: string): Planned {
 }
 
 /** where the rule puts the value, or why it refuses */
-function plan(units: TextUnit[], isCell: boolean, previous: string): Planned {
-  if (previous === '' && isCell && units.every((unit) => unit.text === '')) {
-    // an empty cell takes the value in its first paragraph
+function plan(units: TextUnit[], previous: string): Planned {
+  if (previous === '' && units.every((unit) => unit.text === '')) {
+    // an empty block takes the value, a cell in its first paragraph
     return units[0] ? { unit: units[0], from: 0, to: 0 } : { refused: 'notEditable' }
   }
   const joined = units.map((unit) => unit.text).join('\n')
@@ -145,7 +145,7 @@ function plan(units: TextUnit[], isCell: boolean, previous: string): Planned {
 export function applyFieldValue(view: EditorView, write: FieldValueWrite): FieldValueResult {
   const block = locateBlock(view.state.doc, write.block)
   if (!block) return { ok: false, reason: 'noBlock' }
-  const planned = plan(unitsOf(block.node, block.pos), write.block.scope === 'cell', write.previous)
+  const planned = plan(unitsOf(block.node, block.pos), write.previous)
   if ('refused' in planned) return { ok: false, reason: planned.refused }
   if (planned.unit.kind === 'fixed') return { ok: false, reason: 'notEditable' }
   if (write.previous === write.value) return { ok: true }

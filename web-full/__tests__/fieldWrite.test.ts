@@ -120,8 +120,13 @@ describe('applyFieldValue', () => {
   it('refuses an empty previous in a non-empty paragraph', () => {
     const v = viewOf(para(0, 'Name:'), para(1))
     expect(write(v, paragraphBlock(0), '', 'X')).toEqual({ ok: false, reason: 'absent' })
-    // an empty paragraph is not an empty cell: the rule inserts only into cells
-    expect(write(v, paragraphBlock(1), '', 'X')).toEqual({ ok: false, reason: 'absent' })
+    expect(v.state.doc.child(0).textContent).toBe('Name:')
+  })
+
+  it('writes into an empty paragraph, so emptying it can be undone', () => {
+    const v = viewOf(para(0, 'Name:'), para(1))
+    expect(write(v, paragraphBlock(1), '', 'X')).toEqual({ ok: true })
+    expect(v.state.doc.child(1).textContent).toBe('X')
   })
 
   it('refuses an index naming two nodes', () => {
