@@ -57,6 +57,7 @@ import { hfSaveOptions } from './hf-sections'
 import { fetchDocBytes } from './doc-bytes'
 import { parseDocxOffThread } from './parse-off-thread'
 import { PHASED_APPEND } from './editor/streaming-tail-guard'
+import { rewriteKeepingHistory } from './editor/rewrite-keeping-history'
 import { docTextLength, docWeight, openTierFor } from './large-document'
 import { documentToMarkdown } from './export-markdown'
 import { blocksHaveRevisions } from './editor/revision-view'
@@ -1181,8 +1182,17 @@ async function saveOnce(
     applyDocLayoutSettings(editor, reparsed)
     const rebasedPm = blocksToPmDoc(reparsed.blocks, readSections(reparsed), pmDocOptions(reparsed))
     let unchanged = false
+    const rewrite = editor.state.tr
     try {
-      unchanged = editor.state.doc.eq(editor.schema.nodeFromJSON(rebasedPm))
+      const rebasedDoc = editor.schema.nodeFromJSON(rebasedPm)
+      unchanged = editor.state.doc.eq(rebasedDoc)
+      // Vound fork: the same shape is rewritten node by node, so undo history, caret and scroll survive too.
+      if (!unchanged && rewriteKeepingHistory(rewrite, rebasedDoc)) {
+        unchanged = true
+        const caretMarks = caretMarksSnapshot(editor)
+        if (rewrite.docChanged) editor.view.dispatch(rewrite.setMeta('addToHistory', false))
+        restoreMarksAfterDocRewrite(editor, caretMarks)
+      }
     } catch {
       /* unrepresentable → rewrite */
     }
