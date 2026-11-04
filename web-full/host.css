@@ -208,6 +208,33 @@ html.vound-review .vound-slot-hot:not(.vound-slot-current) { box-shadow: var(--v
 .vound-chip-fill { color: var(--vound-missing-ink); }
 .vound-chip-fill:hover { background: var(--vound-missing-bar); color: var(--vound-chip-on-fill); }
 .vound-chip-ask { color: var(--vound-proposed-bar); }
+/* Fill with AI: on hover the button grows leftwards into a pill naming itself. The label floats over the buttons
+   beside it, so nothing moves and the pointer stays on the button. */
+.vound-chip-ask { position: relative; }
+.vound-chip-ask svg { position: relative; z-index: 1; display: block; width: 14px; height: 14px; }
+.vound-chip-ask::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 24px;
+  padding: 0 28px 0 11px;
+  border-radius: 999px;
+  background: var(--vound-proposed-bar);
+  color: var(--vound-chip-on-fill);
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 24px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  clip-path: inset(0 0 0 calc(100% - 24px) round 999px);
+  transition: clip-path .24s cubic-bezier(.16, 1, .3, 1), opacity .1s ease-out;
+}
+.vound-chip-ask:hover::before,
+.vound-chip-ask:focus-visible::before { opacity: 1; clip-path: inset(0 round 999px); }
+@media (prefers-reduced-motion: reduce) { .vound-chip-ask::before { transition: none; } }
+html.vound-review .ctx-item .copilot-badge-menu { background: var(--vound-proposed-bar); color: var(--vound-chip-on-fill); }
 .vound-chip-ask:hover { background: var(--vound-proposed-bar); color: var(--vound-chip-on-fill); }
 .vound-chip-restore:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
 @media (prefers-reduced-motion: reduce) { .vound-chip-btn, html.vound-review .vound-slot { transition: none; } }
