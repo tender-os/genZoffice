@@ -64,6 +64,9 @@ html.vound-review .vound-blank { letter-spacing: -0.5em; }
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) { cursor: default; caret-color: transparent; }
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .vound-slot-field { cursor: text; caret-color: auto; }
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) .ProseMirror-gapcursor { display: none; }
+/* Locked, nothing that reshapes the document is offered: table, picture and box handles, and the resize cursors. */
+html.vound-review.vound-fields-only:has(.vound-slot-field) :is(.doc-table-handle, .doc-table-resize, .column-resize-handle, .img-resize-handle, .box-resize-handle) { display: none !important; }
+html.vound-review.vound-fields-only:has(.vound-slot-field) :is(.doc-page.resize-cursor, .doc-page.row-resize-cursor, .row-resize-cursor .doc-table td, .row-resize-cursor .doc-table th) { cursor: default; }
 /* Review-mode field look (spec 4.2): a soft tint and a 2px leading state bar, no outline. Proposed is violet,
    a field that still needs a value (gap, conditional, refused) amber, accepted cyan with a check after its
    text, rejected white with a rose bar and edge, a field we think is not the reviewer's to fill (otherParty) red.
