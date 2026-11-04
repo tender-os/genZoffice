@@ -17,6 +17,11 @@ describe('toggleBoxAt', () => {
     expect(textAfter('☐ Neubau', 2)).toBe('☒ Neubau')
   })
 
+  it('reads a click reported just before the line as the box that opens it', () => {
+    expect(textAfter('☒ Neubau', 0)).toBe('☐ Neubau')
+    expect(textAfter('Neubau', 0)).toBeUndefined()
+  })
+
   it('leaves a click anywhere else to the editor', () => {
     expect(textAfter('☐ Neubau', 5)).toBeUndefined()
     expect(textAfter('Neubau', 1)).toBeUndefined()

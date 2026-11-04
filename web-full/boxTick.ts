@@ -9,7 +9,9 @@ const TOGGLED: Record<string, string> = { '☐': '☒', '☒': '☐', '☑': '�
 /** the box character at `pos` or just before it (a click lands on either side of a glyph), if any */
 function boxAt(state: EditorState, pos: number) {
   const { doc } = state
-  for (const from of [pos, pos - 1]) {
+  // a click on a box that opens its line can report the position just before the line
+  const inLine = doc.resolve(pos).nodeAfter?.isTextblock ? pos + 1 : pos
+  for (const from of [inLine, inLine - 1]) {
     if (from < 0 || from + 1 > doc.content.size) continue
     const char = doc.textBetween(from, from + 1, '\u0000', '\u0000')
     if (char in TOGGLED) return { from, char }
