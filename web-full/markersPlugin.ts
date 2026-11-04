@@ -165,6 +165,12 @@ export function resetMarkers(view: EditorView) {
   dispatchMeta(view, { reset: true })
 }
 
+/** scroll to a node, gliding there unless the viewer asked for reduced motion */
+export function glideIntoView(dom: HTMLElement, block: ScrollLogicalPosition) {
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  dom.scrollIntoView({ block, behavior: reduced ? 'auto' : 'smooth' })
+}
+
 /** make the marker current and scroll its node to the middle of the view; false when no decoration carries
  *  the id (a node shared by several slots carries all of them) */
 export function scrollToMarker(view: EditorView, id: string) {
@@ -173,6 +179,6 @@ export function scrollToMarker(view: EditorView, id: string) {
   if (!decoration) return false
   setCurrent(view, id)
   const dom = view.nodeDOM(decoration.from)
-  if (dom instanceof HTMLElement) dom.scrollIntoView({ block: 'center' })
+  if (dom instanceof HTMLElement) glideIntoView(dom, 'center')
   return true
 }

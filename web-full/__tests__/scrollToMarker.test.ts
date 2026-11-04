@@ -25,9 +25,23 @@ describe('scrollToMarker', () => {
     const marked = view.dom.querySelector('[data-vound-slot~="datum"]')
     expect(marked?.getAttribute('data-vound-slot')).toBe('ort datum')
     expect(marked?.className).toContain('vound-slot-current')
-    expect(scrolled).toHaveBeenCalledWith({ block: 'center' })
+    expect(scrolled).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' })
     expect(scrolled.mock.contexts[0]).toBe(marked)
 
     expect(scrollToMarker(view, 'missing')).toBe(false)
+  })
+
+  it('jumps instead of gliding when the viewer asked for reduced motion', () => {
+    const scrolled = vi.fn()
+    Element.prototype.scrollIntoView = scrolled
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    view = new EditorView(document.createElement('div'), {
+      state: EditorState.create({ schema, doc: doc(...paragraphs(0, 2)), plugins: [markersPlugin] }),
+    })
+    setMarkers(view, [marker('ort', 1, 'accepted')])
+
+    scrollToMarker(view, 'ort')
+    expect(scrolled).toHaveBeenCalledWith({ block: 'center', behavior: 'auto' })
+    vi.unstubAllGlobals()
   })
 })

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EditorState, NodeSelection, type Transaction } from '@tiptap/pm/state'
 import { EditorView } from '@tiptap/pm/view'
 import type { Node as PmNode } from '@tiptap/pm/model'
@@ -187,11 +187,15 @@ describe('applyFieldValue', () => {
 })
 
 describe('placeCaret', () => {
+  const scrolled = vi.fn()
+  beforeEach(() => { Element.prototype.scrollIntoView = scrolled })
+
   it("puts the caret at the end of a paragraph and ends in a cell's last paragraph", () => {
     const v = viewOf(para(0, 'Name: Muster'), fieldPara(1, 'Firma'), table(cell(para(2, 'a'), para(3, 'bc'))))
     v.focus = vi.fn()
 
     expect(placeCaret(v, paragraphBlock(0))).toBe(true)
+    expect(scrolled).toHaveBeenCalledWith({ block: 'nearest', behavior: 'smooth' })
     expect(v.state.selection.empty).toBe(true)
     expect(v.state.selection.from).toBe(1 + 'Name: Muster'.length)
     expect(v.focus).toHaveBeenCalled()
