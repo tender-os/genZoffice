@@ -215,8 +215,10 @@ function patchOneParagraph(paraXml: string, newText: string, skipLeading: boolea
  * properties and the paragraph properties stay byte for byte. A placeholder
  * control that received real text loses its placeholder flag and style, as in
  * Word. Returns null when the paragraph has no field or control, or when the
- * text cannot be mapped (tabs, breaks, checkbox glyphs, formatting-only edits
- * fall back to the regular rebuild).
+ * text cannot be mapped (added or removed tabs and breaks around a plain field,
+ * checkbox glyphs, formatting-only edits fall back to the regular rebuild). A form
+ * field or control keeps its paragraph through any such edit, since a rebuild would
+ * lose it: an added tab or break becomes a space, and a removed one stays.
  */
 export function patchFieldParagraphText(
   originalParaXml: string,
@@ -231,8 +233,8 @@ export function patchFieldParagraphText(
   // not add or remove one, they stay where they are and the w:t mapping ignores them
   const controls = (joined.match(/[\t\n]/g) ?? []).length
   const originalControls = (originalParaXml.match(/<w:tab\s*\/>|<w:tab>\s*<\/w:tab>|<w:br\s*\/>|<w:cr\s*\/>/g) ?? []).length
-  if (controls !== originalControls) return null
-  const newText = joined.replace(/[\t\n]/g, '')
+  if (controls !== originalControls && !/<w:ffData\b|<w:sdt\b/.test(originalParaXml)) return null
+  const newText = joined.replace(/[\t\n]/g, controls > originalControls ? ' ' : '')
   const patched = patchParagraphTexts(originalParaXml, newText)
   if (patched === null) return null
   if (patched === originalParaXml || !patched.includes('<w:showingPlcHdr')) return patched
