@@ -84,6 +84,7 @@ html.vound-review {
   --vound-missing-halo: hsla(38 90% 50% / .14);
   --vound-missing-hover: hsla(38 90% 50% / .45);
   --vound-missing-ink: hsl(30 80% 32%);
+  --vound-conditional-bar: hsl(38 90% 74%);
   --vound-other-party-tint: hsl(18 100% 95%);
   --vound-other-party-bar: hsl(18 100% 48%);
   --vound-other-party-halo: hsla(18 100% 48% / .14);
@@ -158,10 +159,9 @@ html.vound-review .vound-slot:not(td, th) {
   border-radius: 2px;
   background: var(--vs-tint);
 }
-/* a shadow cannot be dashed: a conditional paragraph's bar is a double line */
+/* a shadow cannot be dashed: a conditional paragraph's bar is a lighter amber (a cell keeps the dashed one) */
 html.vound-review .vound-slot-conditional:not(td, th) {
-  --vs-l: 6px;
-  --vs-plate: 0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -3px 0 0 1px var(--vs-bar), -4px 0 0 1px var(--vs-tint), -5px 0 0 1px var(--vs-bar);
+  --vs-plate: 0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -4px 0 0 1px var(--vound-conditional-bar);
 }
 html.vound-review .vound-slot-rejected:not(td, th) {
   --vs-edge: 0 0 0 calc(var(--vs-y) + 1px) var(--vound-rejected-edge), calc(var(--vs-y) - var(--vs-l)) 0 0 calc(var(--vs-y) + 1px) var(--vound-rejected-edge), calc(var(--vs-r) - var(--vs-y)) 0 0 calc(var(--vs-y) + 1px) var(--vound-rejected-edge);

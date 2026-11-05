@@ -86,11 +86,11 @@ describe('review field markers', () => {
     expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe('var(--vs-tint)')
   })
 
-  it('give a conditional paragraph a double bar outside its tint', () => {
+  it('give a conditional paragraph a single lighter bar in the place of the others', () => {
     const paragraph = block('p', 'vound-slot vound-slot-conditional')
-    expect(variable(paragraph, '--vs-l')).toBe('6px')
+    expect(variable(paragraph, '--vs-l')).toBe('5px')
     expect(variable(paragraph, '--vs-plate')).toBe(
-      '0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -3px 0 0 1px var(--vs-bar), -4px 0 0 1px var(--vs-tint), -5px 0 0 1px var(--vs-bar)',
+      '0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -4px 0 0 1px var(--vound-conditional-bar)',
     )
   })
 
@@ -103,5 +103,11 @@ describe('review field markers', () => {
     ])
     expect(variable(cell, '--vs-plate')).toBe('0 0 0 0 transparent')
     expect(getComputedStyle(cell).getPropertyValue('background')).toContain('var(--vs-bar-image)')
+  })
+
+  it('keep the dashed bar of a conditional cell', () => {
+    const cell = block('td', 'vound-slot vound-slot-conditional')
+    expect(variable(cell, '--vs-bar-image')).toContain('repeating-linear-gradient')
+    expect(variable(cell, '--vs-plate')).toBe('0 0 0 0 transparent')
   })
 })
