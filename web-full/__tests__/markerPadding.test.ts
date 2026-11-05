@@ -59,6 +59,12 @@ const boxOf = (node: HTMLElement) => {
 const variable = (node: HTMLElement, name: string) =>
   getComputedStyle(node).getPropertyValue(name).trim()
 
+/** a bar layer `x 0 0 spread colour`: its left edge and how far it is shortened at each end */
+const dashLayer = (shadow: string) => {
+  const [x, , , spread, colour] = shadow.split(' ')
+  return { left: parseFloat(x) - parseFloat(spread), shrink: 1 - parseFloat(spread), colour }
+}
+
 describe('review field markers', () => {
   it.each(['p', 'td'] as const)(
     'leave the box of a marked %s as it is, in every tone and state',
@@ -86,11 +92,29 @@ describe('review field markers', () => {
     expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe('var(--vs-tint)')
   })
 
-  it('give a conditional paragraph a single lighter bar in the place of the others', () => {
+  it('give a conditional paragraph a dashed bar in the place of the others, over a hatched tint', () => {
     const paragraph = block('p', 'vound-slot vound-slot-conditional')
     expect(variable(paragraph, '--vs-l')).toBe('5px')
-    expect(variable(paragraph, '--vs-plate')).toBe(
-      '0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -4px 0 0 1px var(--vound-conditional-bar)',
+    const layers = variable(paragraph, '--vs-plate').split(/,\s*/)
+    expect(layers.slice(0, 3)).toEqual([
+      '0 0 0 1px var(--vs-tint)',
+      '-2px 0 0 1px var(--vs-tint)',
+      '2px 0 0 1px var(--vs-tint)',
+    ])
+    const bar = layers.slice(3).reverse().map(dashLayer)
+    expect(bar[0]).toEqual({ left: -5, shrink: 0, colour: 'var(--vs-bar)' })
+    for (const layer of bar) expect(layer.left).toBe(-5)
+    const steps = bar.slice(1).map((layer, i) => layer.shrink - bar[i].shrink)
+    expect(steps).toEqual(steps.map((_, i) => (i % 2 === 0 ? 4 : 3)))
+    expect(bar.map((layer) => layer.colour)).toEqual(
+      bar.map((_, i) => (i % 2 === 0 ? 'var(--vs-bar)' : 'var(--vs-tint)')),
+    )
+    expect(bar.at(-1)!.shrink).toBeGreaterThanOrEqual(60)
+    expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe(
+      'var(--vs-hatch), var(--vs-tint)',
+    )
+    expect(variable(paragraph, '--vs-hatch')).toContain(
+      'repeating-linear-gradient(-45deg, transparent 0, var(--vound-conditional-hatch)',
     )
   })
 
@@ -105,9 +129,15 @@ describe('review field markers', () => {
     expect(getComputedStyle(cell).getPropertyValue('background')).toContain('var(--vs-bar-image)')
   })
 
-  it('keep the dashed bar of a conditional cell', () => {
+  it('give a conditional cell the dashed bar over the same hatched tint', () => {
     const cell = block('td', 'vound-slot vound-slot-conditional')
     expect(variable(cell, '--vs-bar-image')).toContain('repeating-linear-gradient')
     expect(variable(cell, '--vs-plate')).toBe('0 0 0 0 transparent')
+    expect(getComputedStyle(cell).getPropertyValue('background')).toBe(
+      'var(--vs-bar-image) left top / 2px 100% no-repeat, var(--vs-hatch), var(--vs-tint)',
+    )
+    expect(variable(cell, '--vs-hatch')).toBe(
+      variable(block('p', 'vound-slot vound-slot-conditional'), '--vs-hatch'),
+    )
   })
 })
