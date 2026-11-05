@@ -1,13 +1,14 @@
 // The host's field writes (vound:setFieldValue) and caret placement (vound:placeCaret), one rule: exact or
 // refused. A write replaces the single occurrence of the field's previous text in the visible text of one
 // marked block (a paragraph, or the table cell around it), or inserts into an empty cell when there was no
-// previous text. Anything else is refused and the document stays untouched. A write is an ordinary editor
-// transaction, so it saves the way typing does; it carries HOST_WRITE_META so edit reporting
-// (fieldReporting.ts) does not count it as the reviewer's edit.
+// previous text; a gap write replaces what lies between the gap's two anchors, nothing included. Every
+// written place is answered with its gap when one is unique. Anything else is refused and the document stays
+// untouched. A write is an ordinary editor transaction, so it saves the way typing does; it carries
+// HOST_WRITE_META so edit reporting (fieldReporting.ts) does not count it as the reviewer's edit.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
-import type { BlockRef, FieldValueRefusal } from './embed-protocol'
+import type { BlockRef, FieldGap, FieldValueRefusal } from './embed-protocol'
 import { locateBlock } from './markers'
 import { glideIntoView } from './markersPlugin'
 
@@ -16,10 +17,15 @@ export const HOST_WRITE_META = 'voundHostWrite'
 /** the element of a field passthrough's node view that holds its result text (protected-render.ts) */
 export const FIELD_TEXT_SELECTOR = '.doc-field-text'
 
-export type FieldValueResult = { ok: true } | { ok: false; reason: FieldValueRefusal }
+export type FieldValueResult = { ok: true; gap?: FieldGap } | { ok: false; reason: FieldValueRefusal }
 // replaces: the block holds nothing but this write's form field, so the write takes the whole field, whatever
-// the reviewer typed since the host last read `previous`
-export type FieldValueWrite = { block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
+// the reviewer typed since the host last read `previous`; 'gap' finds the place by its anchors instead
+export type FieldValueWrite =
+  | { block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
+  | { block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
+
+/** the most characters a side of a returned gap takes */
+const GAP_CONTEXT_CAP = 32
 
 /** One piece of a block's visible text: a paragraph's text, a field passthrough's result text
  *  (fieldDisplay.left, which the editor saves into the field result), or field text this rule leaves
@@ -48,6 +54,9 @@ function unitsOf(block: PmNode, pos: number): TextUnit[] {
   })
   return units
 }
+
+/** a block's visible text, its paragraphs joined by line feeds */
+const joinedText = (units: TextUnit[]) => units.map((unit) => unit.text).join('\n')
 
 /** start offsets of every occurrence, overlapping ones included ("aa" occurs twice in "aaa") */
 function occurrences(text: string, needle: string) {
@@ -136,7 +145,7 @@ function plan(units: TextUnit[], previous: string): Planned {
     // an empty block takes the value, a cell in its first paragraph
     return units[0] ? { unit: units[0], from: 0, to: 0 } : { refused: 'notEditable' }
   }
-  const joined = units.map((unit) => unit.text).join('\n')
+  const joined = joinedText(units)
   const starts = previous === '' ? [] : occurrences(joined, previous)
   if (starts.length > 1) return { refused: 'ambiguous' }
   if (starts.length === 1) return unitAt(units, starts[0], starts[0] + previous.length) ?? { refused: 'notEditable' }
@@ -151,19 +160,60 @@ function wholeField(units: TextUnit[]): Planned {
   return { unit: units[0], from: 0, to: units[0].text.length }
 }
 
+/** the places a gap names in a block's joined text: after each `before` (or the start), up to the first
+ *  `after` from there (or the end) */
+function gapMatches(text: string, gap: FieldGap) {
+  const starts = gap.before === '' ? [0] : occurrences(text, gap.before).map((at) => at + gap.before.length)
+  return starts.flatMap((from) => {
+    const to = gap.after === '' ? text.length : text.indexOf(gap.after, from)
+    return to === -1 ? [] : [{ from, to }]
+  })
+}
+
+/** the gap of text offsets from..to: both sides grow a character at a time, until it names that place alone */
+function gapAround(text: string, from: number, to: number): FieldGap | undefined {
+  for (let size = 0; size <= GAP_CONTEXT_CAP; size++) {
+    const gap = { before: text.slice(Math.max(0, from - size), from), after: text.slice(to, to + size) }
+    const matches = gapMatches(text, gap)
+    if (matches.length === 1 && matches[0].from === from && matches[0].to === to) return gap
+  }
+  return undefined
+}
+
+function planGap(units: TextUnit[], gap: FieldGap): Planned {
+  const matches = gapMatches(joinedText(units), gap)
+  if (matches.length === 0) return { refused: 'absent' }
+  if (matches.length > 1) return { refused: 'ambiguous' }
+  return unitAt(units, matches[0].from, matches[0].to) ?? { refused: 'notEditable' }
+}
+
+function planText(units: TextUnit[], write: { previous: string; replaces?: 'wholeField' }): Planned {
+  const whole = write.replaces === 'wholeField' ? wholeField(units) : null
+  return whole && !('refused' in whole) ? whole : plan(units, write.previous)
+}
+
+/** the gap of the value once written in place of from..to of the unit */
+function writtenGap(units: TextUnit[], unit: TextUnit, from: number, to: number, value: string) {
+  const joined = joinedText(units)
+  const start = units.slice(0, units.indexOf(unit)).reduce((offset, each) => offset + each.text.length + 1, 0) + from
+  const written = joined.slice(0, start) + value + joined.slice(start + to - from)
+  return gapAround(written, start, start + value.length)
+}
+
 /** vound:setFieldValue: write the value into the block, or refuse and leave the document as it is */
 export function applyFieldValue(view: EditorView, write: FieldValueWrite): FieldValueResult {
   const block = locateBlock(view.state.doc, write.block)
   if (!block) return { ok: false, reason: 'noBlock' }
   const units = unitsOf(block.node, block.pos)
-  const whole = write.replaces === 'wholeField' ? wholeField(units) : null
-  const planned = whole && !('refused' in whole) ? whole : plan(units, write.previous)
+  const planned = write.replaces === 'gap' ? planGap(units, write.gap) : planText(units, write)
   if ('refused' in planned) return { ok: false, reason: planned.refused }
   if (planned.unit.kind === 'fixed') return { ok: false, reason: 'notEditable' }
-  if (planned.unit.text.slice(planned.from, planned.to) === write.value) return { ok: true }
+  const gap = writtenGap(units, planned.unit, planned.from, planned.to, write.value)
+  const answer: FieldValueResult = gap ? { ok: true, gap } : { ok: true }
+  if (planned.unit.text.slice(planned.from, planned.to) === write.value) return answer
   const tr = replaceInUnit(view.state.tr, planned.unit, planned.from, planned.to, write.value)
   view.dispatch(tr.setMeta(HOST_WRITE_META, true))
-  return { ok: true }
+  return answer
 }
 
 /** a text caret next to a block, never a NodeSelection on it: with one, the next key would replace the block */

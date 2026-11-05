@@ -36,6 +36,15 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ ...cellWrite, extra: 1, block: { paragraph: 0, scope: 'cell', table: 2 } })).toEqual(cellWrite)
   })
 
+  it('reads a gap write, which needs its gap and no previous', () => {
+    const gapWrite = { type: 'vound:setFieldValue', requestId: 'r3', block: { paragraph: 2, scope: 'paragraph' }, value: 'Leipzig', replaces: 'gap', gap: { before: 't ', after: '.' } }
+    expect(readHostMessage(gapWrite)).toEqual(gapWrite)
+    expect(readHostMessage({ ...gapWrite, previous: 'x', gap: { before: '', after: '', extra: 1 } })).toEqual({ ...gapWrite, gap: { before: '', after: '' } })
+    expect(readHostMessage({ ...gapWrite, gap: undefined })).toBeNull()
+    expect(readHostMessage({ ...gapWrite, gap: { before: 't ' } })).toBeNull()
+    expect(readHostMessage({ ...gapWrite, value: null })).toBeNull()
+  })
+
   it('rejects setFieldValue with a negative paragraph or a non-string previous', () => {
     const valid = { type: 'vound:setFieldValue', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'a', value: 'b' }
     expect(readHostMessage({ ...valid, block: { paragraph: -1, scope: 'paragraph' } })).toBeNull()

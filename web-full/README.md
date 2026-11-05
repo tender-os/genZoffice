@@ -36,6 +36,7 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:scrollTo', id }` scroll a marker to the middle of the view and make it current |
 | host → editor | `{ type: 'vound:focus', id: string \| null }` make a marker current without scrolling, or none |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, previous, value }` replace a field's value in one block (`BlockRef = { paragraph, scope: 'paragraph' \| 'cell' }`, named like a marker); answered with `vound:fieldValueResult` (see Field writes) |
+| host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
 | editor → host | `{ type: 'vound:ready' }` after the editor subscribed to open requests |
 | editor → host | `{ type: 'vound:saved', name, bytes: ArrayBuffer }` on every save (⌘S, File › Save, the save command) |
@@ -44,7 +45,7 @@ or none, means English); the stand-alone page stays English.
 | editor → host | `{ type: 'vound:fieldAction', id, action }` a field chip's button was pressed (`id` is the slot id) |
 | editor → host | `{ type: 'vound:blockEdited', ids }` a user edit changed the text of a marked block; `ids` are its slot ids. Review mode only; host writes are not reported |
 | editor → host | `{ type: 'vound:caretBlock', ids, leftWith? }` the caret entered a marked block, or left one (`ids: []`, `leftWith: 'Tab' \| 'other'`). Review mode only |
-| editor → host | `{ type: 'vound:fieldValueResult', requestId, ok, reason? }` the answer to `vound:setFieldValue` (`reason`: `absent`, `ambiguous`, `notEditable`, `noBlock`) |
+| editor → host | `{ type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }` the answer to `vound:setFieldValue` (`reason`: `absent`, `ambiguous`, `notEditable`, `noBlock`; `gap`: the written place's anchors) |
 
 Host and editor must share one origin. The editor accepts a message only when `event.origin` is its
 own origin and `event.source` is `window.parent` (`embedMessages.ts`), reads it structurally and drops
@@ -249,6 +250,16 @@ result text (`fieldDisplay.left`), and for a cell its paragraphs' texts joined w
 - Otherwise the document is untouched: `absent` (no occurrence, or an empty `previous` in a paragraph),
   `ambiguous` (several, overlapping ones included), `notEditable` (the occurrence spans two paragraphs of
   a cell, or lies in a table-of-contents line, which this rule leaves alone).
+
+A written place is answered with its gap, `{ before, after }`: the block's visible text right before and
+right after the value, so a field emptied by a reject can be written again where it was, also after a save
+and reload. Both sides grow a character at a time, from nothing up to 32 characters, until the gap names
+that place alone; `before: ''` anchors at the start of the block's text, `after: ''` at its end. With no
+unique gap within 32 characters the answer has none. A write with `replaces: 'gap'` replaces what lies
+after `before` up to the first `after` from there, nothing included, in the formatting of the text before
+it; it is refused as `absent` when the anchors no longer occur in that order (the reviewer changed the
+text around the field), `ambiguous` when they name several places, and `notEditable` when the place
+spans two paragraphs of a cell. Text writes are unchanged and answer a gap too.
 
 Every write is one transaction with the meta `voundHostWrite` (`HOST_WRITE_META`), so it is undoable
 and marks the document dirty like typing, but is never reported as `vound:blockEdited`.

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { history, undo } from '@tiptap/pm/history'
 import { EditorState, NodeSelection, type Transaction } from '@tiptap/pm/state'
 import { EditorView } from '@tiptap/pm/view'
 import type { Node as PmNode } from '@tiptap/pm/model'
-import type { BlockRef } from '../embed-protocol'
-import { applyFieldValue, HOST_WRITE_META, placeCaret } from '../fieldWrite'
+import type { BlockRef, FieldGap } from '../embed-protocol'
+import { applyFieldValue, HOST_WRITE_META, placeCaret, type FieldValueResult } from '../fieldWrite'
 import { fieldNodeView } from './fieldNodeView'
 import { cell, doc, fieldPara, para, schema, table } from './markerSchema'
 
@@ -19,7 +20,9 @@ function viewOf(...blocks: PmNode[]) {
 }
 const paragraphBlock = (paragraph: number): BlockRef => ({ paragraph, scope: 'paragraph' })
 const cellBlock = (paragraph: number): BlockRef => ({ paragraph, scope: 'cell' })
-const write = (v: EditorView, block: BlockRef, previous: string, value: string) => applyFieldValue(v, { block, previous, value })
+// the text-based assertions predate gaps, which have their own tests below
+const withoutGap = (result: FieldValueResult) => (result.ok ? { ok: true } : result)
+const write = (v: EditorView, block: BlockRef, previous: string, value: string) => withoutGap(applyFieldValue(v, { block, previous, value }))
 const texts = (v: EditorView) => {
   const out: string[] = []
   v.state.doc.descendants((node) => {
@@ -132,21 +135,21 @@ describe('applyFieldValue', () => {
   it("replaces a block's one form field when asked to, however out of date previous is", () => {
     const v = viewOf(fieldPara(0, 'typed since'), para(2, 'x'), para(3))
     const stale = { block: paragraphBlock(0), previous: 'Muster GmbH', value: 'Neu' }
-    expect(applyFieldValue(v, stale)).toEqual({ ok: false, reason: 'absent' })
-    expect(applyFieldValue(v, { ...stale, replaces: 'wholeField' })).toEqual({ ok: true })
+    expect(withoutGap(applyFieldValue(v, stale))).toEqual({ ok: false, reason: 'absent' })
+    expect(withoutGap(applyFieldValue(v, { ...stale, replaces: 'wholeField' }))).toEqual({ ok: true })
     expect(v.state.doc.child(0).attrs.fieldDisplay.left).toBe('Neu')
     // a form field that fills its paragraph loads as the paragraph's text
-    expect(applyFieldValue(v, { block: paragraphBlock(2), previous: 'gone', value: 'Neu', replaces: 'wholeField' })).toEqual({ ok: true })
+    expect(withoutGap(applyFieldValue(v, { block: paragraphBlock(2), previous: 'gone', value: 'Neu', replaces: 'wholeField' }))).toEqual({ ok: true })
     expect(texts(v)).toContain('Neu')
     // and saved empty, as an empty paragraph
-    expect(applyFieldValue(v, { block: paragraphBlock(3), previous: '\u2002', value: 'Y', replaces: 'wholeField' })).toEqual({ ok: true })
+    expect(withoutGap(applyFieldValue(v, { block: paragraphBlock(3), previous: '\u2002', value: 'Y', replaces: 'wholeField' }))).toEqual({ ok: true })
     expect(v.state.doc.lastChild?.textContent).toBe('Y')
   })
 
   it('takes the whole field when asked to, also when previous still matches part of it', () => {
     const v = viewOf(para(0, 'Muster GmbHQ'), para(1, 'x'))
     const block = paragraphBlock(0)
-    expect(applyFieldValue(v, { block, previous: 'Muster GmbH', value: 'Neu', replaces: 'wholeField' })).toEqual({ ok: true })
+    expect(withoutGap(applyFieldValue(v, { block, previous: 'Muster GmbH', value: 'Neu', replaces: 'wholeField' }))).toEqual({ ok: true })
     expect(v.state.doc.child(0).textContent).toBe('Neu')
     // a value equal to previous still clears what was typed
     const typed = viewOf(para(0, 'Muster GmbHQ'), para(1, 'x'))
@@ -213,6 +216,114 @@ describe('applyFieldValue', () => {
     expect(v.state.doc.childCount).toBe(2)
     expect(v.state.doc.child(0).attrs.docxPara).toBe(0)
     expect(texts(v)).toEqual(['', 'Rest'])
+  })
+})
+
+describe('gap writes', () => {
+  const gapWrite = (v: EditorView, block: BlockRef, gap: FieldGap, value: string) =>
+    applyFieldValue(v, { block, value, replaces: 'gap', gap })
+  const reject = (v: EditorView, block: BlockRef, previous: string) => applyFieldValue(v, { block, previous, value: '' })
+
+  it('answers an emptying write with the shortest text around the emptied place that is unique, and writes it back there', () => {
+    const v = viewOf(para(0, 'beim Amtsgericht Leipzig Mitte.'))
+    const emptied = reject(v, paragraphBlock(0), 'Leipzig Mitte')
+    expect(emptied).toEqual({ ok: true, gap: { before: 't ', after: '.' } })
+    expect(texts(v)).toEqual(['beim Amtsgericht .'])
+    expect(gapWrite(v, paragraphBlock(0), { before: 't ', after: '.' }, 'Leipzig Mitte')).toEqual({ ok: true, gap: { before: 't ', after: '.' } })
+    expect(texts(v)).toEqual(['beim Amtsgericht Leipzig Mitte.'])
+  })
+
+  it('anchors a field at the start or the end of its paragraph to that edge', () => {
+    const v = viewOf(para(0, 'Muster GmbH, vertreten durch'), para(1, 'Ort: Berlin'))
+    expect(reject(v, paragraphBlock(0), 'Muster GmbH')).toEqual({ ok: true, gap: { before: '', after: ',' } })
+    expect(reject(v, paragraphBlock(1), 'Berlin')).toEqual({ ok: true, gap: { before: ' ', after: '' } })
+    expect(gapWrite(v, paragraphBlock(0), { before: '', after: ',' }, 'Beispiel AG').ok).toBe(true)
+    expect(gapWrite(v, paragraphBlock(1), { before: ' ', after: '' }, 'Köln').ok).toBe(true)
+    expect(texts(v)).toEqual(['Beispiel AG, vertreten durch', 'Ort: Köln'])
+  })
+
+  it('keeps two emptied fields of one paragraph apart', () => {
+    const v = viewOf(para(0, 'Ort: Berlin, Datum: 01.10.2026'))
+    const place = reject(v, paragraphBlock(0), 'Berlin')
+    const date = reject(v, paragraphBlock(0), '01.10.2026')
+    expect(texts(v)).toEqual(['Ort: , Datum: '])
+    expect(place).toEqual({ ok: true, gap: { before: ' ', after: ',' } })
+    expect(date).toEqual({ ok: true, gap: { before: 'm: ', after: '' } })
+    if (!place.ok || !date.ok || !place.gap || !date.gap) throw new Error('no gap')
+    expect(gapWrite(v, paragraphBlock(0), date.gap, '02.10.2026').ok).toBe(true)
+    expect(gapWrite(v, paragraphBlock(0), place.gap, 'Köln').ok).toBe(true)
+    expect(texts(v)).toEqual(['Ort: Köln, Datum: 02.10.2026'])
+  })
+
+  it('grows the anchor past a word that repeats around the field', () => {
+    const v = viewOf(para(0, 'Name Name Muster Name Name'))
+    const emptied = reject(v, paragraphBlock(0), 'Muster')
+    if (!emptied.ok || !emptied.gap) throw new Error('no gap')
+    expect(emptied.gap).toEqual({ before: ' Name ', after: ' Name ' })
+    expect(gapWrite(v, paragraphBlock(0), emptied.gap, 'Beispiel').ok).toBe(true)
+    expect(texts(v)).toEqual(['Name Name Beispiel Name Name'])
+  })
+
+  it('writes beside a label in the same table cell', () => {
+    const v = viewOf(table(cell(para(0, 'Sitz')), cell(para(1, 'Sitz: Berlin'), para(2, 'Deutschland'))))
+    const emptied = reject(v, cellBlock(1), 'Berlin')
+    expect(emptied).toEqual({ ok: true, gap: { before: ' ', after: '\n' } })
+    expect(gapWrite(v, cellBlock(1), { before: ' ', after: '\n' }, 'Leipzig').ok).toBe(true)
+    expect(texts(v)).toEqual(['Sitz', 'Sitz: Leipzig', 'Deutschland'])
+  })
+
+  it('writes the same gap twice in a row, the second replacing the first', () => {
+    const v = viewOf(para(0, 'beim Amtsgericht .'))
+    const gap = { before: 't ', after: '.' }
+    expect(gapWrite(v, paragraphBlock(0), gap, 'Leipzig').ok).toBe(true)
+    expect(gapWrite(v, paragraphBlock(0), gap, 'Leipzig Mitte').ok).toBe(true)
+    expect(texts(v)).toEqual(['beim Amtsgericht Leipzig Mitte.'])
+  })
+
+  it('takes the formatting of the run at that place', () => {
+    const runs = [schema.text('beim ', [bold]), schema.text('Amtsgericht ', [arial]), schema.text('.')]
+    const v = viewOf(schema.nodes.docParagraph.create({ docxPara: 0 }, runs))
+    expect(gapWrite(v, paragraphBlock(0), { before: 't ', after: '.' }, 'Leipzig').ok).toBe(true)
+    const paragraph = v.state.doc.child(0)
+    expect(paragraph.textContent).toBe('beim Amtsgericht Leipzig.')
+    expect(paragraph.child(1).text).toBe('Amtsgericht Leipzig')
+    expect(paragraph.child(1).marks).toEqual([arial])
+  })
+
+  it('writes into a field passthrough the same way', () => {
+    const v = viewOf(fieldPara(0, 'Ort: Berlin'))
+    expect(reject(v, paragraphBlock(0), 'Berlin')).toEqual({ ok: true, gap: { before: ' ', after: '' } })
+    expect(gapWrite(v, paragraphBlock(0), { before: ' ', after: '' }, 'Köln').ok).toBe(true)
+    expect(texts(v)).toEqual(['[Ort: Köln]'])
+  })
+
+  it('refuses when the reviewer changed the text around the gap, never guessing', () => {
+    const v = viewOf(para(0, 'beim Landgericht .'))
+    expect(gapWrite(v, paragraphBlock(0), { before: 't ', after: ':' }, 'X')).toEqual({ ok: false, reason: 'absent' })
+    const twice = viewOf(para(0, 'beim Amtsgericht . und Amtsgericht .'))
+    expect(gapWrite(twice, paragraphBlock(0), { before: 't ', after: '.' }, 'X')).toEqual({ ok: false, reason: 'ambiguous' })
+    expect(texts(twice)).toEqual(['beim Amtsgericht . und Amtsgericht .'])
+  })
+
+  it('refuses a gap across two paragraphs of a cell and a block it cannot find', () => {
+    const v = viewOf(table(cell(para(0, 'Muster'), para(1, 'GmbH'))))
+    expect(gapWrite(v, cellBlock(0), { before: 'Mus', after: 'bH' }, 'X')).toEqual({ ok: false, reason: 'notEditable' })
+    expect(gapWrite(v, paragraphBlock(9), { before: '', after: '' }, 'X')).toEqual({ ok: false, reason: 'noBlock' })
+  })
+
+  it('answers without a gap when no anchor of up to 32 characters a side is unique', () => {
+    const v = viewOf(para(0, `${'x'.repeat(50)}Y${'x'.repeat(50)}`))
+    expect(reject(v, paragraphBlock(0), 'Y')).toEqual({ ok: true })
+  })
+
+  it('is one transaction, one undo step', () => {
+    const state = EditorState.create({ schema, doc: doc(para(0, 'beim Amtsgericht .')), plugins: [history()] })
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    view = new EditorView(mount, { state })
+    expect(gapWrite(view, paragraphBlock(0), { before: 't ', after: '.' }, 'Leipzig Mitte').ok).toBe(true)
+    undo(view.state, view.dispatch)
+    expect(texts(view)).toEqual(['beim Amtsgericht .'])
   })
 })
 
