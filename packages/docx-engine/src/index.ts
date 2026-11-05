@@ -155,6 +155,7 @@ export {
 } from './math'
 export { scanBody, type BodyElement, type BodyScan } from './scan'
 export { paragraphIndexAt, paragraphIndexMap, paragraphStartOffsets } from './source-para-index'
+export { levelWithStyleIndent } from './style-list-indent'
 export {
   BLANK_BULLET_NUM_ID,
   BLANK_ORDERED_NUM_ID,

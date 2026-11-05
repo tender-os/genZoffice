@@ -1593,6 +1593,8 @@ export interface Block {
   styleId?: string
   /** list info (type === 'listItem') */
   list?: { kind: 'bullet' | 'ordered'; numId: string; ilvl: number }
+  /** the list comes from the paragraph style's w:numPr, not the paragraph's own */
+  listFromStyle?: true
   /** paragraph-level formatting (paragraph / heading / listItem) */
   format?: ParaFormat
   /** user bookmarks starting in this paragraph (w:bookmarkStart, _internal names excluded) */
@@ -2200,6 +2202,8 @@ export interface StyleInfo {
   /** w:pPr/w:numPr on the style — list numbering referenced via pStyle (ListBullet/ListNumber);
    *  'none' = explicit w:numId 0 (cancels numbering inherited via basedOn) */
   numPr?: { numId: string; ilvl: number } | 'none'
+  /** w:ind declared from the style that sets the numId down the chain; beats the level's w:ind */
+  listIndent?: Pick<StyleDisplay, 'indentLeftTwips' | 'indentRightTwips' | 'indentFirstLineTwips'>
   /** w:default="1" — Word applies this style to every paragraph without a w:pStyle */
   isDefault?: boolean
 }

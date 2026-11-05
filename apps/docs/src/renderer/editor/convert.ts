@@ -944,6 +944,7 @@ function blockToPmNode(
           kind: block.list?.kind ?? 'bullet',
           numId: block.list?.numId ?? null,
           ilvl: block.list?.ilvl ?? 0,
+          listFromStyle: block.listFromStyle === true,
           bookmarks: block.bookmarks ?? null,
           hiddenBookmarks: block.hiddenBookmarks ?? null,
           commentStarts: block.commentStarts ?? null,
@@ -1514,7 +1515,8 @@ function cellNeedsRegeneration(before: unknown[][], after: unknown[][]) {
   return before.some((paragraphBefore, i) => {
     const [formatBefore, listBefore, inlineBefore, textBefore, pictureBefore] = paragraphBefore
     const [formatAfter, listAfter, inlineAfter, textAfter, pictureAfter] = after[i]
-    if (JSON.stringify([formatBefore, listBefore]) !== JSON.stringify([formatAfter, listAfter])) return true
+    if (JSON.stringify([formatBefore, listBefore]) !== JSON.stringify([formatAfter, listAfter]))
+      return true
     if (JSON.stringify(inlineBefore) === JSON.stringify(inlineAfter)) return false
     return !onlyParagraphs || textBefore === textAfter || !!pictureBefore || !!pictureAfter
   })
@@ -1534,7 +1536,9 @@ export function tableFormattingChanged(table: PmNode): boolean {
   if (original === current) return false
   if (typeof original !== 'string') return true
   const cells = pairedCellSignatures(original, current)
-  return !cells || cells.some(([before, after]: unknown[][][]) => cellNeedsRegeneration(before, after))
+  return (
+    !cells || cells.some(([before, after]: unknown[][][]) => cellNeedsRegeneration(before, after))
+  )
 }
 
 function paragraphText(node: PmNode): string {
@@ -2382,7 +2386,10 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
           // an accepted tracked insertion: the table without its revision wrapper, with the cell edits
           const accepted = unwrapBlockRevisionXml(original.originalXml)
           changedCount++
-          pushBlock({ kind: 'xml', xml: tableTexts ? patchTableCellTexts(accepted, tableTexts) : accepted })
+          pushBlock({
+            kind: 'xml',
+            xml: tableTexts ? patchTableCellTexts(accepted, tableTexts) : accepted,
+          })
           continue
         }
         if (structurallyUnchanged && formattingUnchanged && tableTexts && original.originalXml) {

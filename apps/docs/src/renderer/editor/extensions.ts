@@ -3,6 +3,7 @@ import { MultiSelect } from './multi-select'
 import { Editor, Extension, Node } from '@tiptap/core'
 import { SHAPE_INLINE_WRAP } from './floating-z-order'
 import { StreamingTailGuardExtension } from './streaming-tail-guard'
+import { geometryLevelOf } from './list-geometry-level'
 import { wrapGroupCss, type WrapPicture } from './wrap-group'
 import type { ChainedCommands, RawCommands } from '@tiptap/core'
 import { Gapcursor, UndoRedo } from '@tiptap/extensions'
@@ -2081,6 +2082,8 @@ export const DocListItem = Node.create({
       kind: { default: 'bullet' as 'bullet' | 'ordered' },
       numId: { default: null as string | null },
       ilvl: { default: 0 },
+      /** Block.listFromStyle: the paragraph style's numbering, laid out with that style's w:ind */
+      listFromStyle: { default: false },
     }
   },
   parseHTML() {
@@ -3259,8 +3262,9 @@ export const ListNumberingExtension = Extension.create<object, ListNumberingStor
         // paragraph style (Word draws the number with the mark's run properties, never the first
         // text run's, whose size the paragraph strut inherits here)
         const def = refs[i].numId !== null ? storage.defs.get(refs[i].numId as string) : undefined
-        const level = def?.levels[Math.max(0, refs[i].ilvl)]
-        if (level) {
+        const defLevel = def?.levels[Math.max(0, refs[i].ilvl)]
+        if (defLevel) {
+          const level = geometryLevelOf(defLevel, nodes[i].node, storage.styles)
           const nodeAttrs = stray ? strayGeometryAttrs(nodes[i].node) : nodes[i].node.attrs
           // an explicit w:ind left (0 included) beats the numbering level's indent
           const leftTw =

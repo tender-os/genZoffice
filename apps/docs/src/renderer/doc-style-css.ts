@@ -1125,7 +1125,8 @@ export function docStyleCss(parsed: ParsedDocFull): string {
       }
     }
     darkTwin(`.doc-page [data-style="${CSS.escape(info.styleId)}"]`, darkDecls)
-    // Word merges indents per property (direct ind > numbering level ind > style ind), never
+    // Word merges indents per property (direct ind > numbering level ind > style ind; a style
+    // that brings the numbering keeps its own ind over the level's), never
     // adds them: list items run on --li-left geometry, so the style indent must not also apply
     // as a margin — it only feeds the --li-left fallback chain (styles.css)
     if (d.indentLeftTwips != null) {
