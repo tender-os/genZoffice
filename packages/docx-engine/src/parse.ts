@@ -223,6 +223,7 @@ import {
   type ResolveCtx,
   type ResolveDiff,
 } from './resolve-props'
+import { levelWithStyleIndent, numIdFromStyle } from './style-list-indent'
 import {
   parseComments,
   parseNumbering,
@@ -2461,6 +2462,7 @@ function buildTextParagraph(
       type: 'listItem',
       styleId,
       list: { kind, numId: listRef.numId, ilvl: listRef.ilvl },
+      ...(numIdFromStyle(pPr) ? { listFromStyle: true as const } : {}),
       format,
       rawPPr,
       bookmarks,
@@ -2586,10 +2588,11 @@ function txbxContentParas(
     listItems.map((item) => item.ref),
     ctx.numbering,
   )
-  listItems.forEach(({ para, ref, textSizeHalf }, i) => {
+  listItems.forEach(({ para, ref, textSizeHalf, styleIndent }, i) => {
     const info = infos[i]
     if (!info) return
-    const level = ctx.numbering.get(ref.numId ?? '')?.levels[Math.max(0, ref.ilvl)]
+    const defLevel = ctx.numbering.get(ref.numId ?? '')?.levels[Math.max(0, ref.ilvl)]
+    const level = defLevel && levelWithStyleIndent(defLevel, styleIndent)
     para.listMarker = {
       text: info.text,
       ...(info.symbolFont ? { symbol: true } : {}),
@@ -2609,6 +2612,8 @@ interface TxbxListItem {
   para: TextboxParaDisplay
   ref: ListItemRef
   textSizeHalf: number
+  /** StyleInfo.listIndent when the numbering comes from the paragraph style */
+  styleIndent: StyleInfo['listIndent']
 }
 
 function collectTxbxParas(
@@ -2663,6 +2668,7 @@ function collectTxbxParas(
           para,
           ref: listRef,
           textSizeHalf: paraTextSizeHalfPoints(ctx, para.runs, child, pPr, styleId),
+          styleIndent: numIdFromStyle(pPr) ? ctx.styles.get(styleId ?? '')?.listIndent : undefined,
         })
       }
       out.push(para)

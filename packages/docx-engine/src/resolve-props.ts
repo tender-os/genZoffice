@@ -25,6 +25,7 @@ import {
   type CharUnits,
 } from './parse-props'
 import { runBorderOf, styleRunFormat } from './parse-styles'
+import { numIdFromStyle } from './style-list-indent'
 import type {
   CharIndents,
   DocDefaults,
@@ -519,8 +520,22 @@ function resolveParagraphPropsUncached(
     'paraStyle',
     source,
   )
-  // Word lays the level's w:ind over the paragraph style's (probe 2026-10-20), unlike the §17.7.2 order
+  // a paragraph's own numPr lays the level's w:ind over the style's (Word probe 2026-10-20);
+  // numbering from the style keeps that style chain's w:ind on top, as §17.7.2 orders it
   applyPLayer(acc, levelPLayer(level), 'numbering', source)
+  if (listRef && numIdFromStyle(pPr)) {
+    const own = style?.listIndent
+    applyPLayer(
+      acc,
+      {
+        indentLeft: own?.indentLeftTwips,
+        indentRight: own?.indentRightTwips,
+        indentFirstLine: own?.indentFirstLineTwips,
+      },
+      'paraStyle',
+      source,
+    )
+  }
   applyPLayer(acc, directPLayer(pPr, ctx.themeColors), 'direct', source)
 
   // Word quirk: w:jc left/right are logical in bidi paragraphs; the model stores the visual side

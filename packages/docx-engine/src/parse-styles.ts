@@ -29,6 +29,7 @@ import {
 } from './parse-props'
 import { w14TextOutlineOf } from './parse-drawing-geometry'
 import { xmlFlagOn } from './section'
+import { styleListIndent } from './style-list-indent'
 import type {
   DocDefaults,
   Run,
@@ -357,6 +358,21 @@ export async function parseStyles(
       normal.numPr = undefined
     }
   }
+  const ownIndents = new Map(
+    [...styles.values()].map((info) => {
+      const d = info.display
+      return [
+        info.styleId,
+        {
+          ...(d?.indentLeftTwips !== undefined ? { indentLeftTwips: d.indentLeftTwips } : {}),
+          ...(d?.indentRightTwips !== undefined ? { indentRightTwips: d.indentRightTwips } : {}),
+          ...(d?.indentFirstLineTwips !== undefined
+            ? { indentFirstLineTwips: d.indentFirstLineTwips }
+            : {}),
+        },
+      ]
+    }),
+  )
 
   // resolve basedOn chains: a style inherits every display prop it doesn't set itself
   const resolved = new Set<string>()
@@ -410,6 +426,13 @@ export async function parseStyles(
     return info
   }
   for (const styleId of styles.keys()) resolve(styleId, new Set())
+  const numIdStyles = new Set(
+    [...ownNumPrs].filter(([, own]) => own.numId !== undefined).map(([id]) => id),
+  )
+  for (const info of styles.values()) {
+    if (typeof info.numPr !== 'object') continue
+    info.listIndent = styleListIndent(info.styleId, ownIndents, numIdStyles, basedOnIds)
+  }
   if (docDefaults?.borderSides) {
     for (const info of styles.values()) {
       if (info.type !== 'paragraph') continue
