@@ -230,6 +230,14 @@ negative margin, so it never adds a line), rejected white with a rose bar and a 
 field has a 1.5px ring and a 5px halo, violet, amber for a field still needing a value. Every colour is a
 custom property under `html.vound-review`. Without review mode the markers keep the PR #3362 look.
 
+The current and the hover ring are not drawn on the blocks (`fieldRing.ts`): a field can span consecutive
+blocks (paragraphs, list items, or the cells of one column in consecutive rows, all carrying the same
+`data-vound-slot`), and a ring on each block either ran a line between them or lost its bottom under the
+tint of the marked block after it, which paints later. Instead each run gets one box, its blocks' rects
+joined and widened by how far their tint reaches (`--vs-l`, `--vs-r`, `--vs-y`), in a zero-size layer at the
+end of the scroll container, above the page and outside layout. Hovering one block of a run rings the whole
+run. The layer redraws after every editor update, on a resize of the editor root and of the window.
+
 ## Field writes
 
 `vound:setFieldValue` (`fieldWrite.ts`) writes exactly or refuses. The block is the paragraph whose source

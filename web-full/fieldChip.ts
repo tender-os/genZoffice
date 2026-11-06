@@ -12,8 +12,8 @@
 // the chip and hide 220ms after it left both. The chip never grows past the gutter (reviewGutter.ts, which
 // also keeps that gutter free): labels shrink or wrap above their buttons, and only a gutter narrower than
 // the buttons hides the chip (the host's bar offers the current field's buttons then); the hover outline
-// stays. The outline is a decoration (markersPlugin.ts, setHot): a class written onto the block's DOM
-// would read as a DOM change to ProseMirror.
+// stays. The hovered block is a decoration (markersPlugin.ts, setHot), which fieldRing.ts rings: a class
+// written onto the block's DOM would read as a DOM change to ProseMirror.
 import { embedLang } from './embedLocale'
 import { fillWithAiLabel } from './fillWithAi'
 import type { EditorView } from '@tiptap/pm/view'

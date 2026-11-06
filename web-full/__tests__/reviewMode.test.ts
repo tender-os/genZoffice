@@ -13,6 +13,7 @@ import { EditorState, NodeSelection, TextSelection, type Plugin } from '@tiptap/
 import { EditorView, type EditorProps } from '@tiptap/pm/view'
 import { mountFieldChip } from '../fieldChip'
 import { fieldReportingKey } from '../fieldReporting'
+import { fieldRingKey } from '../fieldRing'
 import { enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
 import { doc, fieldPara, para, schema } from './markerSchema'
 
@@ -130,6 +131,16 @@ describe('enterReviewMode', () => {
     leaveReviewMode(ed)
     press(ed, 'o')
     expect(appShortcuts).toHaveBeenCalledTimes(3)
+  })
+
+  it('draws the field rings in a layer while in review mode, and removes it on leaving', () => {
+    const ed = tiptap()
+    enterReviewMode(ed, post)
+    expect(fieldRingKey.get(ed.state)).toBeTruthy()
+    expect(document.querySelectorAll('.vound-ring-layer')).toHaveLength(1)
+    leaveReviewMode(ed)
+    expect(fieldRingKey.get(ed.state)).toBeUndefined()
+    expect(document.querySelector('.vound-ring-layer')).toBeNull()
   })
 
   it("the app's context menu opens in review mode", () => {
