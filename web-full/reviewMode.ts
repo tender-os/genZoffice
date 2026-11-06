@@ -4,7 +4,8 @@
 // (reviewShortcuts.ts), and the context menu leaves out formatted Paste, the field commands, New Comment
 // and the AI entries (reviewMenu.ts). host.css hides the ribbon, its tab row and the status bar under
 // html.vound-review. Edits and caret moves in marked blocks are reported to the host (fieldReporting.ts), and
-// hovering a marked block shows its field chip (fieldChip.ts).
+// hovering a marked block shows its field chip (fieldChip.ts); the selected and hovered fields get a ring
+// around all their blocks (fieldRing.ts).
 // A form field selected as a whole block (a click on it selects it as an object) cannot be typed, deleted,
 // pasted or cut over: that would replace the block, and with it the field, by plain text. Typing into
 // Word's empty form field result (en spaces) replaces the blank instead of adding to it, and the blank
@@ -17,6 +18,7 @@ import type { EditorToHost } from './embed-protocol'
 import { boxTickKey, boxTickPlugin } from './boxTick'
 import { editScopeKey, editScopePlugin } from './editScope'
 import { mountFieldChip } from './fieldChip'
+import { fieldRingKey, fieldRingPlugin } from './fieldRing'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
 import { clipboardText } from './pasteText'
 import { blockedInReview, isMacPlatform, keepsNativeAction } from './reviewShortcuts'
@@ -128,6 +130,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   if (!fieldReportingKey.get(editor.state)) editor.registerPlugin(fieldReportingPlugin(post), first)
   if (!boxTickKey.get(editor.state)) editor.registerPlugin(boxTickPlugin, first)
   if (!editScopeKey.get(editor.state)) editor.registerPlugin(editScopePlugin(post), first)
+  if (!fieldRingKey.get(editor.state)) editor.registerPlugin(fieldRingPlugin)
   if (chip?.view === editor.view) return
   chip?.unmount()
   chip = { view: editor.view, unmount: mountFieldChip(editor.view, post) }
@@ -141,6 +144,7 @@ export function leaveReviewMode(editor: Editor): void {
   if (fieldReportingKey.get(editor.state)) editor.unregisterPlugin(fieldReportingKey)
   if (boxTickKey.get(editor.state)) editor.unregisterPlugin(boxTickKey)
   if (editScopeKey.get(editor.state)) editor.unregisterPlugin(editScopeKey)
+  if (fieldRingKey.get(editor.state)) editor.unregisterPlugin(fieldRingKey)
   chip?.unmount()
   chip = null
 }

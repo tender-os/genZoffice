@@ -203,16 +203,12 @@ html.vound-review :is(td, th).vound-slot-accepted > p:last-child::after {
   text-indent: 0;
   pointer-events: none;
 }
-/* each ring is three shadows, centred and shifted by --vs-l and --vs-r, so it follows the drawing on every side */
-html.vound-review .vound-slot-current {
-  box-shadow: var(--vs-plate), var(--vs-edge),
-    0 0 0 calc(var(--vs-y) + 1.5px) var(--vs-ring), calc(var(--vs-y) - var(--vs-l)) 0 0 calc(var(--vs-y) + 1.5px) var(--vs-ring), calc(var(--vs-r) - var(--vs-y)) 0 0 calc(var(--vs-y) + 1.5px) var(--vs-ring),
-    0 0 0 calc(var(--vs-y) + 5px) var(--vs-halo), calc(var(--vs-y) - var(--vs-l)) 0 0 calc(var(--vs-y) + 5px) var(--vs-halo), calc(var(--vs-r) - var(--vs-y)) 0 0 calc(var(--vs-y) + 5px) var(--vs-halo);
-}
-html.vound-review .vound-slot-hot:not(.vound-slot-current) {
-  box-shadow: var(--vs-plate), var(--vs-edge),
-    0 0 0 calc(var(--vs-y) + 1px) var(--vs-hover), calc(var(--vs-y) - var(--vs-l)) 0 0 calc(var(--vs-y) + 1px) var(--vs-hover), calc(var(--vs-r) - var(--vs-y)) 0 0 calc(var(--vs-y) + 1px) var(--vs-hover);
-}
+/* the selected and the hover ring (fieldRing.ts): one box around the run of blocks a field spans, in a layer
+   above the page, so the tint of the next marked block cannot cover it */
+.vound-ring-layer { position: relative; width: 0; height: 0; }
+.vound-ring { position: absolute; z-index: 19; border-radius: 3px; pointer-events: none; box-shadow: 0 0 0 1.5px var(--vr-ring), 0 0 0 5px var(--vr-halo); }
+.vound-ring-hot { box-shadow: 0 0 0 1px var(--vr-ring); }
+@media print { .vound-ring-layer { display: none !important; } }
 /* the field chip and its tether (fieldChip.ts) in a zero-height layer at the end of the scroll container */
 .vound-chip-layer { position: relative; width: 0; height: 0; }
 .vound-chip-layer [hidden] { display: none !important; }
