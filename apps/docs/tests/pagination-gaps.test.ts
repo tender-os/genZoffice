@@ -39,6 +39,14 @@ describe('page gap header push', () => {
   })
 })
 
+describe('page gap crop marks', () => {
+  it('carry the previous page text boundary apart from the footnote area and padding above it', () => {
+    const gap = makeGapEl({ ...m, marginBottom: 160, pageMarginBottom: 79 }, 'block')
+    expect(gap.style.getPropertyValue('--gap-mb')).toBe('160px')
+    expect(gap.style.getPropertyValue('--gap-page-mb')).toBe('79px')
+  })
+})
+
 describe('in-row table cut decorations', () => {
   it('single-cell row: real inline gap band, not a zero-height cut marker', () => {
     const tr = rowOf(1)

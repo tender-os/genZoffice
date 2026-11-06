@@ -373,6 +373,9 @@ export function setFloatVShifts(
 export interface GapMetrics {
   marginTop: number
   marginBottom: number
+  /** the previous page's own bottom margin: its text boundary, where the crop marks sit.
+   *  marginBottom also carries the footnote area and padding above that boundary */
+  pageMarginBottom?: number
   /** bleed the gap needs to reach the paper edges: the next page's side margins for
    *  block gaps, the host block's / cell's offset from the paper for inline and
    *  in-cell gaps (that offset includes paragraph indents) */
@@ -416,6 +419,8 @@ export function makeGapEl(m: GapMetrics, kind: GapKind, cols?: number): HTMLElem
   }
   gap.style.height = `${m.marginBottom + GAP_BAND + m.marginTop}px`
   gap.style.setProperty('--gap-mb', `${m.marginBottom}px`)
+  if (m.pageMarginBottom !== undefined)
+    gap.style.setProperty('--gap-page-mb', `${m.pageMarginBottom}px`)
   gap.style.setProperty('--gap-mt', `${m.marginTop}px`)
   // written even when zero: a page without a header push must clear the previous one
   if (m.sectionMarginTop !== undefined)
@@ -587,7 +592,7 @@ export function setPageGaps(
     }
     // boundaryY in the key: a reused widget must not keep a stale boundary
     // (cols too: a table-structure edit must rebuild the spanning cell)
-    const mKey = `${metrics.marginTop},${metrics.marginBottom},${metrics.marginLeft},${metrics.marginRight},${Math.round(gap.pullUp ?? 0)},${Math.round(gap.boundaryY ?? -1)},${gap.cols ?? 0},${Math.round(metrics.pageLeft ?? -1)}`
+    const mKey = `${metrics.marginTop},${metrics.marginBottom},${metrics.pageMarginBottom ?? -1},${metrics.marginLeft},${metrics.marginRight},${Math.round(gap.pullUp ?? 0)},${Math.round(gap.boundaryY ?? -1)},${gap.cols ?? 0},${Math.round(metrics.pageLeft ?? -1)}`
     decos.push(
       Decoration.widget(
         pos,

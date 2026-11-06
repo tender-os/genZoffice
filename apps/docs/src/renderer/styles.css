@@ -3183,6 +3183,12 @@ th.cell-rev-del {
   min-height: 1.3em;
 }
 
+/* at rest a strip draws the geometry its reserved height was measured with (hf-dom.ts hfProbeHost): the
+   footer is pinned by its bottom, so a taller line lifted its top rule above the body's bottom boundary */
+.page-hf:not(.page-hf-editing) .page-hf-para {
+  min-height: 0;
+}
+
 /* w:framePr floated frame (page number at a margin edge): the frame shares
    the next paragraph's flow line instead of stacking above it. Only when a
    following line exists — a frame that is the last/only paragraph keeps its
@@ -3416,8 +3422,10 @@ th.cell-rev-del {
     linear-gradient(var(--cm), var(--cm)), linear-gradient(var(--cm), var(--cm)),
     linear-gradient(var(--cm), var(--cm)), linear-gradient(var(--cm), var(--cm)),
     linear-gradient(var(--cm), var(--cm)), linear-gradient(var(--cm), var(--cm));
-  /* arms never cross the paper edge into the gray band */
-  --cm-down: min(var(--cm-len), var(--gap-mb, 96px));
+  /* the previous page's text boundary sits below the footnotes and padding the gap carries;
+     arms never cross the paper edge into the gray band */
+  --cm-y: calc(var(--gap-mb, 96px) - var(--gap-page-mb, var(--gap-mb, 96px)));
+  --cm-down: min(var(--cm-len), var(--gap-page-mb, var(--gap-mb, 96px)));
   --cm-up: min(var(--cm-len), var(--gap-mt, 96px));
   background-size:
     var(--cm-len) 1px,
@@ -3430,10 +3438,10 @@ th.cell-rev-del {
     1px var(--cm-up);
   background-position:
     /* previous page bottom corners: arms down and outward from the boundary */
-    calc(var(--gap-ml, 96px) - var(--cm-len)) 0,
-    var(--gap-ml, 96px) 0,
-    calc(100% - var(--gap-mr, 96px) + var(--cm-len)) 0,
-    calc(100% - var(--gap-mr, 96px)) 0,
+    calc(var(--gap-ml, 96px) - var(--cm-len)) var(--cm-y),
+    var(--gap-ml, 96px) var(--cm-y),
+    calc(100% - var(--gap-mr, 96px) + var(--cm-len)) var(--cm-y),
+    calc(100% - var(--gap-mr, 96px)) var(--cm-y),
     /* next page top corners (the gap ends at its text boundary): arms up and outward */
     calc(var(--gap-ml, 96px) - var(--cm-len)) 100%,
     var(--gap-ml, 96px) 100%,
@@ -4837,8 +4845,9 @@ th.cell-rev-del {
    the estimated height differs from actual rendering by pixels, so overflow into the bottom-margin area is allowed (no clipping) */
 .page-gap-notes {
   position: absolute;
-  /* small offset keeps the separator off the last line's descenders when the break lands mid-paragraph */
-  top: 5px;
+  /* starts on the body boundary: the reservation ends where the footer may begin; the separator row's own
+     11px keeps its rule off the last line's descenders */
+  top: 0;
   overflow: visible;
   box-sizing: border-box;
   pointer-events: auto;
