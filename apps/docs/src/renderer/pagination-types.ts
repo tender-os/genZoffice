@@ -504,6 +504,21 @@ export interface ColumnBlockPlacement {
   /** paragraph straddling two columns of different widths: widthPx is the wider
    *  one and a leading float shape narrows the head or the tail lines */
   split?: ColumnSplitShape
+  /** table the engine cut at row boundaries into later columns: each later
+   *  column's rows, translated relative to the table */
+  rowFragments?: ColumnRowFragment[]
+}
+
+/** Rows [startRow, endRow) of a column-split table (indices into its outer rows) */
+export interface ColumnRowFragment {
+  startRow: number
+  endRow: number
+  dx: number
+  dy: number
+  /** header rows repeated at this column's top that no page gap already renders (px) */
+  headerPx: number
+  /** part of the row above that the engine cut into this column (px); that row stays whole above */
+  carriedPx: number
 }
 
 /** Geometry of the float that rewraps part of a straddling paragraph (px,
