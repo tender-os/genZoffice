@@ -1,7 +1,10 @@
 // Review mode can keep the reviewer's edits inside the fields, so a stray keystroke cannot change the form's
 // own text. An edit outside the fields is refused whole and reported, and the host offers the way to unlock
-// the document. Host writes, the app's own refreshes and a document opening are not the reviewer's edits, and
+// the document. In either scope a block the editor shows whole (a field, a nested table, a text box) is never
+// replaced or deleted, only edited in place: a keystroke on the selected block would otherwise swap the
+// form's paragraph for the typed text. Host writes, the app's own refreshes and a document opening are not the reviewer's edits, and
 // a document with no field markers has nothing to protect the fields from, so it stays editable.
+import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Decoration } from '@tiptap/pm/view'
 import type { EditScope, EditorToHost } from './embed-protocol'
@@ -22,7 +25,10 @@ export const setEditScope = (next: EditScope) => {
 export const isLockedToFields = () => scope === 'fields'
 
 const fieldBlocks = (state: EditorState) =>
-  markersKey.getState(state)?.set.find().filter((decoration) => decoration.spec.isField) ?? []
+  markersKey
+    .getState(state)
+    ?.set.find()
+    .filter((decoration) => decoration.spec.isField) ?? []
 
 /** an insertion is inside a block only strictly; a paragraph added between two blocks is not */
 const isWithin = (block: Decoration, range: { from: number; to: number }) =>
@@ -40,18 +46,49 @@ const keepsItsWords = (tr: Transaction, block: Decoration) =>
 
 const staysInFields = (tr: Transaction, blocks: Decoration[]) =>
   editedRanges([tr]).before.every((range) =>
-    blocks.some((block) => isWithin(block, range) && keepsItsWords(tr, block))
+    blocks.some((block) => isWithin(block, range) && keepsItsWords(tr, block)),
   )
 
-/** the plugin refusing edits outside the fields, reported through `post`; one per review-mode session */
+/** a block the editor shows whole and edits in place through its own view; a picture may be removed */
+const isWholeBlock = (node: PmNode) =>
+  node.type.name === 'docProtected' && node.attrs.blockType !== 'image'
+
+/** whether the block at `pos` before the edit is still there after it: changed attributes keep it */
+const keeps = (tr: Transaction, node: PmNode, pos: number) => {
+  const after = tr.doc.nodeAt(tr.mapping.map(pos, -1))
+  return (
+    after?.type === node.type &&
+    after.attrs.docxIndex === node.attrs.docxIndex &&
+    after.attrs.docxPara === node.attrs.docxPara
+  )
+}
+
+/** whether the edit replaces or deletes a whole block; an insertion beside one leaves it */
+const removesWholeBlock = (tr: Transaction) =>
+  editedRanges([tr]).before.some((range) => {
+    let removed = false
+    if (range.from < range.to) {
+      tr.before.nodesBetween(range.from, range.to, (node, pos) => {
+        removed ||= isWholeBlock(node) && !keeps(tr, node, pos)
+        return !removed
+      })
+    }
+    return removed
+  })
+
+/** the plugin refusing edits outside the fields and edits that remove a whole block, reported through `post`; one per review-mode session */
 export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
   new Plugin({
     key: editScopeKey,
     filterTransaction: (tr, state) => {
-      if (scope === 'everything' || !isUserEdit(tr) || tr.getMeta('appendedTransaction')) return true
-      const blocks = fieldBlocks(state)
-      if (blocks.length === 0 || staysInFields(tr, blocks)) return true
-      post({ type: 'vound:editRefused' })
-      return false
+      if (!isUserEdit(tr) || tr.getMeta('appendedTransaction')) return true
+      const refused =
+        removesWholeBlock(tr) || (scope === 'fields' && !keepsToFields(tr, fieldBlocks(state)))
+      if (refused) post({ type: 'vound:editRefused' })
+      return !refused
     },
   })
+
+/** a document with no field markers has nothing to protect the fields from */
+const keepsToFields = (tr: Transaction, blocks: Decoration[]) =>
+  blocks.length === 0 || staysInFields(tr, blocks)
