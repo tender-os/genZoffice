@@ -1392,6 +1392,7 @@ export function hfTextBoxStyle(
     style.top = `${y - geom.headerStripTop}px`
   }
   if (w != null) style.width = `${w}px`
+  else if (box.widthPct != null) style.width = `${box.widthPct}%`
   if (h != null) {
     style.height = `${h}px`
     // Word clips a fixed-size box's overflow (a wrapped tail past the declared height is not drawn)
