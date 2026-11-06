@@ -2,8 +2,9 @@
  * postMessage contract between a host page (the Vound app) and this iframe.
  * URL:             index.html?lang=de                                          UI language (de, en, fr, …); unsupported
  *                                                                              values (bg) and none mean English
- * Host → iframe:   { type: 'vound:open', name: string, bytes: ArrayBuffer, mode?: 'review' }   open a document;
- *                                                                               'review' opens it in review mode
+ * Host → iframe:   { type: 'vound:open', name: string, bytes: ArrayBuffer, mode?: OpenMode }   open a document;
+ *                                                                               'review' opens it in review mode,
+ *                                                                               'view' read-only (viewMode.ts)
  *                  { type: 'vound:command', command: 'save' }                 save now (same path as ⌘S)
  *                  { type: 'vound:command', command: 'fillWithAi' }           answer with vound:fillWithAi for the caret
  *                  { type: 'vound:markers', markers: SlotMarker[] }            replace the slot markers (all of them)
@@ -73,8 +74,10 @@ export type FieldGap = { before: string; after: string }
  *  and right after the reviewer's edit; an undo that takes the typing back brings `after` back to the text
  *  from before it. */
 export type EditedText = { id: string; before: string; after: string }
+/** 'review': the host's review of a filled form (reviewMode.ts). 'view': the document shown, never changed (viewMode.ts). */
+export type OpenMode = 'review' | 'view'
 export type HostToEditor =
-  | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: 'review' }
+  | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: OpenMode }
   | { type: 'vound:command'; command: 'save' | 'fillWithAi' }
   | { type: 'vound:markers'; markers: SlotMarker[] }
   | { type: 'vound:scrollTo'; id: string }

@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import type { BlockRef, FieldAction, FieldGap, HostToEditor, MarkerTone, SlotMarker } from './embed-protocol'
+import type { BlockRef, FieldAction, FieldGap, HostToEditor, MarkerTone, OpenMode, SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -12,6 +12,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> => typeof va
 
 const markerTones: MarkerTone[] = ['proposed', 'gap', 'conditional', 'refused', 'accepted', 'rejected', 'otherParty']
 const fieldActions: FieldAction[] = ['accept', 'reject', 'fill', 'ask', 'restore']
+const openModes: OpenMode[] = ['review', 'view']
 
 const isSourceIndex = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isScope = (value: unknown): value is BlockRef['scope'] => value === 'paragraph' || value === 'cell'
@@ -63,9 +64,10 @@ function readGap(value: unknown): FieldGap | null {
 export function readHostMessage(data: unknown): HostToEditor | null {
   if (!isRecord(data)) return null
   if (data.type === 'vound:open' && typeof data.name === 'string' && data.bytes instanceof ArrayBuffer) {
-    // any mode but 'review' opens the document as without one
+    // an unknown mode opens the document as without one
     const open = { type: 'vound:open', name: data.name, bytes: data.bytes } as const
-    return data.mode === 'review' ? { ...open, mode: 'review' } : open
+    const mode = openModes.find((known) => known === data.mode)
+    return mode ? { ...open, mode } : open
   }
   if (data.type === 'vound:command' && (data.command === 'save' || data.command === 'fillWithAi')) {
     return { type: 'vound:command', command: data.command }

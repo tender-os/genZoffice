@@ -11,7 +11,7 @@ const hostCss = readFileSync(resolve(__dirname, '../host.css'), 'utf8')
 afterEach(() => {
   document.head.innerHTML = ''
   document.body.innerHTML = ''
-  document.documentElement.classList.remove('vound-embedded', 'vound-review', 'vound-fields-only')
+  document.documentElement.classList.remove('vound-embedded', 'vound-review', 'vound-fields-only', 'vound-view')
 })
 
 function element(className: string) {
@@ -56,5 +56,16 @@ describe('editor chrome in the embed', () => {
     expect(getComputedStyle(ask).display).not.toBe('none')
     document.documentElement.classList.add('vound-embedded')
     expect(getComputedStyle(ask).display).toBe('none')
+  })
+
+  it('shows only the pages in view mode, and they take no pointer input', () => {
+    const chrome = ['ribbon', 'ribbon-tabs', 'status-bar'].map(element)
+    const page = element('doc-page')
+    expect(chrome.map((node) => getComputedStyle(node).display)).not.toContain('none')
+    expect(getComputedStyle(page).pointerEvents).not.toBe('none')
+
+    document.documentElement.classList.add('vound-view')
+    expect(chrome.map((node) => getComputedStyle(node).display)).toEqual(['none', 'none', 'none'])
+    expect(getComputedStyle(page).pointerEvents).toBe('none')
   })
 })
