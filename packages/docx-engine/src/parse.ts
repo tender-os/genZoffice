@@ -7137,6 +7137,54 @@ function hfCellBorders(
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+const TBLP_V_ALIGN: Record<string, HfTextBox['posV']> = {
+  top: 'top',
+  center: 'center',
+  bottom: 'bottom',
+  inside: 'top',
+  outside: 'bottom',
+}
+const TBLP_H_ALIGN: Record<string, HfTextBox['posH']> = {
+  left: 'left',
+  center: 'center',
+  right: 'right',
+  inside: 'left',
+  outside: 'right',
+}
+
+/** A table floated against the page or the margins (w:tblpPr) as the box its rows are drawn in: Word places
+ *  it there, off the strip flow. A table floated against the text stays in the flow. */
+function hfFloatingTableBox(tblPr: XNode | undefined, gridTwips: number): HfTextBox | undefined {
+  const pos = attrsOf(findChild(tblPr ?? {}, 'w:tblpPr') ?? {})
+  const ySpec = pos['w:tblpYSpec']
+  // a keyword Y with no vertAnchor aligns to the margin box, a numeric one to the text (as for body tables)
+  const vertAnchor = pos['w:vertAnchor'] ?? (ySpec ? 'margin' : 'text')
+  if (Object.keys(pos).length === 0 || (vertAnchor !== 'page' && vertAnchor !== 'margin'))
+    return undefined
+  const posV = TBLP_V_ALIGN[ySpec ?? '']
+  const posH = TBLP_H_ALIGN[pos['w:tblpXSpec'] ?? '']
+  const y = Number(pos['w:tblpY'])
+  const x = Number(pos['w:tblpX'])
+  const tblW = attrsOf(findChild(tblPr ?? {}, 'w:tblW') ?? {})
+  const width = Number(tblW['w:w'])
+  return {
+    id: ++hfTextBoxSeq,
+    insets: [0, 0, 0, 0],
+    posVRel: vertAnchor,
+    // an omitted horzAnchor measures from the page (as for body tables); text means the column
+    posHRel: pos['w:horzAnchor'] === 'margin' || pos['w:horzAnchor'] === 'text' ? 'margin' : 'page',
+    ...(posV ? { posV } : {}),
+    ...(!posV && Number.isFinite(y) ? { posYPx: y / 15 } : {}),
+    ...(posH ? { posH } : {}),
+    ...(!posH && Number.isFinite(x) ? { posXPx: x / 15 } : {}),
+    ...(tblW['w:type'] === 'pct' && width > 0 ? { widthPct: width / 50 } : {}),
+    ...(tblW['w:type'] === 'dxa' && width > 0 ? { widthPx: width / 15 } : {}),
+    ...(tblW['w:type'] !== 'pct' && !(width > 0) && gridTwips > 0
+      ? { widthPx: gridTwips / 15 }
+      : {}),
+  }
+}
+
 /** header/footer top-level table → one paragraph per row, cells as columns */
 function hfTableRowParagraphs(
   tbl: XNode,
@@ -7167,6 +7215,10 @@ function hfTableRowParagraphs(
   const gridCols = grid
     ? findChildren(grid, 'w:gridCol').map((g) => Number(attrsOf(g)['w:w']) || 0)
     : []
+  const floatBox = hfFloatingTableBox(
+    tblPr,
+    gridCols.reduce((sum, w) => sum + w, 0),
+  )
   const trs = childrenThroughSdt(tbl, 'w:tr')
   const rawRows: HfRawCell[][] = trs.map((tr) => {
     let col = 0
@@ -7235,7 +7287,12 @@ function hfTableRowParagraphs(
           c.paras.some((rs) => rs.some((r) => r.text !== '' || r.image)) || c.fill || c.borders,
       )
     ) {
-      const rowPara: HfParagraph = { runs: [], cells, row }
+      const rowPara: HfParagraph = {
+        runs: [],
+        cells,
+        row,
+        ...(floatBox ? { boxAnchored: true, box: floatBox } : {}),
+      }
       out.push(rowPara)
       const ids = anchorDocPrIds(trs[r])
       if (ids.length > 0) hfRowAnchorIds.set(rowPara, ids)

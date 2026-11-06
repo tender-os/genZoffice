@@ -805,6 +805,8 @@ export interface HfTextBox extends Pick<
   /** index (in the part's paras) of the paragraph the box shares with other
    *  runs; paragraph-relative offsets measure from that paragraph's top */
   anchorPara?: number
+  /** width as a percentage of the strip's column (a floating table sized w:tblW type pct) */
+  widthPct?: number
 }
 
 /** one cell of a header/footer layout-table row */
