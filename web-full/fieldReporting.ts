@@ -1,5 +1,6 @@
 // Review mode tells the host what the reviewer does in marked blocks: vound:blockEdited when an edit of
-// theirs changes a marked block's text, and vound:caretBlock when the caret enters a marked block or leaves
+// theirs changes a marked block's text, with each touched field's text right before and right after it (so
+// the host sees an undo take the typing back), and vound:caretBlock when the caret enters a marked block or leaves
 // one. Tab is the reviewer's "next field": it neither indents nor inserts a tab, and when the caret is in a
 // marked block it reports leaving it with Tab. Mod-Enter and Mod-Shift-Backspace accept and reject the field at
 // the caret (fieldActionKeys.ts). The host's own writes (fieldWrite.ts, HOST_WRITE_META) and
@@ -14,7 +15,7 @@ import { Mapping, type StepMap } from '@tiptap/pm/transform'
 import type { Decoration, EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
 import { fieldActionKeys } from './fieldActionKeys'
-import { HOST_WRITE_META } from './fieldWrite'
+import { blockText, HOST_WRITE_META } from './fieldWrite'
 import { markersKey, replacedWholeDocument } from './markersPlugin'
 
 export const fieldReportingKey = new PluginKey('voundFieldReporting')
@@ -91,6 +92,16 @@ export function caretIds(view: EditorView) {
   return slotIdsOf(markerDecorationsOf(view.state).filter((d) => d.from <= from && from < d.to))
 }
 
+/** the visible text of a field's marked blocks in `state`, joined by line feeds; '' once they are gone */
+const fieldText = (state: EditorState, id: string) =>
+  markerDecorationsOf(state)
+    .filter((decoration) => decoration.spec.slotIds.includes(id))
+    .map((decoration) => {
+      const block = state.doc.nodeAt(decoration.from)
+      return block ? blockText(block, decoration.from) : ''
+    })
+    .join('\n')
+
 const sameIds = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i])
 
 /** a transaction after which the caret may sit in another marked block: the reviewer moved it or typed,
@@ -114,7 +125,9 @@ export function fieldReportingPlugin(post: (msg: EditorToHost) => void) {
     const { before, after } = editedRanges(trs)
     if (after.length === 0) return
     const ids = unique([...touchedIds(state, after), ...touchedIds(oldState, before)])
-    if (ids.length > 0) post({ type: 'vound:blockEdited', ids })
+    if (ids.length === 0) return
+    const texts = ids.map((id) => ({ id, before: fieldText(oldState, id), after: fieldText(state, id) }))
+    post({ type: 'vound:blockEdited', ids, texts })
   }
 
   const reportCaret = (view: EditorView) => {

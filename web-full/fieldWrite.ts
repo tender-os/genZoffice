@@ -58,6 +58,9 @@ function unitsOf(block: PmNode, pos: number): TextUnit[] {
 /** a block's visible text, its paragraphs joined by line feeds */
 const joinedText = (units: TextUnit[]) => units.map((unit) => unit.text).join('\n')
 
+/** the visible text of a marked block at `pos`, as a write reads it */
+export const blockText = (block: PmNode, pos: number) => joinedText(unitsOf(block, pos))
+
 /** start offsets of every occurrence, overlapping ones included ("aa" occurs twice in "aaa") */
 function occurrences(text: string, needle: string) {
   const starts: number[] = []

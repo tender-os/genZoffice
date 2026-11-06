@@ -25,7 +25,10 @@
  *                                                                              Mod-Shift-Backspace (reject) with the caret
  *                                                                              in a field offering that action (Mod = ⌘
  *                                                                              on the Mac, Ctrl elsewhere)
- *                  { type: 'vound:blockEdited', ids: string[] }                a user edit changed the text of a marked block
+ *                  { type: 'vound:blockEdited', ids: string[], texts: EditedText[] }
+ *                                                                              a user edit changed the text of a marked
+ *                                                                              block; texts: each id's block text before
+ *                                                                              and after it
  *                  { type: 'vound:caretBlock', ids: string[], leftWith? }      the caret entered a marked block, or left
  *                                                                              one (ids [], leftWith 'Tab' | 'other')
  *                  { type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }
@@ -66,6 +69,10 @@ export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBloc
 /** The visible text of a block right before and right after a field's place, as much as makes the place
  *  unique; '' anchors to the start or the end of the block's text (paragraphs joined by line feeds). */
 export type FieldGap = { before: string; after: string }
+/** A field's visible block text (its marked blocks joined by line feeds, '' once they are gone) right before
+ *  and right after the reviewer's edit; an undo that takes the typing back brings `after` back to the text
+ *  from before it. */
+export type EditedText = { id: string; before: string; after: string }
 export type HostToEditor =
   | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: 'review' }
   | { type: 'vound:command'; command: 'save' | 'fillWithAi' }
@@ -82,7 +89,7 @@ export type EditorToHost =
   | { type: 'vound:dirty'; dirty: boolean }
   | { type: 'vound:error'; message: string }
   | { type: 'vound:fieldAction'; id: string; action: FieldAction }
-  | { type: 'vound:blockEdited'; ids: string[] }
+  | { type: 'vound:blockEdited'; ids: string[]; texts: EditedText[] }
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
