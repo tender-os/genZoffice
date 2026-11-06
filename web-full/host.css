@@ -66,6 +66,10 @@ html.vound-view .ribbon { display: none !important; }
 html.vound-view .ribbon-tabs { display: none !important; }
 html.vound-view .status-bar { display: none !important; }
 html.vound-view .doc-page { pointer-events: none; }
+/* The passage a host citation revealed (reveal.ts): the review mode's proposed-field tint and ring, on the
+   text itself. Screen only: it never prints. */
+html.vound-embedded { --vound-reveal-tint: hsl(259 100% 94%); --vound-reveal-ring: hsla(259 70% 59% / .55); }
+@media screen { .vound-reveal { background: var(--vound-reveal-tint); box-shadow: 0 0 0 2px var(--vound-reveal-ring); border-radius: 2px; } }
 /* Locked to the fields (editScope.ts): only a field shows the text cursor and the caret. A document with no
    field stays editable, so it keeps both. */
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) { cursor: default; caret-color: transparent; }

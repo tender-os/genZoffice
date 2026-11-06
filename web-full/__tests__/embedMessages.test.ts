@@ -32,6 +32,16 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ type: 'vound:open', name: 'a.docx', bytes, mode: 'view' })).toEqual({ type: 'vound:open', name: 'a.docx', bytes, mode: 'view' })
   })
 
+  it('reads a reveal only with its request id and some text, and a page hint only as a page number', () => {
+    const reveal = { type: 'vound:reveal', requestId: 'r1', text: 'Ort, Datum' }
+    expect(readHostMessage(reveal)).toEqual(reveal)
+    expect(readHostMessage({ ...reveal, pageHint: 3, extra: 1 })).toEqual({ ...reveal, pageHint: 3 })
+    expect(readHostMessage({ ...reveal, text: '  ' })).toBeNull()
+    expect(readHostMessage({ type: 'vound:reveal', text: 'Ort' })).toBeNull()
+    expect(readHostMessage({ ...reveal, pageHint: 0 })).toBeNull()
+    expect(readHostMessage({ ...reveal, pageHint: 1.5 })).toBeNull()
+  })
+
   it('reads setFieldValue for a paragraph and a cell block', () => {
     const paragraph = { type: 'vound:setFieldValue', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'Berlin', value: 'München' }
     expect(readHostMessage(paragraph)).toEqual(paragraph)

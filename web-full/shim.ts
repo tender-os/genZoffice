@@ -10,6 +10,7 @@
 // which reports edits and caret moves in marked blocks and shows the field chip; an open without it leaves
 // review mode. A save in review mode does not seal the markers (markersPlugin.ts, markersOnSave).
 // View mode: vound:open with mode 'view' makes the handed-over editor read-only (viewMode.ts); it saves nothing.
+// Reveal: vound:reveal marks a cited passage (reveal.ts), once the opened document is in the editor (revealQueue.ts).
 // Field writes: vound:setFieldValue and vound:placeCaret act on the handed-over editor (fieldWrite.ts); every
 // setFieldValue is answered with vound:fieldValueResult.
 // Language: an embedding host picks the UI language with ?lang= (embedLocale.ts); stand-alone stays English.
@@ -31,6 +32,8 @@ import { enterReviewMode, leaveReviewMode } from './reviewMode'
 import { reviewFitWidth, reviewFitZoom } from './reviewGutter'
 import { menuShows } from './reviewMenu'
 import { enterViewMode, leaveViewMode } from './viewMode'
+import { clearReveal, revealKey, revealPlugin } from './reveal'
+import { createRevealQueue } from './revealQueue'
 type Handler = (...args: unknown[]) => void
 const calls: string[] = []
 let openHandler: Handler | null = null
@@ -49,6 +52,7 @@ const enterMode: Record<OpenMode | 'plain', (editor: Editor) => void> = {
   view: (editor) => { leaveReviewMode(editor); enterViewMode(editor) },
 }
 const applyMode = (editor: Editor) => enterMode[openMode](editor)
+const reveals = createRevealQueue((requestId, found) => toHost({ type: 'vound:revealResult', requestId, found }))
 /** the answer to a field write that arrives before the app handed over its editor */
 const noEditor = { ok: false, reason: 'noBlock' } as const
 // the app reports its unsaved-changes state on every render (vite.config.ts, hostReportsDirty); the host hears changes only
@@ -95,6 +99,7 @@ function handOverEditor(editor: Editor) {
   hostEditor = editor
   // registering a keyed plugin twice throws; a re-run effect hands over the same editor again
   if (!markersKey.getState(editor.state)) editor.registerPlugin(markersPlugin)
+  if (!revealKey.getState(editor.state)) editor.registerPlugin(revealPlugin(reveals.documentChanged))
   if (pendingMarkers) setMarkers(editor.view, pendingMarkers)
   pendingMarkers = null
   applyMode(editor)
@@ -173,7 +178,8 @@ export function installDesktopShim() {
       switch (msg.type) {
         case 'vound:open': {
           openMode = msg.mode ?? 'plain'
-          if (hostEditor) { resetMarkers(hostEditor.view); applyMode(hostEditor) }
+          if (hostEditor) { resetMarkers(hostEditor.view); clearReveal(hostEditor.view); applyMode(hostEditor) }
+          reveals.opening()
           const file = new File([msg.bytes], msg.name.endsWith('.docx') ? msg.name : `${msg.name}.docx`)
           if (openHandler) openHandler(fileResult(file))
           else toHost({ type: 'vound:error', message: 'editor not ready for open yet' })
@@ -205,6 +211,9 @@ export function installDesktopShim() {
           break
         case 'vound:editScope':
           setEditScope(msg.scope)
+          break
+        case 'vound:reveal':
+          reveals.reveal(hostEditor?.view ?? null, msg)
           break
       }
     })

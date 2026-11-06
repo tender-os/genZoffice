@@ -17,6 +17,8 @@
  *                                                                              and gap.after in one block
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
  *                  { type: 'vound:editScope', scope: EditScope }               review mode: what the reviewer may type in (editScope.ts)
+ *                  { type: 'vound:reveal', requestId, text, pageHint? }        scroll to a cited passage and mark it (reveal.ts);
+ *                                                                              pageHint (1-based) picks among several matches
  * Iframe → host:   { type: 'vound:ready' }                                     the editor subscribed to open requests
  *                  { type: 'vound:saved', name: string, bytes: ArrayBuffer }   every save (⌘S, File › Save, 'save' command)
  *                  { type: 'vound:dirty', dirty: boolean }                     unsaved changes appeared or were saved; sent on change
@@ -37,6 +39,8 @@
  *                                                                              anchors the written place for the next write
  *                  { type: 'vound:fillWithAi', ids, selected, paragraph }      the reviewer asked AI to fill the caret's place
  *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
+ *                  { type: 'vound:revealResult', requestId, found: boolean }   the answer to vound:reveal, once the opened
+ *                                                                              document is in the editor
  *
  * Both sides check the sender. The editor accepts a message only when event.origin is its own origin
  * and event.source is window.parent (embedMessages.ts); the host should accept one only from the
@@ -86,6 +90,7 @@ export type HostToEditor =
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
   | { type: 'vound:placeCaret'; block: BlockRef }
   | { type: 'vound:editScope'; scope: EditScope }
+  | { type: 'vound:reveal'; requestId: string; text: string; pageHint?: number }
 export type EditorToHost =
   | { type: 'vound:ready' }
   | { type: 'vound:saved'; name: string; bytes: ArrayBuffer }
@@ -97,4 +102,5 @@ export type EditorToHost =
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
   | { type: 'vound:editRefused' }
+  | { type: 'vound:revealResult'; requestId: string; found: boolean }
 export const isEmbedded = (): boolean => window.parent !== window
