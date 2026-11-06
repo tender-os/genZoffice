@@ -1,3 +1,4 @@
+import { formTextResults } from './parse-fields'
 import { patchFieldParagraphText } from './text-patch'
 import { sdtCheckboxGlyphs, sdtCheckboxIsChecked, syncSdtCheckbox } from './checkbox-control'
 import type {
@@ -482,6 +483,20 @@ export interface FieldTextPatch {
   right?: string
 }
 
+/** The w:t of the first result of a line of legacy text form fields whose later results are blank: the line's
+ *  value lives in its first field, and the blank fields after it keep the writing line drawn. Null for any
+ *  other paragraph. */
+function firstFormTextNodes(xml: string, nodes: XmlTextNode[]): XmlTextNode[] | null {
+  const results = formTextResults(xml)
+  if (!results || results.length < 2) return null
+  const inside = (result: { from: number; to: number }) =>
+    nodes.filter((node) => node.start > result.from && node.start < result.to)
+  const [first, ...rest] = results
+  return rest.every((result) => inside(result).every((node) => node.text.trim() === ''))
+    ? inside(first)
+    : null
+}
+
 /**
  * Patch only cached visible w:t text in a field paragraph. Field instructions,
  * hyperlinks, tabs, run styling, and field boundaries remain byte-identical.
@@ -512,7 +527,9 @@ export function patchFieldParagraphXml(xml: string, patch: FieldTextPatch): stri
     if (/^\S{1,15}$/.test(firstSeg)) leftFrom = tabStarts[0]
   }
   const leftNodes =
-    lastTab === -1 ? nodes : nodes.filter((node) => node.start > leftFrom && node.start < lastTab)
+    lastTab === -1
+      ? (firstFormTextNodes(xml, nodes) ?? nodes)
+      : nodes.filter((node) => node.start > leftFrom && node.start < lastTab)
   const rightNodes = lastTab === -1 ? [] : nodes.filter((node) => node.start > lastTab)
   if (patch.left !== undefined && leftNodes.length === 0) return xml
   if (patch.right !== undefined && rightNodes.length === 0) return xml
