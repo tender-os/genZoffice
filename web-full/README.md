@@ -30,7 +30,7 @@ or none, means English); the stand-alone page stays English.
 
 | direction | message |
 |---|---|
-| host → editor | `{ type: 'vound:open', name, bytes: ArrayBuffer, mode?: 'review' }` open a document (transfer the buffer); `mode: 'review'` opens it in review mode, any other mode or none in the normal editor |
+| host → editor | `{ type: 'vound:open', name, bytes: ArrayBuffer, mode?: 'review' \| 'view' }` open a document (transfer the buffer); `mode: 'review'` opens it in review mode, `mode: 'view'` read-only (see View mode), any other mode or none in the normal editor |
 | host → editor | `{ type: 'vound:command', command: 'save' }` save now, the same path as ⌘S |
 | host → editor | `{ type: 'vound:markers', markers: SlotMarker[] }` replace all slot markers (`{ id, paragraph, scope: 'paragraph' \| 'cell', tone, label, actions }`; `actions` ⊂ `accept`, `reject`, `fill`, `ask`, `restore`; without them a marker gets `label: id`, `actions: []`) |
 | host → editor | `{ type: 'vound:scrollTo', id }` scroll a marker to the middle of the view and make it current |
@@ -184,6 +184,15 @@ field commit drops the blank (or an empty line's placeholder NBSP) around the ty
 caret sat in the middle of it. In review mode the blank shows no width (a `vound-blank` decoration,
 negative letter spacing in `host.css`), so the caret and the typed text start at the field's edge; the en
 spaces stay in the document.
+
+## View mode
+
+`vound:open` with `mode: 'view'` shows the document and nothing that changes it (`viewMode.ts`). `host.css`
+hides the ribbon, its tab row and the status bar under `html.vound-view`, and the pages take no pointer input;
+the canvas still scrolls. A plugin whose `editable` prop answers false keeps the editor read-only whatever the
+app's `setEditable` says, so there is no caret. A window capture listener keeps every key, double-click and
+right-click from the app's handlers, so no shortcut, header edit or context menu acts; Mod+S, Mod+P and Mod+O
+do not open the browser's dialogs either. A save in view mode posts nothing. An open in another mode leaves view mode.
 
 ## Field chip
 

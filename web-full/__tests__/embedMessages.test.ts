@@ -27,6 +27,11 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ type: 'vound:open', name: 'a.docx', bytes, mode: null })).toEqual({ type: 'vound:open', name: 'a.docx', bytes })
   })
 
+  it('reads vound:open with mode view', () => {
+    const bytes = new ArrayBuffer(4)
+    expect(readHostMessage({ type: 'vound:open', name: 'a.docx', bytes, mode: 'view' })).toEqual({ type: 'vound:open', name: 'a.docx', bytes, mode: 'view' })
+  })
+
   it('reads setFieldValue for a paragraph and a cell block', () => {
     const paragraph = { type: 'vound:setFieldValue', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'Berlin', value: 'München' }
     expect(readHostMessage(paragraph)).toEqual(paragraph)

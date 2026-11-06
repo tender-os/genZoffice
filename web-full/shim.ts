@@ -9,6 +9,7 @@
 // Review mode: vound:open with mode 'review' puts the handed-over editor in review mode (reviewMode.ts),
 // which reports edits and caret moves in marked blocks and shows the field chip; an open without it leaves
 // review mode. A save in review mode does not seal the markers (markersPlugin.ts, markersOnSave).
+// View mode: vound:open with mode 'view' makes the handed-over editor read-only (viewMode.ts); it saves nothing.
 // Field writes: vound:setFieldValue and vound:placeCaret act on the handed-over editor (fieldWrite.ts); every
 // setFieldValue is answered with vound:fieldValueResult.
 // Language: an embedding host picks the UI language with ?lang= (embedLocale.ts); stand-alone stays English.
@@ -16,7 +17,7 @@
 // vite.config.ts); in review mode they keep the field chip's gutter free and cap the fit at 100 %.
 import type { Editor } from '@tiptap/core'
 import { htmlLang } from '@genoffice/i18n'
-import { isEmbedded, type EditorToHost, type SlotMarker } from './embed-protocol'
+import { isEmbedded, type EditorToHost, type OpenMode, type SlotMarker } from './embed-protocol'
 import { acceptsHostMessage, readHostMessage } from './embedMessages'
 import { embeddedSave } from './embeddedSave'
 import { embedLang } from './embedLocale'
@@ -29,6 +30,7 @@ import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, s
 import { enterReviewMode, leaveReviewMode } from './reviewMode'
 import { reviewFitWidth, reviewFitZoom } from './reviewGutter'
 import { menuShows } from './reviewMenu'
+import { enterViewMode, leaveViewMode } from './viewMode'
 type Handler = (...args: unknown[]) => void
 const calls: string[] = []
 let openHandler: Handler | null = null
@@ -37,11 +39,16 @@ let hostEditor: Editor | null = null
 /** markers that arrived before the app handed over its editor */
 let pendingMarkers: SlotMarker[] | null = null
 /** the mode of the last vound:open; applied when the app hands over its editor if the open came first */
-let reviewMode = false
+let openMode: OpenMode | 'plain' = 'plain'
 const embedded = isEmbedded()
 // same-origin only: the host and the editor are served from one origin (embed-protocol.ts)
 const toHost = (msg: EditorToHost, transfer: Transferable[] = []) => { if (embedded) window.parent.postMessage(msg, window.location.origin, transfer) }
-const applyMode = (editor: Editor) => (reviewMode ? enterReviewMode(editor, toHost) : leaveReviewMode(editor))
+const enterMode: Record<OpenMode | 'plain', (editor: Editor) => void> = {
+  plain: (editor) => { leaveViewMode(editor); leaveReviewMode(editor) },
+  review: (editor) => { leaveViewMode(editor); enterReviewMode(editor, toHost) },
+  view: (editor) => { leaveReviewMode(editor); enterViewMode(editor) },
+}
+const applyMode = (editor: Editor) => enterMode[openMode](editor)
 /** the answer to a field write that arrives before the app handed over its editor */
 const noEditor = { ok: false, reason: 'noBlock' } as const
 // the app reports its unsaved-changes state on every render (vite.config.ts, hostReportsDirty); the host hears changes only
@@ -75,7 +82,9 @@ function download(name: string, bytes: Uint8Array) {
 async function persist(path: string, data: ArrayBuffer, triggerDownload: boolean, auto?: boolean) {
   // the host owns persistence when embedded; only explicit saves reach it (embeddedSave.ts)
   // review mode keeps the markers through a save (the re-parse keeps only those posted since), the plain embed seals them
-  if (embedded) return embeddedSave(path, data, auto, toHost, () => { if (hostEditor) markersOnSave(hostEditor.view, reviewMode ? 'review' : 'plain') })
+  // view mode has nothing to save: answered like a deferred autosave, nothing reaches the host
+  if (openMode === 'view') return { ok: false, reason: 'external-modified' as const }
+  if (embedded) return embeddedSave(path, data, auto, toHost, () => { if (hostEditor) markersOnSave(hostEditor.view, openMode === 'review' ? 'review' : 'plain') })
   const name = path.split('/').pop()!.replace(/\.docx$/, '')
   lastSave.name = name; lastSave.bytes = new Uint8Array(data)
   const res = await fetch(`/__save?name=${encodeURIComponent(name)}`, { method: 'POST', body: data }).catch(() => null)
@@ -126,11 +135,11 @@ const known: Record<string, unknown> = {
   hostDirty,
   onMenuCommand: (h: Handler) => { menuHandler = h; return () => { menuHandler = null } },
   hostEditor: handOverEditor,
-  reviewFitWidth: (canvasWidth: number) => reviewFitWidth(canvasWidth, reviewMode),
-  reviewFitZoom: (zoom: number) => reviewFitZoom(zoom, reviewMode),
-  menuShows: (key: string) => menuShows(key, embedded, reviewMode),
+  reviewFitWidth: (canvasWidth: number) => reviewFitWidth(canvasWidth, openMode === 'review'),
+  reviewFitZoom: (zoom: number) => reviewFitZoom(zoom, openMode === 'review'),
+  menuShows: (key: string) => menuShows(key, embedded, openMode === 'review'),
   fillWithAiLabel: () => {
-    if (!embedded || !reviewMode || !hostEditor) return null
+    if (!embedded || openMode !== 'review' || !hostEditor) return null
     if (isLockedToFields() && caretIds(hostEditor.view).length === 0) return null
     return fillWithAiLabel(embedLang(location.search, true))
   },
@@ -163,7 +172,7 @@ export function installDesktopShim() {
       if (!msg) return
       switch (msg.type) {
         case 'vound:open': {
-          reviewMode = msg.mode === 'review'
+          openMode = msg.mode ?? 'plain'
           if (hostEditor) { resetMarkers(hostEditor.view); applyMode(hostEditor) }
           const file = new File([msg.bytes], msg.name.endsWith('.docx') ? msg.name : `${msg.name}.docx`)
           if (openHandler) openHandler(fileResult(file))

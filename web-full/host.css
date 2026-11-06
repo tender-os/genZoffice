@@ -59,6 +59,13 @@ html.vound-review { --vound-gutter: 110px; }
 /* Word's empty form field result (five en spaces) in review mode (reviewMode.ts): no width, so the caret and
    the typed text start at the field's left edge; the en spaces stay in the document */
 html.vound-review .vound-blank { letter-spacing: -0.5em; }
+/* View mode (viewMode.ts sets html.vound-view on a vound:open with mode 'view'): the document alone. No ribbon,
+   no ribbon tab row, no status bar; the pages take no pointer input, the canvas behind them still scrolls.
+   One rule per selector. */
+html.vound-view .ribbon { display: none !important; }
+html.vound-view .ribbon-tabs { display: none !important; }
+html.vound-view .status-bar { display: none !important; }
+html.vound-view .doc-page { pointer-events: none; }
 /* Locked to the fields (editScope.ts): only a field shows the text cursor and the caret. A document with no
    field stays editable, so it keeps both. */
 html.vound-review.vound-fields-only .ProseMirror:has(.vound-slot-field) { cursor: default; caret-color: transparent; }
