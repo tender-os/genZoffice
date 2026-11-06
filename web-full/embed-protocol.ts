@@ -11,6 +11,9 @@
  *                  { type: 'vound:focus', id: string | null }                  make a marker current without scrolling, or none
  *                  { type: 'vound:setFieldValue', requestId, block, previous, value, replaces? }
  *                                                                              replace a field's value in one block
+ *                  { type: 'vound:setFieldValue', requestId, block, value, replaces: 'gap', gap }
+ *                                                                              replace what lies between gap.before
+ *                                                                              and gap.after in one block
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
  *                  { type: 'vound:editScope', scope: EditScope }               review mode: what the reviewer may type in (editScope.ts)
  * Iframe → host:   { type: 'vound:ready' }                                     the editor subscribed to open requests
@@ -25,7 +28,9 @@
  *                  { type: 'vound:blockEdited', ids: string[] }                a user edit changed the text of a marked block
  *                  { type: 'vound:caretBlock', ids: string[], leftWith? }      the caret entered a marked block, or left
  *                                                                              one (ids [], leftWith 'Tab' | 'other')
- *                  { type: 'vound:fieldValueResult', requestId, ok, reason? }  the answer to vound:setFieldValue
+ *                  { type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }
+ *                                                                              the answer to vound:setFieldValue; gap
+ *                                                                              anchors the written place for the next write
  *                  { type: 'vound:fillWithAi', ids, selected, paragraph }      the reviewer asked AI to fill the caret's place
  *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
  *
@@ -58,6 +63,9 @@ export type BlockRef = { paragraph: number; scope: 'paragraph' | 'cell' }
 /** 'fields': only the blocks of markers offering actions take edits. 'everything': the whole document does. */
 export type EditScope = 'fields' | 'everything'
 export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBlock'
+/** The visible text of a block right before and right after a field's place, as much as makes the place
+ *  unique; '' anchors to the start or the end of the block's text (paragraphs joined by line feeds). */
+export type FieldGap = { before: string; after: string }
 export type HostToEditor =
   | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: 'review' }
   | { type: 'vound:command'; command: 'save' | 'fillWithAi' }
@@ -65,6 +73,7 @@ export type HostToEditor =
   | { type: 'vound:scrollTo'; id: string }
   | { type: 'vound:focus'; id: string | null }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
+  | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
   | { type: 'vound:placeCaret'; block: BlockRef }
   | { type: 'vound:editScope'; scope: EditScope }
 export type EditorToHost =
@@ -76,6 +85,6 @@ export type EditorToHost =
   | { type: 'vound:blockEdited'; ids: string[] }
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
-  | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal }
+  | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
   | { type: 'vound:editRefused' }
 export const isEmbedded = (): boolean => window.parent !== window

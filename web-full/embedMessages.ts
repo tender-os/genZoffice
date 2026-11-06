@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import type { BlockRef, FieldAction, HostToEditor, MarkerTone, SlotMarker } from './embed-protocol'
+import type { BlockRef, FieldAction, FieldGap, HostToEditor, MarkerTone, SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -54,6 +54,11 @@ function readMarkers(value: unknown): SlotMarker[] | null {
   return markers.every((marker): marker is SlotMarker => marker !== null) ? markers : null
 }
 
+function readGap(value: unknown): FieldGap | null {
+  if (!isRecord(value) || typeof value.before !== 'string' || typeof value.after !== 'string') return null
+  return { before: value.before, after: value.after }
+}
+
 /** The host message in `data`, or null when it is not one the editor accepts. */
 export function readHostMessage(data: unknown): HostToEditor | null {
   if (!isRecord(data)) return null
@@ -71,6 +76,13 @@ export function readHostMessage(data: unknown): HostToEditor | null {
   }
   if (data.type === 'vound:scrollTo' && typeof data.id === 'string') return { type: 'vound:scrollTo', id: data.id }
   if (data.type === 'vound:focus' && (typeof data.id === 'string' || data.id === null)) return { type: 'vound:focus', id: data.id }
+  if (data.type === 'vound:setFieldValue' && data.replaces === 'gap') {
+    const { requestId, value } = data
+    const block = readBlock(data.block)
+    const gap = readGap(data.gap)
+    if (!block || !gap || typeof requestId !== 'string' || typeof value !== 'string') return null
+    return { type: 'vound:setFieldValue', requestId, block, value, replaces: 'gap', gap }
+  }
   if (data.type === 'vound:setFieldValue') {
     const { requestId, previous, value } = data
     const block = readBlock(data.block)

@@ -51,7 +51,7 @@ describe('fieldReportingPlugin', () => {
 
   it('does not report a host write', () => {
     const { v, post } = reportingView()
-    expect(applyFieldValue(v, { block: { paragraph: 1, scope: 'paragraph' }, previous: 'paragraph 1', value: 'Berlin' })).toEqual({ ok: true })
+    expect(applyFieldValue(v, { block: { paragraph: 1, scope: 'paragraph' }, previous: 'paragraph 1', value: 'Berlin' }).ok).toBe(true)
     expect(v.state.doc.child(1).textContent).toBe('Berlin')
     expect(sent(post, 'vound:blockEdited')).toEqual([])
   })
@@ -138,7 +138,7 @@ describe('fieldReportingPlugin', () => {
     const state = EditorState.create({ schema, doc: doc(...paragraphs(0, 3)), plugins: [markersPlugin, stamp, fieldReportingPlugin(post)] })
     view = new EditorView(document.createElement('div'), { state })
     setMarkers(view, [marker('name', 0)])
-    expect(applyFieldValue(view, { block: { paragraph: 0, scope: 'paragraph' }, previous: 'paragraph 0', value: 'Muster' })).toEqual({ ok: true })
+    expect(applyFieldValue(view, { block: { paragraph: 0, scope: 'paragraph' }, previous: 'paragraph 0', value: 'Muster' }).ok).toBe(true)
     expect(view.state.doc.child(0).textContent).toBe('M!uster')
     expect(sent(post, 'vound:blockEdited')).toEqual([])
   })
