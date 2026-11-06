@@ -38,6 +38,7 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, previous, value }` replace a field's value in one block (`BlockRef = { paragraph, scope: 'paragraph' \| 'cell' }`, named like a marker); answered with `vound:fieldValueResult` (see Field writes) |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
+| host → editor | `{ type: 'vound:reveal', requestId, text, pageHint? }` scroll to a cited passage and mark it (see Reveal); answered with `vound:revealResult` |
 | editor → host | `{ type: 'vound:ready' }` after the editor subscribed to open requests |
 | editor → host | `{ type: 'vound:saved', name, bytes: ArrayBuffer }` on every save (⌘S, File › Save, the save command) |
 | editor → host | `{ type: 'vound:dirty', dirty: boolean }` when unsaved changes appear or a save clears them |
@@ -46,6 +47,8 @@ or none, means English); the stand-alone page stays English.
 | editor → host | `{ type: 'vound:blockEdited', ids, texts }` a user edit changed the text of a marked block; `ids` are its slot ids, `texts` each id's block text right before and right after the edit (an undo of typing brings `after` back to the text before it). Review mode only; host writes are not reported |
 | editor → host | `{ type: 'vound:caretBlock', ids, leftWith? }` the caret entered a marked block, or left one (`ids: []`, `leftWith: 'Tab' \| 'other'`). Review mode only |
 | editor → host | `{ type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }` the answer to `vound:setFieldValue` (`reason`: `absent`, `ambiguous`, `notEditable`, `noBlock`; `gap`: the written place's anchors) |
+| editor → host | `{ type: 'vound:revealResult', requestId, found }` the answer to `vound:reveal`, once the opened document is in the editor |
+| editor → host | `{ type: 'vound:opened' }` the document of the last `vound:open` is in the editor; once per open |
 
 Host and editor must share one origin. The editor accepts a message only when `event.origin` is its
 own origin and `event.source` is `window.parent` (`embedMessages.ts`), reads it structurally and drops
@@ -193,6 +196,20 @@ the canvas still scrolls. A plugin whose `editable` prop answers false keeps the
 app's `setEditable` says, so there is no caret. A window capture listener keeps every key, double-click and
 right-click from the app's handlers, so no shortcut, header edit or context menu acts; Mod+S, Mod+P and Mod+O
 do not open the browser's dialogs either. A save in view mode posts nothing. An open in another mode leaves view mode.
+
+## Reveal
+
+`{ type: 'vound:reveal', requestId, text, pageHint? }` scrolls to a passage the host cites and marks it
+(`reveal.ts`); the editor answers `{ type: 'vound:revealResult', requestId, found }`. The match ignores case,
+whitespace, hyphens (also the soft hyphen) and the quote style, and folds ligatures (NFKC), so a quote taken
+from the converted PDF finds the Word text across line breaks, hyphenated words and paragraph breaks. Of several
+matches, the one on the page nearest `pageHint` (1-based; a page is counted by the `.page-gap` elements laid out
+before it) is taken, the first without a hint. The mark is a decoration (`.vound-reveal` in `host.css`): one at a
+time, replaced by the next reveal, cleared by the next open, never saved. The editor posts `vound:opened` once
+the opened document is in, so a host can time its wait for an answer from then. A reveal that arrives right after
+`vound:open` waits until the opened document is in the editor (`revealQueue.ts`); a newer reveal or open answers
+the waiting one with `found: false`. A message without a request id or text, or with a page hint that is not a
+whole page number, is dropped unanswered. Text of legacy form fields (passthrough blocks) is not searched.
 
 ## Field chip
 

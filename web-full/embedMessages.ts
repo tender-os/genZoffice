@@ -99,5 +99,15 @@ export function readHostMessage(data: unknown): HostToEditor | null {
   if (data.type === 'vound:editScope' && (data.scope === 'fields' || data.scope === 'everything')) {
     return { type: 'vound:editScope', scope: data.scope }
   }
+  if (data.type === 'vound:reveal') return readReveal(data)
   return null
+}
+
+/** A reveal needs its request id and some text; a page hint is a positive whole page number or left out. */
+function readReveal(data: Record<string, unknown>): HostToEditor | null {
+  const { requestId, text, pageHint } = data
+  if (typeof requestId !== 'string' || typeof text !== 'string' || !text.trim()) return null
+  const reveal = { type: 'vound:reveal', requestId, text } as const
+  if (pageHint === undefined) return reveal
+  return isSourceIndex(pageHint) && pageHint > 0 ? { ...reveal, pageHint } : null
 }
