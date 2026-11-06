@@ -2771,6 +2771,35 @@ th.cell-rev-del {
   transform: translate(calc(var(--col-dx, 0px) + var(--page-cx, 0px)), var(--col-dy, 0px));
 }
 
+/* table rows the engine moved into a later column or page (columnLayoutSpecs
+   row fragments): translated relative to their table. Chromium paints collapsed
+   borders with the table, where the row was, so the moved cells draw none and
+   the ghost clone in the host after the table draws them at the new place */
+.editor-scroll .doc-page:not(.measuring-columns) .doc-col-row {
+  transform: translate(var(--row-dx, 0px), var(--row-dy, 0px));
+}
+.editor-scroll .doc-page:not(.measuring-columns) .doc-col-row > :is(td, th) {
+  border-color: transparent !important;
+}
+.doc-col-host {
+  position: relative;
+  height: 0;
+  pointer-events: none;
+  user-select: none;
+}
+.doc-col-ghost {
+  position: absolute;
+  margin: 0 !important;
+}
+.doc-col-ghost:is(.doc-col-ghost-borders, .doc-col-ghost-edge) :is(td, th) {
+  background: none !important;
+}
+/* the in-table page gaps' pull-up spacer: its margin must not merge with the
+   next page gap's, which would keep only the larger pull of the two */
+.page-gap-pull {
+  display: flow-root;
+}
+
 /* w:docGrid charSpace character grid (Word probes 2026-09-02, 2026-10-22):
    every character in a typed linesAndChars section advances by natural width
    + charSpace/4096pt — plain letter-spacing, inherited into tables and

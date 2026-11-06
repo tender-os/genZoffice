@@ -32,7 +32,7 @@ const UNWRAP_CLASSES = new Set([
   'doc-comment-flash',
 ])
 
-const KEEP_WIDGET_CLASSES = ['page-float-host']
+const KEEP_WIDGET_CLASSES = ['page-first-floats']
 
 const KEEP_ATTRS = ['href', 'src', 'alt', 'title', 'colspan', 'rowspan', 'dir', 'lang', 'target']
 

@@ -170,6 +170,7 @@ import {
   pageAt,
   singleCutCell,
   columnLayoutSpecs,
+  stackedPullUpPx,
   widthPassGate,
   newWidthPassState,
   resetWidthPassHistory,
@@ -4398,7 +4399,7 @@ export function App() {
                 : null
               : used
             const remaining = physUsed === null ? 0 : Math.max(0, prevContentH - physUsed)
-            const pullUp = physUsed === null ? 0 : Math.max(0, used - physUsed)
+            const pullUp = colMode === 'mixed' ? stackedPullUpPx(slices[k]) : 0
             // used excludes the reserved footnote height (footnoteExtraPx inflates capacity
             // bookkeeping, not DOM coordinates), and the notes area already extends the gap
             // by fnH: pad covers only the rest of the shortfall
@@ -4567,26 +4568,46 @@ export function App() {
               // before the broken row (next page's first row). Positioning must subtract the
               // gap's own height: a tr's DOM offset includes in-table gaps above it, so
               // subtract them before comparing with the slice's gapless virtual coordinates
-              const gapRects = Array.from(b.el.querySelectorAll('.page-gap-inline')).map((g) =>
-                g.getBoundingClientRect(),
-              )
-              const elTop = b.el.getBoundingClientRect().top
-              let matched = false
-              let cutRow: Element | null = null
+              const tableEl = b.el
               // the previous pass's gap rows sit exactly at their cut: matching one
               // resolves to the table, not a row, and the boundary is silently lost
-              for (const tr of Array.from(b.el.querySelectorAll('tr')).filter(
+              const realRows = Array.from(tableEl.querySelectorAll('tr')).filter(
                 (r) =>
                   !r.closest('.doc-nested-table') &&
                   !r.classList.contains('page-repeat-header') &&
                   !r.classList.contains('page-gap'),
-              )) {
-                const trTop = tr.getBoundingClientRect().top
-                const gapsAbove = gapRects.reduce((s, g) => (g.top <= trTop ? s + g.height : s), 0)
-                const off = (trTop - elTop - gapsAbove) / factor
+              )
+              const readRowOffs = () => {
+                const gapRects = Array.from(tableEl.querySelectorAll('.page-gap-inline')).map((g) =>
+                  g.getBoundingClientRect(),
+                )
+                const elTop = tableEl.getBoundingClientRect().top
+                return realRows.map((tr) => {
+                  const trTop = tr.getBoundingClientRect().top
+                  const gapsAbove = gapRects.reduce(
+                    (s, g) => (g.top <= trTop ? s + g.height : s),
+                    0,
+                  )
+                  return (trTop - elTop - gapsAbove) / factor
+                })
+              }
+              // mixed columns: rows a column split translated read their single-flow offsets
+              const rowOffs =
+                colMode === 'mixed' ? measureSingleFlow(pm, readRowOffs) : readRowOffs()
+              let gapRow = rowOffs.findIndex((off) => Math.abs(off - cutOff) < 1.5)
+              // mixed columns: a page turn inside a row opens the page at the next
+              // row, the cut row staying whole above (as at a column turn)
+              if (gapRow < 0 && colMode === 'mixed' && slices[k].regions) {
+                const cutIdx = rowOffs.filter((off) => off <= cutOff + 0.5).length - 1
+                if (cutIdx >= 0) gapRow = cutIdx + 1
+              }
+              let matched = false
+              let cutRow: Element | null = null
+              for (const [ri, tr] of realRows.entries()) {
+                const off = rowOffs[ri]
                 // last real row starting at/above the cut = the row the cut falls inside
                 if (off <= cutOff + 0.5) cutRow = tr
-                if (Math.abs(off - cutOff) < 1.5) {
+                if (ri === gapRow) {
                   matched = true
                   try {
                     const $pos = editor.view.state.doc.resolve(editor.view.posAtDOM(tr, 0))
@@ -4642,6 +4663,7 @@ export function App() {
                           kind: 'table',
                           cols: gridCols,
                           boundaryY: slice.start,
+                          ...(pullUp > 0.5 ? { pullUp } : {}),
                           metrics:
                             tablePad > 0
                               ? { ...metrics, marginBottom: metrics.marginBottom + tablePad }

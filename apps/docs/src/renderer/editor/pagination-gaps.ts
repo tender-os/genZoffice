@@ -524,6 +524,9 @@ export function setPageGaps(
       ),
     )
   }
+  // in-table page gaps are rows, which take no margin: one spacer after their
+  // table pulls the flow up by the vacated column space of all of them
+  const tablePulls = new Map<number, number>()
   let ordinal = -1
   for (const gap of gaps) {
     ordinal++
@@ -573,6 +576,14 @@ export function setPageGaps(
     } else {
       pos = gap.pos
       kind = gap.kind ?? 'inline'
+      if (kind === 'table' && gap.pullUp) {
+        try {
+          const end = view.state.doc.resolve(pos).after(1)
+          tablePulls.set(end, (tablePulls.get(end) ?? 0) + gap.pullUp)
+        } catch {
+          // stale position: the next pass rebuilds the gaps
+        }
+      }
     }
     // boundaryY in the key: a reused widget must not keep a stale boundary
     // (cols too: a table-structure edit must rebuild the spanning cell)
@@ -583,8 +594,7 @@ export function setPageGaps(
         () => {
           const el = makeGapEl(metrics, kind, gap.cols)
           if (gap.boundaryY != null) el.dataset.boundaryY = gap.boundaryY.toFixed(1)
-          // margins don't apply to table-rows and cuts are zero-height markers;
-          // tables inside mixed-column regions are out of scope anyway (v1)
+          // margins don't apply to table-rows (tablePulls) and cuts are zero-height markers
           if (gap.pullUp && kind !== 'cut' && kind !== 'table')
             el.style.marginTop = `-${gap.pullUp}px`
           if (notes) el.appendChild(notes)
@@ -621,6 +631,22 @@ export function setPageGaps(
         )
       })
     }
+  }
+  for (const [end, pull] of tablePulls) {
+    const px = Math.round(pull)
+    decos.push(
+      Decoration.widget(
+        end,
+        () => {
+          const div = document.createElement('div')
+          div.className = 'page-gap page-gap-carry page-gap-pull'
+          div.contentEditable = 'false'
+          div.style.marginTop = `-${px}px`
+          return div
+        },
+        { side: -2, key: `page-gap-pull-${px}` },
+      ),
+    )
   }
   const next = DecorationSet.create(view.state.doc, decos)
   const prev = key.getState(view.state)

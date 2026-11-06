@@ -11,6 +11,7 @@ import type {
   SectionGeom,
   SectionHfHeights,
   ColumnSplitShape,
+  ColumnRowFragment,
 } from './pagination-types'
 
 const twipsToPx = (twips: number) => (twips / 1440) * 96
@@ -218,6 +219,8 @@ export function sectionBidi(s: SectionInfo): boolean {
  * the head or the tail at the narrower one (columnLineSplits); any other
  * block whose lines run on into narrower columns takes the narrowest of them
  * (a narrow-wrapped head beats a tail clipped by its column).
+ * A table the engine cut at row boundaries into later columns or pages gets
+ * row fragments translated relative to the table (tableRowFragments).
  * Floated/eless blocks are skipped.
  */
 export function columnLayoutSpecs(
@@ -256,6 +259,11 @@ export function columnLayoutSpecs(
   type Col = {
     start: number
     end: number
+    page: number
+    /** header rows the engine repeats at the column top */
+    repeatHeader?: { height: number }
+    /** that repeat is already a page gap's cloned rows (in the flow) */
+    headerInGap: boolean
     section: number
     widthPx: number | undefined
     widestPx: number
@@ -264,11 +272,14 @@ export function columnLayoutSpecs(
     natural: boolean
   }
   const cols: Col[] = []
-  for (const slice of slices) {
+  slices.forEach((slice, page) => {
     if (!slice.regions) {
       cols.push({
         start: slice.start,
         end: slice.end,
+        page,
+        repeatHeader: slice.repeatHeader,
+        headerInGap: true,
         section: -1,
         widthPx: undefined,
         widestPx: 0,
@@ -276,11 +287,11 @@ export function columnLayoutSpecs(
         dy: 0,
         natural: true,
       })
-      continue
+      return
     }
-    for (const region of slice.regions) {
+    slice.regions.forEach((region, ri) => {
       const sec = sections[Math.max(0, Math.min(region.section, sections.length - 1))]
-      if (!sec) continue
+      if (!sec) return
       const geom = sectionColGeom(sec)
       const rtl = geom.cols > 1 && sectionBidi(sec)
       // left edge of each column (LTR): cumulative widths + gaps
@@ -301,6 +312,9 @@ export function columnLayoutSpecs(
         cols.push({
           start: col.start,
           end: col.end,
+          page,
+          repeatHeader: col.repeatHeader,
+          headerInGap: ri === 0 && c === 0 && !!slice.repeatHeader,
           section: region.section,
           widthPx,
           widestPx,
@@ -310,8 +324,8 @@ export function columnLayoutSpecs(
           natural: widthPx === undefined && Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01,
         })
       }
-    }
-  }
+    })
+  })
   let bi = 0
   cols.forEach((col, k) => {
     while (bi < blocks.length && blocks[bi].top < col.end - 0.5) {
@@ -346,10 +360,82 @@ export function columnLayoutSpecs(
         ...(widthPx !== undefined ? { widthPx: blockColumnWidth(b.el, widthPx) } : {}),
         dx: col.dx,
         dy: col.dy,
+        ...tableRowFragments(b, k, cols, slices),
       })
     }
   })
   return specs
+}
+
+/** Vacated stacked-column space of a mixed-column page (px): the virtual span
+ *  plus its repeated header, minus the physical height the columns use */
+export function stackedPullUpPx(slice: PageSlice): number {
+  if (!slice.regions) return 0
+  const used = slice.end - slice.start + (slice.repeatHeader?.height ?? 0)
+  return Math.max(0, used - (slice.physHeight ?? used))
+}
+
+/**
+ * Rows of a table placed in column k that the engine moved on into later
+ * columns or pages, as fragments translated relative to the table: the
+ * column's offset, less the stacked space of the page turns in between (the
+ * in-table page gap cannot pull the flow up), plus a column-top header repeat
+ * the canvas paints itself. A vMerge continuation row stays with its row; a
+ * row the engine cut inside stays whole in the column it starts in, and the
+ * next column's rows move up by its carried part.
+ */
+function tableRowFragments(
+  b: BlockBox,
+  k: number,
+  cols: Array<{
+    start: number
+    page: number
+    dx: number
+    dy: number
+    repeatHeader?: { height: number }
+    headerInGap: boolean
+  }>,
+  slices: PageSlice[],
+): { rowFragments?: ColumnRowFragment[] } {
+  const rows = b.tableRows
+  if (!rows?.length) return {}
+  const fragments: ColumnRowFragment[] = []
+  let j = k
+  let pull = 0
+  // the part of a row cut inside at a column or page turn: the row stays
+  // whole above, so the next rows move up by it
+  let carried = 0
+  // header clones the page gap put in the flow ahead of the page's rows
+  let gapHeader = 0
+  let top = b.top
+  rows.forEach((row, ri) => {
+    while (!row.vMergeContinue && j + 1 < cols.length && top >= cols[j + 1].start - 0.5) {
+      j++
+      const samePage = cols[j].page === cols[j - 1].page
+      // a mixed-column page closes with a table gap row before the next row
+      // (App's page gaps); elsewhere an in-row turn gets a cell gap, which
+      // pulls the flow up itself, or a cut marker, which opens no page
+      const tableGap =
+        samePage || Math.abs(top - cols[j].start) < 1.5 || !!slices[cols[j - 1].page].regions
+      carried = tableGap ? Math.max(0, top - cols[j].start) : 0
+      if (samePage) continue
+      if (tableGap) pull += stackedPullUpPx(slices[cols[j - 1].page])
+      gapHeader = tableGap ? (slices[cols[j].page].repeatHeader?.height ?? 0) : 0
+    }
+    top += row.height
+    if (j === k) return
+    const last = fragments.at(-1)
+    const col = cols[j]
+    const headerPx =
+      col.repeatHeader && !(col.headerInGap && gapHeader > 0) ? col.repeatHeader.height : 0
+    const dx = col.dx - cols[k].dx
+    const dy = col.dy - cols[k].dy - pull + (col.repeatHeader?.height ?? 0) - gapHeader - carried
+    if (last?.endRow === ri && Math.abs(last.dx - dx) < 0.01 && Math.abs(last.dy - dy) < 0.01)
+      last.endRow = ri + 1
+    else if (Math.abs(dx) >= 0.01 || Math.abs(dy) >= 0.01)
+      fragments.push({ startRow: ri, endRow: ri + 1, dx, dy, headerPx, carriedPx: carried })
+  })
+  return fragments.length > 0 ? { rowFragments: fragments } : {}
 }
 
 export interface WidthPassState {
