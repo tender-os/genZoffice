@@ -11739,6 +11739,16 @@ ruby.doc-ruby rt {
   color: var(--docs-paper-ink-dim);
 }
 
+/* the last page's footnotes end on its bottom text boundary, above the footer, as Word draws them; the
+   pagination already reserved their height in the body (footnoteExtraPx) */
+.page-notes:not(.page-endnotes) {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--page-mb, 96px);
+  padding-bottom: 0;
+}
+
 /* canvas twin of the pv separators: Word's 2in rule, drawn at the row's bottom */
 .page-notes::before {
   content: '';
