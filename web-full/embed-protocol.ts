@@ -41,6 +41,8 @@
  *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
  *                  { type: 'vound:revealResult', requestId, found: boolean }   the answer to vound:reveal, once the opened
  *                                                                              document is in the editor
+ *                  { type: 'vound:opened' }                                    the document of the last vound:open is in the
+ *                                                                              editor (once per open)
  *
  * Both sides check the sender. The editor accepts a message only when event.origin is its own origin
  * and event.source is window.parent (embedMessages.ts); the host should accept one only from the
@@ -103,4 +105,5 @@ export type EditorToHost =
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
   | { type: 'vound:editRefused' }
   | { type: 'vound:revealResult'; requestId: string; found: boolean }
+  | { type: 'vound:opened' }
 export const isEmbedded = (): boolean => window.parent !== window

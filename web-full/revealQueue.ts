@@ -1,16 +1,18 @@
 // A reveal names text in the document the host just opened, and the editor loads that document after
-// vound:open returns. So a reveal that arrives while the opened document is not in the editor yet waits
-// for it; a newer reveal or open answers the waiting one with found: false.
+// vound:open returns. So the editor tells the host when the opened document is in (vound:opened), and a
+// reveal that arrives before then waits for it; a newer reveal or open answers the waiting one with
+// found: false.
 import type { EditorView } from '@tiptap/pm/view'
-import type { HostToEditor } from './embed-protocol'
+import type { EditorToHost, HostToEditor } from './embed-protocol'
 import { revealPassage } from './reveal'
 
 type RevealRequest = Extract<HostToEditor, { type: 'vound:reveal' }>
 
-/** Answers every reveal exactly once through `answer`, after the document it names has arrived. */
-export function createRevealQueue(answer: (requestId: string, found: boolean) => void) {
+/** Posts vound:opened once per open and answers every reveal exactly once, after the document it names has arrived. */
+export function createRevealQueue(post: (msg: EditorToHost) => void) {
   let loading = false
   let waiting: RevealRequest | null = null
+  const answer = (requestId: string, found: boolean) => post({ type: 'vound:revealResult', requestId, found })
   const dropWaiting = () => {
     if (waiting) answer(waiting.requestId, false)
     waiting = null
@@ -24,6 +26,7 @@ export function createRevealQueue(answer: (requestId: string, found: boolean) =>
     documentChanged(view: EditorView) {
       if (!loading) return
       loading = false
+      post({ type: 'vound:opened' })
       if (waiting) answer(waiting.requestId, revealPassage(view, waiting))
       waiting = null
     },

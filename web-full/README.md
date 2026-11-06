@@ -48,6 +48,7 @@ or none, means English); the stand-alone page stays English.
 | editor → host | `{ type: 'vound:caretBlock', ids, leftWith? }` the caret entered a marked block, or left one (`ids: []`, `leftWith: 'Tab' \| 'other'`). Review mode only |
 | editor → host | `{ type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }` the answer to `vound:setFieldValue` (`reason`: `absent`, `ambiguous`, `notEditable`, `noBlock`; `gap`: the written place's anchors) |
 | editor → host | `{ type: 'vound:revealResult', requestId, found }` the answer to `vound:reveal`, once the opened document is in the editor |
+| editor → host | `{ type: 'vound:opened' }` the document of the last `vound:open` is in the editor; once per open |
 
 Host and editor must share one origin. The editor accepts a message only when `event.origin` is its
 own origin and `event.source` is `window.parent` (`embedMessages.ts`), reads it structurally and drops
@@ -204,7 +205,8 @@ whitespace, hyphens (also the soft hyphen) and the quote style, and folds ligatu
 from the converted PDF finds the Word text across line breaks, hyphenated words and paragraph breaks. Of several
 matches, the one on the page nearest `pageHint` (1-based; a page is counted by the `.page-gap` elements laid out
 before it) is taken, the first without a hint. The mark is a decoration (`.vound-reveal` in `host.css`): one at a
-time, replaced by the next reveal, cleared by the next open, never saved. A reveal that arrives right after
+time, replaced by the next reveal, cleared by the next open, never saved. The editor posts `vound:opened` once
+the opened document is in, so a host can time its wait for an answer from then. A reveal that arrives right after
 `vound:open` waits until the opened document is in the editor (`revealQueue.ts`); a newer reveal or open answers
 the waiting one with `found: false`. A message without a request id or text, or with a page hint that is not a
 whole page number, is dropped unanswered. Text of legacy form fields (passthrough blocks) is not searched.

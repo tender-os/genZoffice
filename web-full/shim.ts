@@ -10,7 +10,8 @@
 // which reports edits and caret moves in marked blocks and shows the field chip; an open without it leaves
 // review mode. A save in review mode does not seal the markers (markersPlugin.ts, markersOnSave).
 // View mode: vound:open with mode 'view' makes the handed-over editor read-only (viewMode.ts); it saves nothing.
-// Reveal: vound:reveal marks a cited passage (reveal.ts), once the opened document is in the editor (revealQueue.ts).
+// Reveal: vound:opened tells the host the opened document is in; vound:reveal marks a cited passage (reveal.ts), once it
+// is (revealQueue.ts).
 // Field writes: vound:setFieldValue and vound:placeCaret act on the handed-over editor (fieldWrite.ts); every
 // setFieldValue is answered with vound:fieldValueResult.
 // Language: an embedding host picks the UI language with ?lang= (embedLocale.ts); stand-alone stays English.
@@ -52,7 +53,7 @@ const enterMode: Record<OpenMode | 'plain', (editor: Editor) => void> = {
   view: (editor) => { leaveReviewMode(editor); enterViewMode(editor) },
 }
 const applyMode = (editor: Editor) => enterMode[openMode](editor)
-const reveals = createRevealQueue((requestId, found) => toHost({ type: 'vound:revealResult', requestId, found }))
+const reveals = createRevealQueue(toHost)
 /** the answer to a field write that arrives before the app handed over its editor */
 const noEditor = { ok: false, reason: 'noBlock' } as const
 // the app reports its unsaved-changes state on every render (vite.config.ts, hostReportsDirty); the host hears changes only

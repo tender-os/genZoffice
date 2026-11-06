@@ -99,33 +99,35 @@ describe('pageOfNode', () => {
 
 describe('createRevealQueue', () => {
   const request = (requestId: string, text: string) => ({ type: 'vound:reveal', requestId, text }) as const
+  const result = (requestId: string, found: boolean) => ({ type: 'vound:revealResult', requestId, found })
 
   it('answers a reveal at once while no open is loading', () => {
-    const answer = vi.fn()
-    createRevealQueue(answer).reveal(viewOf(para(0, 'Ort und Datum')), request('r1', 'Datum'))
-    expect(answer).toHaveBeenCalledWith('r1', true)
+    const post = vi.fn()
+    createRevealQueue(post).reveal(viewOf(para(0, 'Ort und Datum')), request('r1', 'Datum'))
+    expect(post.mock.calls).toEqual([[result('r1', true)]])
   })
 
-  it('holds a reveal until the opened document arrives, and answers a superseded one with not found', () => {
-    const answer = vi.fn()
-    const queue = createRevealQueue(answer)
+  it('tells the host the opened document is in, once, then answers the reveal that waited for it', () => {
+    const post = vi.fn()
+    const queue = createRevealQueue(post)
     const v = viewOf(para(0, 'previous document'))
     queue.opening()
     queue.reveal(v, request('r1', 'Datum'))
     queue.reveal(v, request('r2', 'Ort'))
-    expect(answer.mock.calls).toEqual([['r1', false]])
+    expect(post.mock.calls).toEqual([[result('r1', false)]])
 
     v.dispatch(v.state.tr.replaceWith(0, v.state.doc.content.size, para(0, 'Ort und Datum')))
     queue.documentChanged(v)
-    expect(answer.mock.calls).toEqual([['r1', false], ['r2', true]])
+    queue.documentChanged(v)
+    expect(post.mock.calls).toEqual([[result('r1', false)], [{ type: 'vound:opened' }], [result('r2', true)]])
   })
 
   it('answers a reveal that waited for an open the next open replaced with not found', () => {
-    const answer = vi.fn()
-    const queue = createRevealQueue(answer)
+    const post = vi.fn()
+    const queue = createRevealQueue(post)
     queue.opening()
     queue.reveal(null, request('r1', 'Datum'))
     queue.opening()
-    expect(answer).toHaveBeenCalledWith('r1', false)
+    expect(post).toHaveBeenCalledWith(result('r1', false))
   })
 })
