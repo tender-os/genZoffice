@@ -416,22 +416,40 @@ const FIELD_LABELS: Record<string, string> = {
   STYLEREF: 'Style reference field',
 }
 
-/** One legacy text form field whose result is whitespace only, held in w:t text that all lies inside
- *  the field, with no line break or tab. A save spreads an edited result over every w:t of the paragraph
- *  (patchFieldParagraphXml), so a text run outside the field would take part of the typed text. */
+/** Where one legacy text form field's result lies in a paragraph's XML: from its separate to its end. */
+export type FormTextResult = { from: number; to: number }
+
+const FIELD_CHAR_RE = /<w:fldChar\b[^>]*fldCharType=["'](begin|separate|end)["']/g
+const FORMTEXT_CODE_RE = /<w:instrText\b[^>]*>\s*FORMTEXT\s*<\/w:instrText>/
+const TEXT_RE = /<w:t[\s>/]/g
+
+/** The results of a paragraph that holds nothing but legacy text form fields side by side (Word draws a
+ *  long writing line as several), every w:t inside a result and no tab or break; null for anything else.
+ *  A save spreads an edited result over the w:t it is given (patchFieldParagraphXml), so a text run
+ *  outside a field would take part of the typed text. */
+export function formTextResults(xml: string): FormTextResult[] | null {
+  if (/<w:(?:tab|br|cr)\b/.test(xml.replace(/<w:tabs>[\s\S]*?<\/w:tabs>/g, ''))) return null
+  const chars = [...xml.matchAll(FIELD_CHAR_RE)]
+  if (chars.length === 0 || chars.length % 3 !== 0) return null
+  const results: FormTextResult[] = []
+  for (let at = 0; at < chars.length; at += 3) {
+    const [begin, separate, end] = chars.slice(at, at + 3)
+    if (begin[1] !== 'begin' || separate[1] !== 'separate' || end[1] !== 'end') return null
+    if (!FORMTEXT_CODE_RE.test(xml.slice(begin.index, separate.index))) return null
+    results.push({ from: separate.index, to: end.index })
+  }
+  const insideResult = (offset: number) =>
+    results.some((result) => offset > result.from && offset < result.to)
+  return [...xml.matchAll(TEXT_RE)].every((text) => insideResult(text.index)) ? results : null
+}
+
+/** Legacy text form fields whose results are whitespace only, nothing else in the paragraph (formTextResults),
+ *  each with result text: Word's empty form field holds en spaces, which typing replaces. */
 export function blankFormTextField(xml: string): boolean {
-  const begins = xml.match(/fldCharType=["']begin["']/g)?.length ?? 0
-  const ends = xml.match(/fldCharType=["']end["']/g)?.length ?? 0
-  const begin = xml.search(/<w:fldChar\b[^>]*fldCharType=["']begin["']/)
-  const end = xml.search(/<w:fldChar\b[^>]*fldCharType=["']end["']/)
-  if (begins !== 1 || ends !== 1 || begin === -1 || end < begin) return false
-  const hasText = (part: string) => /<w:t[\s>]/.test(part)
+  const results = formTextResults(xml)
   return (
-    /<w:instrText\b[^>]*>\s*FORMTEXT\s*<\/w:instrText>/.test(xml) &&
-    hasText(xml.slice(begin, end)) &&
-    !hasText(xml.slice(0, begin)) &&
-    !hasText(xml.slice(end)) &&
-    !/<w:(?:tab|br|cr)\b/.test(xml.replace(/<w:tabs>[\s\S]*?<\/w:tabs>/g, ''))
+    results !== null &&
+    results.every((result) => /<w:t[\s>]/.test(xml.slice(result.from, result.to)))
   )
 }
 
