@@ -4365,9 +4365,11 @@ export function App() {
             }
             const nextHf = hfOfPage(k + 1)
             const prevHf = hfOfPage(k)
+            const prevBottom = effectiveBottomPx(prevSec, prevHf.footerPx)
             const metrics = {
               marginTop: effectiveTopPx(nextSec, nextHf.headerPx),
-              marginBottom: effectiveBottomPx(prevSec, prevHf.footerPx),
+              marginBottom: prevBottom,
+              pageMarginBottom: prevBottom,
               marginLeft: twipsToPx(nextSec.marginLeft),
               marginRight: twipsToPx(nextSec.marginRight),
               // header/footer strip inset on the paper (alignGapHfStrips): survives
@@ -4517,8 +4519,8 @@ export function App() {
               : undefined
             const i = fsBlock ? -1 : blockIndex.firstAtTop(slice.start)
             if (i >= 0 && blocks[i].el) {
-              // footnotes sit at the paper bottom (Word): shift past the padding
-              if (notes && pad > 0) notes.style.top = `${5 + pad}px`
+              // footnotes sit at the paper bottom (Word): shift past the padding, ending where the footer may begin
+              if (notes && pad > 0) notes.style.top = `${pad}px`
               gaps.push({
                 el: blocks[i].el!,
                 boundaryY: slice.start,
