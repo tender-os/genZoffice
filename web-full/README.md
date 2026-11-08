@@ -84,11 +84,11 @@ outside a table cell. Paragraphs of nested tables are not editor nodes and canno
 count changes (phased loading appends blocks after the first 64, splits, deletions), when an attribute
 change dropped a decoration, or while markers wait for their document. The wait ends at the first
 build that sees nodes with source indices, so markers that all miss a loaded document do not cost a
-walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): a typed-over
-or cut cell selection (prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph
-without one, and an emptied field would lose its marker until the next save. Backspace and Delete in an emptied cell
-paragraph, and Delete or Backspace over selected cells, keep the paragraph itself with its properties, as Word does
-(`extensions.ts`, `isEmptyAtEdge` and `clearSelectedCells`). The new paragraph takes the index of the paragraph it
+walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): a cut cell
+selection (prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph without one,
+and an emptied field would lose its marker until the next save. Backspace and Delete in an emptied cell paragraph,
+and Delete, Backspace or typing over selected cells, keep the paragraph itself with its properties, as Word does
+(`extensions.ts`: `isEmptyAtEdge`, `clearSelectedCells`, `typeOverSelectedCells`). The new paragraph takes the index of the paragraph it
 replaced when no other paragraph carries it, in a transaction appended to the edit. Markers sent before the app handed over its editor (`hostEditorHandle` in
 `vite.config.ts`) are applied when it does. `vound:scrollTo` and `vound:focus` add
 `vound-slot-current`, and `vound:scrollTo` finds a shared node by any of its ids; `host.css` holds the
@@ -209,7 +209,12 @@ neither the mark nor the placeholder's character style (`isPlaceholderStyleId`: 
 also when a composition (dead keys) writes it into the placeholder's span; undo brings the placeholder back. The
 save keeps the content control around it, its properties and tag included, and drops only `w:showingPlcHdr` and
 the placeholder style, as Word does: a control around a body paragraph (`patch.ts`) and one around a table cell's
-paragraph, whose paragraphs a cell edit now replaces where they stand (`generate.ts`, `spliceCellParagraphs`).
+paragraph (`generate.ts`, `regroupCellParagraphs`). A cell edit writes each paragraph back into the place of the
+original paragraph it continues (the editor passes its `origin`, from the source paragraph index), so a paragraph
+made inside a control by Enter or a paste stays in it, paragraphs removed from a control leave the wrapper around
+the rest, and a control whose paragraphs all went keeps one empty paragraph. Such an edit no longer regenerates the
+whole table, as long as the cell holds paragraphs only, no pictures, and every paragraph keeps a format the cell
+had.
 
 ## View mode
 

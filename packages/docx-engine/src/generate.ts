@@ -673,62 +673,100 @@ function patchCellXml(tcXml: string, paras: readonly CellParaPatch[]): string | 
       })
       .join('')
   }
-  const aligned = paras.length === originals.length
-  const body = paras
-    .map((entry, i) => {
-      if (entry === null) return originals[i] ?? ''
-      if (typeof entry === 'string') {
-        const keep = i === 0 ? drawingRuns : ''
-        return entry === ''
-          ? `<w:p>${firstPPr}${keep}</w:p>`
-          : `<w:p>${firstPPr}<w:r>${rPr}${cellRunContentXml(entry)}</w:r>${keep}</w:p>`
-      }
-      const template = originals[Math.min(i, originals.length - 1)] ?? ''
-      // Vound fork: a text-only edit in a paragraph with a field or control keeps the
-      // original bytes around the changed w:t (see patchFieldParagraphText)
-      if (aligned && !entry.xml && !entry.format) {
-        const surgical = patchFieldParagraphText(template, entry.runs)
-        if (surgical !== null) return surgical
-      }
-      const pPr = entry.format
-        ? mergeCellParaFormat(pPrOf(template), entry.format, entry.original)
-        : pPrOf(template)
-      const emitted = entry.xml ?? runsXml(entry.runs, null)
-      const emittedMedia = new Set(mediaRIds(emitted))
-      const keep = aligned
-        ? carriedRunsOf(template, emittedMedia)
-        : i === 0
-          ? originals.map((p) => carriedRunsOf(p, emittedMedia)).join('')
-          : ''
-      return `<w:p>${pPr}${emitted}${keep}</w:p>`
-    })
-  if (aligned) return spliceCellParagraphs(tcXml, paraSegs, body, paras)
+  const origins = originsOf(paras, originals.length)
+  const firstOfGroup = (i: number) => origins !== null && (i === 0 || origins[i - 1] !== origins[i])
+  const groupSize = (i: number) => origins?.filter((origin) => origin === origins[i]).length ?? 0
+  const body = paras.map((entry, i) => {
+    if (entry === null) return originals[i] ?? ''
+    if (typeof entry !== 'string' && 'keep' in entry) return originals[entry.keep] ?? ''
+    if (typeof entry === 'string') {
+      const keep = i === 0 ? drawingRuns : ''
+      return entry === ''
+        ? `<w:p>${firstPPr}${keep}</w:p>`
+        : `<w:p>${firstPPr}<w:r>${rPr}${cellRunContentXml(entry)}</w:r>${keep}</w:p>`
+    }
+    const template = originals[origins?.[i] ?? Math.min(i, originals.length - 1)] ?? ''
+    // Vound fork: a text-only edit in a paragraph with a field or control keeps the
+    // original bytes around the changed w:t (see patchFieldParagraphText); not for the
+    // halves of a split paragraph, which would each get the field
+    if (groupSize(i) === 1 && !entry.xml && !entry.format) {
+      const surgical = patchFieldParagraphText(template, entry.runs)
+      if (surgical !== null) return surgical
+    }
+    const pPr = entry.format
+      ? mergeCellParaFormat(pPrOf(template), entry.format, entry.original)
+      : pPrOf(template)
+    const emitted = entry.xml ?? runsXml(entry.runs, null)
+    const emittedMedia = new Set(mediaRIds(emitted))
+    const keep = firstOfGroup(i)
+      ? carriedRunsOf(template, emittedMedia)
+      : origins === null && i === 0
+        ? originals.map((p) => carriedRunsOf(p, emittedMedia)).join('')
+        : ''
+    return `<w:p>${pPr}${emitted}${keep}</w:p>`
+  })
+  if (origins) return regroupCellParagraphs(tcXml, paraSegs, body, origins, paras)
   return openTag + tcPr + body.join('') + '</w:tc>'
 }
 
 /** whether a cell paragraph patch holds text of its own rather than a control's placeholder */
-const holdsOwnText = (entry: CellParaPatch) =>
-  entry !== null && (typeof entry === 'string' || !entry.runs.some((run) => run.placeholder))
+const holdsOwnText = (entry: CellParaPatch) => {
+  if (entry === null || typeof entry === 'string') return entry !== null
+  return 'runs' in entry && !entry.runs.some((run) => run.placeholder)
+}
 
 /**
- * The cell with each paragraph replaced where it stands, so content controls and anything else around its
- * paragraphs stay byte for byte. A block-level control showing its placeholder loses that flag (Vound fork)
- * once a paragraph inside it holds text of its own, as in Word.
+ * The original cell paragraph each new one continues, in document order (Vound fork): its `origin`, else the
+ * one before it continues (a paragraph made by Enter or a paste belongs where it was made), or for leading new
+ * ones the first original. Identity when the count is unchanged and nothing names an origin; null for the
+ * legacy rebuild (a changed count and no origins).
  */
-function spliceCellParagraphs(
+function originsOf(paras: readonly CellParaPatch[], count: number): number[] | null {
+  const named = paras.map((entry) => {
+    if (entry === null || typeof entry === 'string') return undefined
+    return 'keep' in entry ? entry.keep : entry.origin
+  })
+  if (!named.some((origin) => origin !== undefined)) {
+    return paras.length === count ? paras.map((_, i) => i) : null
+  }
+  let last = 0
+  return named.map((origin) => {
+    last = origin !== undefined && origin >= last && origin < count ? origin : last
+    return last
+  })
+}
+
+/**
+ * The cell with its paragraphs written back into the places of the original paragraphs they continue (Vound
+ * fork), so content controls and anything else around them stay byte for byte: a paragraph made inside a
+ * control stays in it, a control whose paragraphs all went keeps one empty paragraph, and a block-level control
+ * showing its placeholder loses that flag once a paragraph inside it holds text of its own, as in Word.
+ */
+function regroupCellParagraphs(
   tcXml: string,
   paraSegs: Array<{ start: number; end: number }>,
   paraXml: string[],
+  origins: number[],
   paras: readonly CellParaPatch[],
 ): string {
-  const edits = paraSegs.map((seg, i) => ({ ...seg, xml: paraXml[i] }))
-  const filled = paraSegs.filter((_, i) => holdsOwnText(paras[i]))
-  for (const control of xmlSegments(tcXml, 'w:sdt', 0, tcXml.length)) {
-    const wrapsFilled = filled.some((seg) => seg.start > control.start && seg.end < control.end)
+  const groupOf = (k: number) => paraXml.filter((_, i) => origins[i] === k)
+  const controls = xmlSegments(tcXml, 'w:sdt', 0, tcXml.length)
+  const inside = (seg: { start: number; end: number }, control: { start: number; end: number }) =>
+    seg.start > control.start && seg.end < control.end
+  const edits = paraSegs.map((seg, k) => {
+    const control = controls.find((c) => inside(seg, c))
+    const controlEmptied = control && paraSegs.every((other, j) => !inside(other, control) || groupOf(j).length === 0)
+    const firstInControl = control && paraSegs.find((other) => inside(other, control)) === seg
+    const original = tcXml.slice(seg.start, seg.end)
+    const kept = controlEmptied && firstInControl ? `<w:p>${/<w:pPr[\s\S]*?<\/w:pPr>|<w:pPr[^>]*\/>/.exec(original)?.[0] ?? ''}</w:p>` : ''
+    const group = groupOf(k)
+    return { ...seg, xml: group.length > 0 ? group.join('') : kept }
+  })
+  const filled = paraSegs.filter((_, k) => paras.some((entry, i) => origins[i] === k && holdsOwnText(entry)))
+  for (const control of controls) {
     const sdtPrEnd = tcXml.indexOf('</w:sdtPr>', control.start)
-    if (!wrapsFilled || sdtPrEnd === -1 || sdtPrEnd > control.end) continue
-    const sdtPr = tcXml.slice(control.start, sdtPrEnd)
-    edits.push({ start: control.start, end: sdtPrEnd, xml: withoutPlaceholderFlag(sdtPr) })
+    if (!filled.some((seg) => inside(seg, control)) || sdtPrEnd === -1 || sdtPrEnd > control.end) continue
+    edits.push({ start: control.start, end: sdtPrEnd, xml: withoutPlaceholderFlag(tcXml.slice(control.start, sdtPrEnd)) })
   }
   return edits
     .sort((a, b) => b.start - a.start)
@@ -756,7 +794,8 @@ function cellRunContentXml(text: string): string {
     .join('')
 }
 
-/** one cell paragraph: control-char text (legacy first-run-rPr rebuild), rich runs, or null = keep the original paragraph bytes */
+/** one cell paragraph: control-char text (legacy first-run-rPr rebuild), rich runs, an untouched original
+ *  paragraph, or null = keep the original paragraph bytes at this index */
 export type CellParaPatch =
   | string
   | {
@@ -766,7 +805,11 @@ export type CellParaPatch =
       /** paragraph format: only the pPr groups that differ from `original` are rebuilt (mergeCellParaFormat) */
       format?: ParaFormat
       original?: ParaFormat
+      /** the original paragraph of the cell this one continues (Vound fork); none for a new one */
+      origin?: number
     }
+  /** the original paragraph at this position of the cell, untouched, where the cell's paragraphs moved (Vound fork) */
+  | { keep: number }
   | null
 
 /** per-cell patch: paragraph patches, or nested-table cell texts by nested index */

@@ -1489,18 +1489,13 @@ export function tableFormattingSignature(table: PmNode): string {
   )
 }
 
-/** the cells of two table signatures side by side, in document order, or null when the cell grid or a
- *  cell's content count differs */
+/** the cells of two table signatures side by side, in document order, or null when the cell grid differs */
 function pairedCellSignatures(signature: string, other: string) {
   const before = JSON.parse(signature)
   const after = JSON.parse(other)
   const sameShape =
     before.length === after.length &&
-    before.every(
-      (row: unknown[][], r: number) =>
-        row.length === after[r].length &&
-        row.every((cell: unknown[], c: number) => cell.length === after[r][c].length),
-    )
+    before.every((row: unknown[][], r: number) => row.length === after[r].length)
   if (!sameShape) return null
   const afterCells = after.flat()
   return before.flat().map((cell: unknown[][], i: number) => [cell, afterCells[i]])
@@ -1512,6 +1507,7 @@ function pairedCellSignatures(signature: string, other: string) {
  *  a cell that also holds a nested table or text boxes, nor a picture's size, which lives in the drawing. */
 function cellNeedsRegeneration(before: unknown[][], after: unknown[][]) {
   const onlyParagraphs = [...before, ...after].every((paragraph) => paragraph[3] !== null)
+  if (before.length !== after.length) return paragraphsAddedOrRemovedNeedRegeneration(before, after, onlyParagraphs)
   return before.some((paragraphBefore, i) => {
     const [formatBefore, listBefore, inlineBefore, textBefore, pictureBefore] = paragraphBefore
     const [formatAfter, listAfter, inlineAfter, textAfter, pictureAfter] = after[i]
@@ -1520,6 +1516,16 @@ function cellNeedsRegeneration(before: unknown[][], after: unknown[][]) {
     if (JSON.stringify(inlineBefore) === JSON.stringify(inlineAfter)) return false
     return !onlyParagraphs || textBefore === textAfter || !!pictureBefore || !!pictureAfter
   })
+}
+
+/** Vound fork: a cell whose paragraphs were added or removed (Enter, a paste, a deletion) is written by the cell
+ *  patch, which keeps its fields and content controls, as long as it holds paragraphs only, no pictures, and
+ *  every paragraph has the format and list of one it continues; otherwise the table is regenerated */
+function paragraphsAddedOrRemovedNeedRegeneration(before: unknown[][], after: unknown[][], onlyParagraphs: boolean) {
+  const formatOf = (paragraph: unknown[]) => JSON.stringify([paragraph[0], paragraph[1]])
+  const formats = new Set(before.map(formatOf))
+  const pictures = [...before, ...after].some((paragraph) => !!paragraph[4])
+  return !onlyParagraphs || pictures || after.some((paragraph) => !formats.has(formatOf(paragraph)))
 }
 
 /**
@@ -1666,6 +1672,9 @@ export function pmTableToModel(table: PmNode): TableModel {
                     ilvl: Number(paragraph.attrs.ilvl) || 0,
                   },
                 }
+              : {}),
+            ...(typeof paragraph.attrs?.docxPara === 'number'
+              ? { sourceParaIndex: paragraph.attrs.docxPara }
               : {}),
             runs: inlineToRuns(paragraph.content ?? []),
           })),
@@ -3088,17 +3097,33 @@ function tableTextsPatchFromModel(
       // rich paragraph patches keep per-run formatting, hyperlinks and images;
       // untouched paragraphs (per-index text match) keep their original bytes
       if (rich && rich.length === cell.paras.length) {
-        if (rich.length === origTexts.length) {
+        // Vound fork: the original paragraph each one continues, so the save keeps content controls around them
+        const origins = rich.map((p) => originalParaIndex(originalCell, p.sourceParaIndex))
+        const sameParagraphs = origins.every((origin, i) => origin === undefined || origin === i)
+        if (rich.length === origTexts.length && sameParagraphs) {
           return rich.map((p, i): CellParaPatch =>
             p.runs.map((run) => run.text).join('') === origTexts[i] ? null : { runs: p.runs },
           )
         }
-        return rich.map((p): CellParaPatch => ({ runs: p.runs }))
+        const untouched = (p: (typeof rich)[number], origin: number | undefined) =>
+          origin !== undefined &&
+          origins.filter((other) => other === origin).length === 1 &&
+          p.runs.map((run) => run.text).join('') === origTexts[origin]
+        return rich.map((p, i): CellParaPatch =>
+          untouched(p, origins[i]) ? { keep: origins[i]! } : { runs: p.runs, origin: origins[i] },
+        )
       }
       return cell.paras
     })
   })
   return changed ? texts : null
+}
+
+/** the position in the original cell of the paragraph with this source index */
+function originalParaIndex(cell: TableCell, sourceParaIndex: number | undefined): number | undefined {
+  if (sourceParaIndex === undefined) return undefined
+  const index = cell.richParas?.findIndex((p) => p.sourceParaIndex === sourceParaIndex) ?? -1
+  return index === -1 ? undefined : index
 }
 
 /**

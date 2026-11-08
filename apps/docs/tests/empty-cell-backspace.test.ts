@@ -76,4 +76,17 @@ describe('Backspace in an emptied table cell paragraph', () => {
     editor.commands.keyboardShortcut('Backspace')
     expect(valueAttrs(editor)).toMatchObject({ text: '', styleId: before.styleId, align: before.align })
   })
+
+  it('keeps them and takes the typed text when typing replaces a cell selection', async () => {
+    const editor = await open()
+    const before = valueAttrs(editor)
+    const cell = editor.state.doc.resolve(valuePos(editor)).before()
+    editor.view.dispatch(editor.state.tr.setSelection(CellSelection.create(editor.state.doc, cell)))
+    const { view } = editor
+    const { from, to } = view.state.selection
+    // what ProseMirror does with a typed character: the handlers first, else its own insertText
+    const fallback = () => view.state.tr.insertText('Neu')
+    if (!view.someProp('handleTextInput', (handle) => handle(view, from, to, 'Neu', fallback))) view.dispatch(fallback())
+    expect(valueAttrs(editor)).toMatchObject({ text: 'Neu', styleId: before.styleId, align: before.align })
+  })
 })

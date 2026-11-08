@@ -4553,14 +4553,38 @@ export function clearSelectedCells(
 ): boolean {
   const { selection } = state
   if (!(selection instanceof CellSelection)) return false
-  const tr = state.tr
+  dispatch?.(clearCells(state.tr, selection))
+  return true
+}
+
+/** the selected cells' text removed, each cell's first paragraph kept */
+function clearCells(tr: Transaction, selection: CellSelection) {
   selection.forEachCell((cell, pos) => {
     if (!cell.firstChild?.isTextblock || !cell.lastChild?.isTextblock) return
     const from = tr.mapping.map(pos + 2)
     const to = tr.mapping.map(pos + cell.nodeSize - 2)
     if (to > from) tr.delete(from, to)
   })
-  dispatch?.(tr)
+  return tr
+}
+
+/** Vound fork: text typed over selected cells clears them as clearSelectedCells does and goes into the first
+ *  cell's first paragraph, in the formatting of that paragraph's first text, as in Word; prosemirror-tables
+ *  would put it into a new default paragraph. */
+export function typeOverSelectedCells(view: EditorView, text: string): boolean {
+  const { selection, schema } = view.state
+  if (!(selection instanceof CellSelection)) return false
+  const paragraphs: Array<{ pos: number; node: PmNode }> = []
+  selection.forEachCell((cell, pos) => {
+    if (cell.firstChild?.isTextblock) paragraphs.push({ pos: pos + 1, node: cell.firstChild })
+  })
+  if (paragraphs.length === 0) return false
+  const { pos, node } = paragraphs[0]
+  const marks = (node.firstChild?.marks ?? []).filter((mark) => mark.type.spec.inclusive !== false)
+  const tr = clearCells(view.state.tr, selection)
+  const at = tr.mapping.map(pos + 1)
+  tr.insert(at, schema.text(text, marks))
+  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, at + text.length)).scrollIntoView())
   return true
 }
 
@@ -4623,6 +4647,7 @@ export const NativeTableSupport = Extension.create({
       tableColumnDrag(),
       tableRowDrag(),
       columnResizing({ View: null, cellMinWidth: 40, lastColumnResizable: true }),
+      new Plugin({ props: { handleTextInput: (view, _from, _to, text) => typeOverSelectedCells(view, text) } }),
       tableEditing({ allowTableNodeSelection: true }),
       // Word never ends a body with a table: without a paragraph below it the
       // caret can never leave the table (public issue #266)
