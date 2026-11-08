@@ -260,7 +260,7 @@ describe('markersPlugin', () => {
       return found!
     }
 
-    it('Backspace in the emptied paragraph turns it into a new default one (Tiptap clearNodes)', () => {
+    it('an edit that turns the emptied paragraph into a new default one', () => {
       let state = cellState()
       const { pos } = valueParagraph(state)
       state = edit(state, (tr) => tr.delete(pos + 1, pos + 1 + 'Muster GmbH'.length))
@@ -269,7 +269,7 @@ describe('markersPlugin', () => {
       expect(decorated(state).map((d) => d.id).sort()).toEqual(['c2', 's2'])
     })
 
-    it('a deleted cell selection fills the cell with a new default paragraph', () => {
+    it('a cut cell selection fills the cell with a new default paragraph', () => {
       let state = cellState()
       const { pos } = valueParagraph(state)
       const cellEnd = pos + state.doc.nodeAt(pos)!.nodeSize

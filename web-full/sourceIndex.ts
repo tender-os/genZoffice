@@ -1,6 +1,5 @@
-// The source paragraph index of a paragraph the editor replaced by a new one: Backspace in an emptied table
-// cell paragraph (Tiptap's clearNodes) or a deleted or typed-over cell selection (prosemirror-tables fills the
-// cell with a default paragraph). The new paragraph continues the old one, as the paragraph mark does in Word,
+// The source paragraph index of a paragraph the editor replaced by a new one: a typed-over or cut cell selection
+// (prosemirror-tables fills the cell with a default paragraph), or any other edit that swaps a paragraph. The new paragraph continues the old one, as the paragraph mark does in Word,
 // so it takes the index back, and markers, field writes and caret placement still find the field.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { EditorState, Transaction } from '@tiptap/pm/state'

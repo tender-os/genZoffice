@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { EditorState, TextSelection } from '@tiptap/pm/state'
 import { EditorView } from '@tiptap/pm/view'
 import { placeholderSelectPlugin } from '../placeholderSelect'
-import { doc, para, placeholderPara } from './markerSchema'
+import { doc, fieldPara, para, placeholderPara, schema } from './markerSchema'
+import { fieldNodeView } from './fieldNodeView'
 
 // paragraph 0 "Firma: " + placeholder "Name eingeben" + " (GmbH)" at 0..29; text from 1, placeholder 8..21
 let view: EditorView | null = null
-afterEach(() => { view?.destroy(); view = null })
+afterEach(() => { view?.dom.remove(); view?.destroy(); view = null })
 const viewOf = () => {
   const state = EditorState.create({ doc: doc(placeholderPara(0, 'Firma: ', 'Name eingeben', ' (GmbH)'), para(1, 'Rechtsform')), plugins: [placeholderSelectPlugin] })
   view = new EditorView(document.createElement('div'), { state })
@@ -46,5 +47,29 @@ describe('placeholder text in review mode', () => {
 
   it('leaves the caret alone in the document text around it and in plain paragraphs', () => {
     for (const pos of [4, 24, 34]) expect(selected(click(viewOf(), pos))).toEqual([pos, pos])
+  })
+})
+
+describe('a form field outside a table that shows its default text', () => {
+  const fieldView = (left: string) => {
+    const mount = document.createElement('div')
+    document.body.append(mount)
+    const state = EditorState.create({ schema, doc: doc(para(0, 'USt-IdNr.:'), fieldPara(1, left, { defaultText: 'USt-IdNr.' })), plugins: [placeholderSelectPlugin] })
+    view = new EditorView(mount, { state, nodeViews: { docProtected: fieldNodeView } })
+    return view
+  }
+  const clickField = (v: EditorView) => v.dom.querySelector('.doc-field-text')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+  it('a click starts editing it with all of its text selected, so typing replaces it', () => {
+    const v = fieldView('USt-IdNr.')
+    clickField(v)
+    expect(v.dom.querySelector('.doc-protected')!.classList.contains('doc-content-editing')).toBe(true)
+    expect(document.getSelection()!.toString()).toBe('USt-IdNr.')
+  })
+
+  it('a click on a field holding other text leaves it as the editor does', () => {
+    const v = fieldView('DE123456789')
+    clickField(v)
+    expect(v.dom.querySelector('.doc-protected')!.classList.contains('doc-content-editing')).toBe(false)
   })
 })

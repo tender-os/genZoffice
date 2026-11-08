@@ -65,4 +65,13 @@ describe('placeholder runs', () => {
       [['Sitz des Unternehmens', false]],
     ])
   })
+
+  it("gives a form field paragraph outside a table its field's default text", async () => {
+    const doc = await parse(p(formText('Ort', 'Ort')) + p(formText('Ort', 'Berlin')) + p(formText('', 'Berlin')))
+    expect(doc.blocks.slice(0, 3).map((b) => [b.fieldDisplay?.left, b.fieldDisplay?.defaultText])).toEqual([
+      ['Ort', 'Ort'],
+      ['Berlin', 'Ort'],
+      ['Berlin', undefined],
+    ])
+  })
 })

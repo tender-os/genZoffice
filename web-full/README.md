@@ -84,10 +84,11 @@ outside a table cell. Paragraphs of nested tables are not editor nodes and canno
 count changes (phased loading appends blocks after the first 64, splits, deletions), when an attribute
 change dropped a decoration, or while markers wait for their document. The wait ends at the first
 build that sees nodes with source indices, so markers that all miss a loaded document do not cost a
-walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): Backspace
-in an emptied table cell paragraph (Tiptap's `clearNodes`) and a deleted or typed-over cell selection
-(prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph without one, and an
-emptied field would lose its marker until the next save. The new paragraph takes the index of the paragraph it
+walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): a typed-over
+or cut cell selection (prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph
+without one, and an emptied field would lose its marker until the next save. Backspace and Delete in an emptied cell
+paragraph, and Delete or Backspace over selected cells, keep the paragraph itself with its properties, as Word does
+(`extensions.ts`, `isEmptyAtEdge` and `clearSelectedCells`). The new paragraph takes the index of the paragraph it
 replaced when no other paragraph carries it, in a transaction appended to the edit. Markers sent before the app handed over its editor (`hostEditorHandle` in
 `vite.config.ts`) are applied when it does. `vound:scrollTo` and `vound:focus` add
 `vound-slot-current`, and `vound:scrollTo` finds a shared node by any of its ids; `host.css` holds the
@@ -200,6 +201,15 @@ click ends, a caret moved by keys selects it from inside only, so it can still b
 control whose `w:sdtPr` says `w:showingPlcHdr` (inline, around a paragraph, or around a table cell's paragraph), and
 the result of a legacy text form field (FORMTEXT) that equals its `w:default` text. Text that only looks like a
 hint, a grey character style with no control around it, is the document's own and is never selected.
+A form field outside a table (a field passthrough) whose result is its default text (`fieldDisplay.defaultText`)
+is entered with that text selected on a click, and by `vound:placeCaret`.
+
+Text typed over placeholder text is the field's own at once (`placeholder-typing.ts` in the editor): it carries
+neither the mark nor the placeholder's character style (`isPlaceholderStyleId`: Placeholder Text, Platzhaltertext),
+also when a composition (dead keys) writes it into the placeholder's span; undo brings the placeholder back. The
+save keeps the content control around it, its properties and tag included, and drops only `w:showingPlcHdr` and
+the placeholder style, as Word does: a control around a body paragraph (`patch.ts`) and one around a table cell's
+paragraph, whose paragraphs a cell edit now replaces where they stand (`generate.ts`, `spliceCellParagraphs`).
 
 ## View mode
 

@@ -1,5 +1,6 @@
 import { formTextResults } from './parse-fields'
 import { patchFieldParagraphText } from './text-patch'
+import { withoutPlaceholderFlag } from './parse-sdt'
 import { sdtCheckboxGlyphs, sdtCheckboxIsChecked, syncSdtCheckbox } from './checkbox-control'
 import type {
   CellMargins,
@@ -623,9 +624,8 @@ function patchCellXml(tcXml: string, paras: readonly CellParaPatch[]): string | 
   const openTag = /^<w:tc(?: [^>]*)?>/.exec(tcXml)?.[0]
   if (!openTag) return null
   const tcPr = /<w:tcPr[\s\S]*?<\/w:tcPr>|<w:tcPr[^>]*\/>/.exec(tcXml)?.[0] ?? ''
-  const originals = xmlSegments(tcXml, 'w:p', openTag.length, tcXml.length).map((seg) =>
-    tcXml.slice(seg.start, seg.end),
-  )
+  const paraSegs = xmlSegments(tcXml, 'w:p', openTag.length, tcXml.length)
+  const originals = paraSegs.map((seg) => tcXml.slice(seg.start, seg.end))
   const pPrOf = (pXml: string) => /<w:pPr[\s\S]*?<\/w:pPr>|<w:pPr[^>]*\/>/.exec(pXml)?.[0] ?? ''
   const firstPPr = pPrOf(originals[0] ?? '')
   const firstRun = /<w:r(?: [^>]*)?>[\s\S]*?<\/w:r>/.exec(originals[0] ?? '')?.[0] ?? ''
@@ -702,8 +702,37 @@ function patchCellXml(tcXml: string, paras: readonly CellParaPatch[]): string | 
           : ''
       return `<w:p>${pPr}${emitted}${keep}</w:p>`
     })
-    .join('')
-  return openTag + tcPr + body + '</w:tc>'
+  if (aligned) return spliceCellParagraphs(tcXml, paraSegs, body, paras)
+  return openTag + tcPr + body.join('') + '</w:tc>'
+}
+
+/** whether a cell paragraph patch holds text of its own rather than a control's placeholder */
+const holdsOwnText = (entry: CellParaPatch) =>
+  entry !== null && (typeof entry === 'string' || !entry.runs.some((run) => run.placeholder))
+
+/**
+ * The cell with each paragraph replaced where it stands, so content controls and anything else around its
+ * paragraphs stay byte for byte. A block-level control showing its placeholder loses that flag (Vound fork)
+ * once a paragraph inside it holds text of its own, as in Word.
+ */
+function spliceCellParagraphs(
+  tcXml: string,
+  paraSegs: Array<{ start: number; end: number }>,
+  paraXml: string[],
+  paras: readonly CellParaPatch[],
+): string {
+  const edits = paraSegs.map((seg, i) => ({ ...seg, xml: paraXml[i] }))
+  const filled = paraSegs.filter((_, i) => holdsOwnText(paras[i]))
+  for (const control of xmlSegments(tcXml, 'w:sdt', 0, tcXml.length)) {
+    const wrapsFilled = filled.some((seg) => seg.start > control.start && seg.end < control.end)
+    const sdtPrEnd = tcXml.indexOf('</w:sdtPr>', control.start)
+    if (!wrapsFilled || sdtPrEnd === -1 || sdtPrEnd > control.end) continue
+    const sdtPr = tcXml.slice(control.start, sdtPrEnd)
+    edits.push({ start: control.start, end: sdtPrEnd, xml: withoutPlaceholderFlag(sdtPr) })
+  }
+  return edits
+    .sort((a, b) => b.start - a.start)
+    .reduce((xml, edit) => xml.slice(0, edit.start) + edit.xml + xml.slice(edit.end), tcXml)
 }
 
 /** cell paragraph texts carry tabs/breaks as control chars (extractRuns encoding);

@@ -8,7 +8,7 @@ import { wrapGroupCss, type WrapPicture } from './wrap-group'
 import type { ChainedCommands, RawCommands } from '@tiptap/core'
 import { Gapcursor, UndoRedo } from '@tiptap/extensions'
 import { DOMSerializer } from '@tiptap/pm/model'
-import type { DOMOutputSpec, Node as PmNode } from '@tiptap/pm/model'
+import type { DOMOutputSpec, Node as PmNode, ResolvedPos } from '@tiptap/pm/model'
 import {
   AllSelection,
   NodeSelection,
@@ -1996,7 +1996,9 @@ export const DocParagraph = Node.create({
         const { $from, empty } = state.selection
         if (!empty || $from.parentOffset !== 0) return false
         const node = $from.parent
-        if (node.type.name !== 'docParagraph' || !(Number(node.attrs.indentLeft) > 0)) return false
+        if (node.type.name !== 'docParagraph') return false
+        if (isEmptyAtEdge($from, 'start')) return true
+        if (!(Number(node.attrs.indentLeft) > 0)) return false
         const styleLeft = styleIndentLeftTw(node.attrs.styleId as string | null, this.editor)
         const firstLine = node.attrs.indentFirstLine as number | null
         return this.editor.commands.command(({ tr }) => {
@@ -2008,9 +2010,22 @@ export const DocParagraph = Node.create({
           return true
         })
       },
+      Delete: () => {
+        const { $from, empty } = this.editor.state.selection
+        return empty && $from.parent.type.name === 'docParagraph' && isEmptyAtEdge($from, 'end')
+      },
     }
   },
 })
+
+/** Vound fork: an empty paragraph with nothing to join on that side in its table cell (or the document).
+ *  Word leaves it and its properties alone; Tiptap's Backspace and Delete would make it a default paragraph. */
+function isEmptyAtEdge($from: ResolvedPos, side: 'start' | 'end') {
+  const index = $from.index(-1)
+  const atEdge = side === 'start' ? index === 0 : index === $from.node(-1).childCount - 1
+  const container = $from.depth === 1 || $from.node(-1).type.spec.isolating === true
+  return $from.parent.content.size === 0 && atEdge && container
+}
 
 function styleIndentLeftTw(styleId: string | null, editor: Editor): number | null {
   if (!styleId) return null
@@ -4530,6 +4545,25 @@ export function deleteSelectedWholeTable(
   return false
 }
 
+/** Vound fork: Delete or Backspace over selected cells clears their text and keeps each cell's first
+ *  paragraph with its properties, as Word does; prosemirror-tables would fill them with default paragraphs. */
+export function clearSelectedCells(
+  state: EditorState,
+  dispatch?: (transaction: Transaction) => void,
+): boolean {
+  const { selection } = state
+  if (!(selection instanceof CellSelection)) return false
+  const tr = state.tr
+  selection.forEachCell((cell, pos) => {
+    if (!cell.firstChild?.isTextblock || !cell.lastChild?.isTextblock) return
+    const from = tr.mapping.map(pos + 2)
+    const to = tr.mapping.map(pos + cell.nodeSize - 2)
+    if (to > from) tr.delete(from, to)
+  })
+  dispatch?.(tr)
+  return true
+}
+
 /** transaction meta: document load/stream paths that must not get a trailing paragraph appended mid-stream */
 export const TABLE_TRAILING_SKIP = 'tableTrailingSkip'
 
@@ -4543,8 +4577,9 @@ export const NativeTableSupport = Extension.create({
     return {}
   },
   addKeyboardShortcuts() {
-    const deleteWholeTable = () =>
-      deleteSelectedWholeTable(this.editor.state, this.editor.view.dispatch)
+    const deleteTableOrClearCells = () =>
+      deleteSelectedWholeTable(this.editor.state, this.editor.view.dispatch) ||
+      clearSelectedCells(this.editor.state, this.editor.view.dispatch)
     return {
       Tab: () => {
         const { view } = this.editor
@@ -4555,8 +4590,8 @@ export const NativeTableSupport = Extension.create({
         return goToNextCell(1)(this.editor.state, view.dispatch)
       },
       'Shift-Tab': () => goToNextCell(-1)(this.editor.state, this.editor.view.dispatch),
-      Backspace: deleteWholeTable,
-      Delete: deleteWholeTable,
+      Backspace: deleteTableOrClearCells,
+      Delete: deleteTableOrClearCells,
     }
   },
   addProseMirrorPlugins() {

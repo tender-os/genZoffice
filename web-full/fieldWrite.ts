@@ -11,7 +11,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { BlockRef, FieldGap, FieldValueRefusal } from './embed-protocol'
 import { locateBlock } from './markers'
 import { glideIntoView } from './markersPlugin'
-import { placeholderAt } from './placeholderSelect'
+import { placeholderAt } from './placeholderText'
 
 /** transaction meta on every host write: not a user edit */
 export const HOST_WRITE_META = 'voundHostWrite'
@@ -229,9 +229,16 @@ const besideBlock = (view: EditorView, unit: TextUnit) =>
 /** a result that is whitespace only: Word's empty legacy field shows five en spaces, which typing replaces */
 const isBlank = (text: string) => text !== '' && text.trim() === ''
 
+/** a form field showing its default text (fieldDisplay.defaultText), which typing replaces as a placeholder */
+const showsDefaultText = (node: PmNode) => {
+  const display = node.attrs.fieldDisplay
+  return typeof display?.defaultText === 'string' && display.left === display.defaultText
+}
+
 /** Into a field passthrough's text the way a double click gets there (extensions.ts,
  *  wireProtectedInteractionMode): the node view starts editing, and the DOM caret goes to the end of the
- *  result, or selects an empty result's placeholder or a blank result so typing replaces it. Typing there
+ *  result, or selects an empty result's placeholder, a blank result or the field's default text so typing
+ *  replaces it. Typing there
  *  stays in the node view until the editor commits the field; ProseMirror's own selection moves next to
  *  the block. */
 function enterFieldEditing(view: EditorView, unit: TextUnit) {
@@ -242,12 +249,25 @@ function enterFieldEditing(view: EditorView, unit: TextUnit) {
   text.focus()
   const range = text.ownerDocument.createRange()
   range.selectNodeContents(text)
-  if (!unit.node.attrs.fieldDisplay.emptyLine && !isBlank(unit.text)) range.collapse(false)
+  if (!unit.node.attrs.fieldDisplay.emptyLine && !isBlank(unit.text) && !showsDefaultText(unit.node)) range.collapse(false)
   const selection = text.ownerDocument.getSelection()
   selection?.removeAllRanges()
   selection?.addRange(range)
   view.dispatch(view.state.tr.setSelection(besideBlock(view, unit)))
   return true
+}
+
+/** a click on a field passthrough showing its default text enters it with that text selected; true when it did */
+export function enterFieldShowingDefault(view: EditorView, target: EventTarget | null) {
+  const text = target instanceof Element ? target.closest(FIELD_TEXT_SELECTOR) : null
+  if (!text) return false
+  let entered = false
+  view.state.doc.descendants((node, pos) => {
+    if (entered || !node.isAtom || !showsDefaultText(node) || !view.nodeDOM(pos)?.contains(text)) return !entered
+    entered = enterFieldEditing(view, unitOf(node, pos))
+    return false
+  })
+  return entered
 }
 
 /** the end of a paragraph's text, or all of it when it is blank and plain text, or the placeholder text it

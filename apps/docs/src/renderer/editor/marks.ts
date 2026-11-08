@@ -13,6 +13,7 @@ import {
 import { isEastAsianFontName } from '../font-list'
 import { t } from '../i18n/locale'
 import { dkBackground } from './dark-page'
+import { placeholderTypingPlugin } from './placeholder-typing'
 import { runBorderDecls } from './run-border'
 import { fillInk } from './shading-ink'
 import { textColorDecls } from './text-color'
@@ -454,12 +455,15 @@ export const CtrlCheckboxMark = Mark.create({
 })
 
 /** Placeholder text (Vound fork): what a content control shows while empty, or a form field's default text.
- * Typing replaces it whole and does not continue it; a copy of it pastes as plain text, so no parse rule. */
+ * Typed text never continues it (placeholder-typing.ts); a copy of it pastes as plain text, so no parse rule. */
 export const CtrlPlaceholderMark = Mark.create({
   name: 'ctrlPlaceholder',
   inclusive: false,
   renderHTML() {
     return ['span', { 'data-ctrl-placeholder': '' }, 0]
+  },
+  addProseMirrorPlugins() {
+    return [placeholderTypingPlugin]
   },
 })
 

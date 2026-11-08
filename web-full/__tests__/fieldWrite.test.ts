@@ -376,6 +376,12 @@ describe('placeCaret', () => {
     expect(v.state.doc.textBetween(from, to)).toBe('Rechtsform eingeben')
   })
 
+  it("selects a form field's default text so typing replaces it", () => {
+    const v = viewOf(para(0, 'Ort:'), fieldPara(1, 'Ort eingeben', { defaultText: 'Ort eingeben' }))
+    expect(placeCaret(v, paragraphBlock(1))).toBe(true)
+    expect(document.getSelection()!.toString()).toBe('Ort eingeben')
+  })
+
   it("selects an empty field's placeholder so typing replaces it", () => {
     const v = viewOf(para(0, 'Firma:'), fieldPara(1, '', { emptyLine: true }))
     expect(placeCaret(v, paragraphBlock(1))).toBe(true)

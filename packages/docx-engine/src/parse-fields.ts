@@ -189,6 +189,13 @@ function resultRuns(
   return out
 }
 
+/** the default text of a paragraph's only legacy text form field, if it sets one */
+function formTextDefaultIn(xml: string): string | undefined {
+  if ((xml.match(/\bFORMTEXT\b/g) ?? []).length !== 1) return undefined
+  const fallback = /<w:textInput>[\s\S]*?<w:default w:val="([^"]*)"[\s\S]*?<\/w:textInput>/.exec(xml)?.[1]
+  return fallback ? decodeEntities(fallback) : undefined
+}
+
 export function fieldDisplayOf(
   xml: string,
   styles?: Map<string, StyleInfo>,
@@ -332,9 +339,11 @@ export function fieldDisplayOf(
     // document default (justify in CJK docs) and stretch short lines
     const direct = eff.source.align === 'direct' ? eff.align : undefined
     const align = direct === 'distribute' ? 'justify' : direct
+    const defaultText = formTextDefaultIn(xml)
     return {
       kind: 'text',
       left: visible,
+      ...(defaultText ? { defaultText } : {}),
       ...(sz > 0 ? { szHalfPoints: sz } : {}),
       ...(font ? { fontFamily: font } : {}),
       ...(align ? { align } : {}),
