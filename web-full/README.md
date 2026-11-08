@@ -80,7 +80,8 @@ is. An index that matches no node or more than one is dropped and logged with
 `console.info('[vound] markers dropped', ids)`; so is a cell marker outside a table cell. A split (Enter inside a
 paragraph) copies the index to both halves; the editor then keeps it on the first half and marks the second as its
 continuation (`continuesPara`, `split-source-paragraph.ts`), and a paragraph-scope marker covers the paragraph and
-its continuations, drawn as one field over several blocks. Joining the halves gives the one paragraph back. Paragraphs of nested tables are not editor nodes and cannot be marked.
+its continuations, drawn as one field over several blocks. Halves that still share the index side by side, before
+the editor marked the continuation, count the same way, so a split never drops the marker. Joining the halves gives the one paragraph back. Paragraphs of nested tables are not editor nodes and cannot be marked.
 
 `markersPlugin.ts` keeps the decorations through edits and walks the document again when the block
 count changes (phased loading appends blocks after the first 64, splits, deletions), when an attribute
@@ -282,7 +283,8 @@ The hovered block gets `vound-slot-hot`, a 1px ring at 45 %, through a decoratio
 ProseMirror. In review mode `host.css` restyles the markers: a soft tint and a 2px leading bar (a
 background layer, so no box changes), no outline. Proposed is violet, a field still needing a value (gap,
 conditional with a dashed bar, refused) amber, accepted cyan with a ✓ after its text (inline with a
-negative margin, so it never adds a line; an accepted field emptied again shows none), rejected white with a rose
+negative margin, so it never adds a line; an accepted field emptied again shows none, and a field over several
+blocks shows it after the last one, `vound-slot-continued` marking the others), rejected white with a rose
 bar and a 1px rose edge. A marked paragraph whose neighbour right above or below is marked for other fields
 (`vound-slot-other-above`, `vound-slot-other-below`, set in `markers.ts`) stops its tint and bar 1px short of that
 edge, so two adjacent fields show a 2px gap and each its own rounded ends; blocks of one field still join. The current
@@ -300,7 +302,7 @@ run. The layer redraws after every editor update, on a resize of the editor root
 ## Field writes
 
 `vound:setFieldValue` (`fieldWrite.ts`) writes exactly or refuses. The block is the paragraph whose source
-index the `BlockRef` names, or the table cell around it; an index that names no node or several is `noBlock`;
+index the `BlockRef` names, or the table cell around it; an index that names no node or several apart is `noBlock`;
 of a split paragraph only the first half carries the index, so a write or caret finds that half. The block's visible text is a paragraph's text, a field passthrough paragraph's
 result text (`fieldDisplay.left`), and for a cell its paragraphs' texts joined with line feeds.
 

@@ -158,7 +158,7 @@ describe('applyFieldValue', () => {
   })
 
   it('refuses an index naming two nodes', () => {
-    const v = viewOf(para(3, 'Muster'), para(3, 'GmbH'))
+    const v = viewOf(para(3, 'Muster'), para(4, 'und'), para(3, 'GmbH'))
     expect(write(v, paragraphBlock(3), 'Muster', 'X')).toEqual({ ok: false, reason: 'noBlock' })
     expect(write(v, paragraphBlock(9), 'Muster', 'X')).toEqual({ ok: false, reason: 'noBlock' })
     // a cell scope outside any table

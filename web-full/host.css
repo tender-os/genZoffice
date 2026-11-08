@@ -238,9 +238,12 @@ html.vound-review :is(td, th).vound-slot-accepted > p:last-child::after {
   text-indent: 0;
   pointer-events: none;
 }
-/* an accepted field emptied again has no value to tick: after the empty line's break the check would take a line */
+/* an accepted field emptied again has no value to tick: after the empty line's break the check would take a line;
+   a field over several blocks draws its check after the last one only (markers.ts, vound-slot-continued) */
 html.vound-review .vound-slot-accepted:not(td, th):has(> .ProseMirror-trailingBreak:only-child)::after,
-html.vound-review :is(td, th).vound-slot-accepted > p:last-child:has(> .ProseMirror-trailingBreak:only-child)::after { content: none; }
+html.vound-review :is(td, th).vound-slot-accepted > p:last-child:has(> .ProseMirror-trailingBreak:only-child)::after,
+html.vound-review .vound-slot-accepted.vound-slot-continued:not(td, th)::after,
+html.vound-review :is(td, th).vound-slot-accepted.vound-slot-continued > p:last-child::after { content: none; }
 /* the selected and the hover ring (fieldRing.ts): one box around the run of blocks a field spans, in a layer
    above the page, so the tint of the next marked block cannot cover it */
 .vound-ring-layer { position: relative; width: 0; height: 0; }

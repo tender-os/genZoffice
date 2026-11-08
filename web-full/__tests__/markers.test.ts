@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Decoration } from '@tiptap/pm/view'
 import type { SlotMarker } from '../embed-protocol'
 import { markerDecorations } from '../markers'
-import { cell, doc, para, protectedBlock, table } from './markerSchema'
+import { cell, doc, para, protectedBlock, schema, table } from './markerSchema'
 
 // positions: paragraph 0 at 0..3, protected block 1 at 3..4, table at 4, row at 5, cell at 6..14
 // holding paragraph 2 at 7..10 and paragraph 3 at 10..13
@@ -31,11 +31,13 @@ describe('markerDecorations', () => {
     ])
   })
 
-  it('drops an index matching no node or two nodes', () => {
-    const twice = doc(para(0, 'a'), para(5, 'first half'), para(5, 'second half'))
-    const { decorations, dropped } = markerDecorations(twice, [marker('split', 5), marker('missing', 9), marker('kept', 0)], null)
-    expect(dropped).toEqual(['split', 'missing'])
+  it('drops an index matching no node or two nodes apart, and marks both halves of a split', () => {
+    const twice = doc(para(0, 'a'), para(5, 'one place'), para(6, 'b'), para(5, 'other place'))
+    const { decorations, dropped } = markerDecorations(twice, [marker('copied', 5), marker('missing', 9), marker('kept', 0)], null)
+    expect(dropped).toEqual(['copied', 'missing'])
     expect(decorations.map((d) => d.spec.slotIds)).toEqual([['kept']])
+    const split = doc(para(0, 'a'), para(5, 'first half'), para(5, 'second half'))
+    expect(markerDecorations(split, [marker('split', 5)], null).decorations.map((d) => d.from)).toEqual([3, 15])
   })
 
   it('drops a cell marker whose paragraph sits outside a table cell', () => {
@@ -88,7 +90,7 @@ describe('markerDecorations', () => {
     const { decorations } = markerDecorations(blocks, [marker('a', 0), marker('b', 1), marker('b', 2), marker('c', 4)], null)
     expect(decorations.map((d) => attrsOf(d).class)).toEqual([
       'vound-slot vound-slot-proposed vound-slot-other-below',
-      'vound-slot vound-slot-proposed vound-slot-other-above',
+      'vound-slot vound-slot-proposed vound-slot-other-above vound-slot-continued',
       'vound-slot vound-slot-proposed',
       'vound-slot vound-slot-proposed',
     ])
@@ -97,6 +99,24 @@ describe('markerDecorations', () => {
     expect(inCells.map((d) => attrsOf(d).class)).toEqual([
       'vound-slot vound-slot-proposed vound-slot-other-below',
       'vound-slot vound-slot-proposed vound-slot-other-above',
+      'vound-slot vound-slot-proposed',
+    ])
+  })
+
+  it('marks a block whose field goes on in the block below, so only the last one draws the trailing check', () => {
+    const blocks = doc(para(0, 'a1'), para(1, 'a2'), para(2, 'b'))
+    const { decorations } = markerDecorations(blocks, [marker('a', 0), marker('a', 1), marker('b', 2)], null)
+    expect(decorations.map((d) => attrsOf(d).class)).toEqual([
+      'vound-slot vound-slot-proposed vound-slot-continued',
+      'vound-slot vound-slot-proposed vound-slot-other-below',
+      'vound-slot vound-slot-proposed vound-slot-other-above',
+    ])
+    const rows = (...ids: number[]) =>
+      schema.nodes.docTable.create(null, ids.map((id) => schema.nodes.docTableRow.create(null, [cell(para(id * 2, 'label')), cell(para(id * 2 + 1, 'value'))])))
+    const { decorations: inCells } = markerDecorations(doc(rows(0, 1, 2)), [marker('c', 1, 'cell'), marker('c', 3, 'cell'), marker('d', 5, 'cell')], null)
+    expect(inCells.map((d) => attrsOf(d).class)).toEqual([
+      'vound-slot vound-slot-proposed vound-slot-continued',
+      'vound-slot vound-slot-proposed',
       'vound-slot vound-slot-proposed',
     ])
   })

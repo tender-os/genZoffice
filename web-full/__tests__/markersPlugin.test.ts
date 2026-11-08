@@ -39,7 +39,7 @@ describe('markersPlugin', () => {
     expect(state.doc.nodeAt(late!.from)?.attrs.docxPara).toBe(190)
   })
 
-  it('maps decorations through a text edit and drops the marker of a split paragraph', () => {
+  it('maps decorations through a text edit, marks both halves of a split paragraph and drops a copied index', () => {
     let state = withMeta(stateWith(...paragraphs(0, 6)), { markers: [marker('s4', 4)] })
     const [before] = decorated(state)
     expect(state.doc.nodeAt(before.from)?.attrs.docxPara).toBe(4)
@@ -48,9 +48,14 @@ describe('markersPlugin', () => {
     state = apply(state, (tr) => tr.insertText('xx', 1))
     expect(decorated(state)).toEqual([{ id: 's4', from: before.from + 2, to: before.to + 2 }])
 
-    // a split copies docxPara 4 to both halves: the index now names two nodes, so the marker goes
+    // a split copies docxPara 4 to both halves, side by side: the second continues the first
     state = apply(state, (tr) => tr.split(decorated(state)[0].from + 4))
     expect(state.doc.childCount).toBe(7)
+    expect(decorated(state).map((d) => [d.id, state.doc.nodeAt(d.from)?.textContent])).toEqual([['s4', 'par'], ['s4', 'agraph 4']])
+    expect(info).not.toHaveBeenCalled()
+
+    // the same index on a paragraph elsewhere names two places: the marker goes
+    state = apply(state, (tr) => tr.insert(tr.doc.content.size, para(4, 'copy')))
     expect(decorated(state)).toEqual([])
     expect(info).toHaveBeenCalledWith('[vound] markers dropped', ['s4'])
   })
@@ -319,6 +324,7 @@ describe('markersPlugin', () => {
     it('marks both halves after Enter, and a write or caret still finds the first one alone', () => {
       let state = edit(splitState(), (tr) => tr.split(gmbh(splitState())))
       expect(marked(state)).toEqual([['s1', 'Muster '], ['s1', 'GmbH']])
+      expect(info).not.toHaveBeenCalled()
       expect(locateBlock(state.doc, { paragraph: 1, scope: 'paragraph' })?.node.textContent).toBe('Muster ')
       state = edit(state, (tr) => tr.insertText('Bau ', state.doc.child(0).nodeSize + 1 + 'Muster '.length))
       state = edit(state, (tr) => tr.insertText(' & Co. KG', state.doc.child(0).nodeSize + state.doc.child(1).nodeSize + 1 + 'GmbH'.length))

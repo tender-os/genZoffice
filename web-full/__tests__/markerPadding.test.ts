@@ -79,7 +79,7 @@ describe('review field markers', () => {
     (tag) => {
       const plain = boxOf(block(tag))
       for (const tone of TONES) {
-        for (const state of ['', 'vound-slot-current', 'vound-slot-hot', 'vound-slot-other-above vound-slot-other-below']) {
+        for (const state of ['', 'vound-slot-current', 'vound-slot-hot', 'vound-slot-other-above vound-slot-other-below', 'vound-slot-continued']) {
           const marked = block(tag, `vound-slot vound-slot-${tone} vound-slot-field ${state}`)
           expect(boxOf(marked)).toEqual(plain)
         }
