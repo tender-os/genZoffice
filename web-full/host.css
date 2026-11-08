@@ -168,14 +168,16 @@ html.vound-review .vound-slot:not(td, th) {
   --vs-l: 5px;
   --vs-r: 3px;
   --vs-y: 1px;
-  --vs-plate: 0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -4px 0 0 1px var(--vs-bar);
+  --vs-frame: 0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint);
+  --vs-bar-end: -4px 0 0 1px var(--vs-bar);
+  --vs-plate: var(--vs-frame), var(--vs-bar-end);
   border-radius: 2px;
-  background: var(--vs-tint);
+  background: linear-gradient(var(--vs-tint), var(--vs-tint));
 }
 /* a conditional paragraph's dashed bar: shadow layers shorten the bar from both ends, amber and tint in turn
    (4px dash, 3px gap); a paragraph taller than ~124px, or taller than it is wide, keeps a solid middle */
 html.vound-review .vound-slot-conditional:not(td, th) {
-  --vs-plate: 0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint),
+  --vs-plate: var(--vs-frame),
     -67px 0 0 -62px var(--vs-bar),
     -64px 0 0 -59px var(--vs-tint),
     -60px 0 0 -55px var(--vs-bar),
@@ -194,8 +196,30 @@ html.vound-review .vound-slot-conditional:not(td, th) {
     -15px 0 0 -10px var(--vs-tint),
     -11px 0 0 -6px var(--vs-bar),
     -8px 0 0 -3px var(--vs-tint),
-    -4px 0 0 1px var(--vs-bar);
-  background: var(--vs-hatch), var(--vs-tint);
+    var(--vs-bar-end);
+  background: var(--vs-hatch), linear-gradient(var(--vs-tint), var(--vs-tint));
+}
+/* another field's block right below or above (markers.ts): tint and bar stop 1px short of that edge, so adjacent
+   fields show a 2px gap and each its own ends; the tint is an image layer for that, and no box changes */
+html.vound-review .vound-slot-other-below:not(td, th) {
+  --vs-frame: 0 -1px 0 0 var(--vs-tint), -3px -1px 0 0 var(--vs-tint), 3px -1px 0 0 var(--vs-tint);
+  --vs-bar-end: -5px -1px 0 0 var(--vs-bar);
+  background-position: top;
+  background-size: 100% calc(100% - 1px);
+  background-repeat: no-repeat;
+}
+html.vound-review .vound-slot-other-above:not(td, th) {
+  --vs-frame: 0 1px 0 0 var(--vs-tint), -3px 1px 0 0 var(--vs-tint), 3px 1px 0 0 var(--vs-tint);
+  --vs-bar-end: -5px 1px 0 0 var(--vs-bar);
+  background-position: bottom;
+  background-size: 100% calc(100% - 1px);
+  background-repeat: no-repeat;
+}
+html.vound-review .vound-slot-other-above.vound-slot-other-below:not(td, th) {
+  --vs-frame: 0 0 0 -1px var(--vs-tint), -4px 0 0 -1px var(--vs-tint), 4px 0 0 -1px var(--vs-tint);
+  --vs-bar-end: -6px 0 0 -1px var(--vs-bar);
+  background-position: center;
+  background-size: 100% calc(100% - 2px);
 }
 html.vound-review .vound-slot-rejected:not(td, th) {
   --vs-edge: 0 0 0 calc(var(--vs-y) + 1px) var(--vound-rejected-edge), calc(var(--vs-y) - var(--vs-l)) 0 0 calc(var(--vs-y) + 1px) var(--vound-rejected-edge), calc(var(--vs-r) - var(--vs-y)) 0 0 calc(var(--vs-y) + 1px) var(--vound-rejected-edge);
@@ -214,6 +238,9 @@ html.vound-review :is(td, th).vound-slot-accepted > p:last-child::after {
   text-indent: 0;
   pointer-events: none;
 }
+/* an accepted field emptied again has no value to tick: after the empty line's break the check would take a line */
+html.vound-review .vound-slot-accepted:not(td, th):has(> .ProseMirror-trailingBreak:only-child)::after,
+html.vound-review :is(td, th).vound-slot-accepted > p:last-child:has(> .ProseMirror-trailingBreak:only-child)::after { content: none; }
 /* the selected and the hover ring (fieldRing.ts): one box around the run of blocks a field spans, in a layer
    above the page, so the tint of the next marked block cannot cover it */
 .vound-ring-layer { position: relative; width: 0; height: 0; }

@@ -1945,6 +1945,7 @@ function runMarks(run: Run): PmMark[] {
   }
   if (run.sdtCheckboxXml !== undefined)
     marks.push({ type: 'ctrlCheckbox', attrs: { sdtPr: run.sdtCheckboxXml } })
+  if (run.placeholder) marks.push({ type: 'ctrlPlaceholder' })
   if (run.commentIds?.length)
     marks.push({ type: 'comment', attrs: { ids: run.commentIds.join(' ') } })
   if (run.ins) {
@@ -3751,6 +3752,8 @@ function runFromMarks(text: string, marks: PmMark[]): Run {
       }
     } else if (mark.type === 'ctrlCheckbox') {
       run.sdtCheckboxXml = String(mark.attrs?.sdtPr ?? '')
+    } else if (mark.type === 'ctrlPlaceholder') {
+      run.placeholder = true
     } else if (mark.type === 'comment') {
       const ids = String(mark.attrs?.ids ?? '')
         .split(' ')
@@ -3893,6 +3896,7 @@ function runStyleKey(run: Run): string {
     run.fldBeginXml ?? null,
     run.fldDirty ?? null,
     run.sdtCheckboxXml ?? null,
+    run.placeholder ?? null,
     run.math?.omml ?? null,
     run.sym ? [run.sym.font, run.sym.char] : null,
     run.ruby?.xml ?? null,

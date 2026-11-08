@@ -9,7 +9,8 @@
 // A form field selected as a whole block (a click on it selects it as an object) cannot be typed, deleted,
 // pasted or cut over: that would replace the block, and with it the field, by plain text. Typing into
 // Word's empty form field result (en spaces) replaces the blank instead of adding to it, and the blank
-// shows no width, so the caret sits at the field's start (the en spaces stay in the document).
+// shows no width, so the caret sits at the field's start (the en spaces stay in the document). Placeholder text
+// is selected whole when the caret lands in it (placeholderSelect.ts).
 import type { Editor } from '@tiptap/core'
 import { NodeSelection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import type { Node as PmNode } from '@tiptap/pm/model'
@@ -20,6 +21,7 @@ import { editScopeKey, editScopePlugin } from './editScope'
 import { mountFieldChip } from './fieldChip'
 import { fieldRingKey, fieldRingPlugin } from './fieldRing'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
+import { placeholderSelectKey, placeholderSelectPlugin } from './placeholderSelect'
 import { clipboardText } from './pasteText'
 import { blockedInReview, isMacPlatform, keepsNativeAction } from './reviewShortcuts'
 
@@ -131,6 +133,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   if (!boxTickKey.get(editor.state)) editor.registerPlugin(boxTickPlugin, first)
   if (!editScopeKey.get(editor.state)) editor.registerPlugin(editScopePlugin(post), first)
   if (!fieldRingKey.get(editor.state)) editor.registerPlugin(fieldRingPlugin)
+  if (!placeholderSelectKey.get(editor.state)) editor.registerPlugin(placeholderSelectPlugin)
   if (chip?.view === editor.view) return
   chip?.unmount()
   chip = { view: editor.view, unmount: mountFieldChip(editor.view, post) }
@@ -145,6 +148,7 @@ export function leaveReviewMode(editor: Editor): void {
   if (boxTickKey.get(editor.state)) editor.unregisterPlugin(boxTickKey)
   if (editScopeKey.get(editor.state)) editor.unregisterPlugin(editScopeKey)
   if (fieldRingKey.get(editor.state)) editor.unregisterPlugin(fieldRingKey)
+  if (placeholderSelectKey.get(editor.state)) editor.unregisterPlugin(placeholderSelectKey)
   chip?.unmount()
   chip = null
 }

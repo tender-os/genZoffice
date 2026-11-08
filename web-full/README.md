@@ -84,7 +84,11 @@ outside a table cell. Paragraphs of nested tables are not editor nodes and canno
 count changes (phased loading appends blocks after the first 64, splits, deletions), when an attribute
 change dropped a decoration, or while markers wait for their document. The wait ends at the first
 build that sees nodes with source indices, so markers that all miss a loaded document do not cost a
-walk per edit. Markers sent before the app handed over its editor (`hostEditorHandle` in
+walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): Backspace
+in an emptied table cell paragraph (Tiptap's `clearNodes`) and a deleted or typed-over cell selection
+(prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph without one, and an
+emptied field would lose its marker until the next save. The new paragraph takes the index of the paragraph it
+replaced when no other paragraph carries it, in a transaction appended to the edit. Markers sent before the app handed over its editor (`hostEditorHandle` in
 `vite.config.ts`) are applied when it does. `vound:scrollTo` and `vound:focus` add
 `vound-slot-current`, and `vound:scrollTo` finds a shared node by any of its ids; `host.css` holds the
 six tone colours (review mode restyles them, see Field chip).
@@ -188,6 +192,15 @@ caret sat in the middle of it. In review mode the blank shows no width (a `vound
 negative letter spacing in `host.css`), so the caret and the typed text start at the field's edge; the en
 spaces stay in the document.
 
+Placeholder text is selected whole when the caret lands in it, as in Word (`placeholderSelect.ts`), so the first
+keystroke replaces it and typing never mixes with it: a click anywhere on it (its edges too) selects it before the
+click ends, a caret moved by keys selects it from inside only, so it can still be stepped past, and
+`vound:placeCaret` selects placeholder text a block ends with. Placeholder text is what the engine marks
+`Run.placeholder` (the editor's `ctrlPlaceholder` mark, which typed text never continues): the content of a content
+control whose `w:sdtPr` says `w:showingPlcHdr` (inline, around a paragraph, or around a table cell's paragraph), and
+the result of a legacy text form field (FORMTEXT) that equals its `w:default` text. Text that only looks like a
+hint, a grey character style with no control around it, is the document's own and is never selected.
+
 ## View mode
 
 `vound:open` with `mode: 'view'` shows the document and nothing that changes it (`viewMode.ts`). `host.css`
@@ -252,7 +265,10 @@ The hovered block gets `vound-slot-hot`, a 1px ring at 45 %, through a decoratio
 ProseMirror. In review mode `host.css` restyles the markers: a soft tint and a 2px leading bar (a
 background layer, so no box changes), no outline. Proposed is violet, a field still needing a value (gap,
 conditional with a dashed bar, refused) amber, accepted cyan with a ✓ after its text (inline with a
-negative margin, so it never adds a line), rejected white with a rose bar and a 1px rose edge. The current
+negative margin, so it never adds a line; an accepted field emptied again shows none), rejected white with a rose
+bar and a 1px rose edge. A marked paragraph whose neighbour right above or below is marked for other fields
+(`vound-slot-other-above`, `vound-slot-other-below`, set in `markers.ts`) stops its tint and bar 1px short of that
+edge, so two adjacent fields show a 2px gap and each its own rounded ends; blocks of one field still join. The current
 field has a 1.5px ring and a 5px halo, violet, amber for a field still needing a value. Every colour is a
 custom property under `html.vound-review`. Without review mode the markers keep the PR #3362 look.
 

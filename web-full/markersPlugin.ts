@@ -10,6 +10,7 @@ import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { SlotMarker } from './embed-protocol'
 import { HOT_CLASS, hasSourceIndices, markerDecorations } from './markers'
+import { restoreSourceIndices } from './sourceIndex'
 
 /** `placedOnce`: a build since the last vound:markers ran against a parsed document (one whose nodes carry
  *  source indices), whether or not any marker matched; until then an edit may still bring the document.
@@ -35,6 +36,7 @@ type MarkersMeta = {
   reset?: true
   saved?: true
   hot?: number | null
+  restored?: true
 }
 
 export const markersKey = new PluginKey<MarkersState>('voundMarkers')
@@ -104,7 +106,9 @@ function afterDocChange(tr: Transaction, old: MarkersState): MarkersState {
   // content without changing the block count. Once a build saw a parsed document this stays off, so
   // markers that all missed it do not cost a walk per keystroke
   const neverPlaced = oldCount === 0 && !old.placedOnce
-  if (blockCountChanged || decorationDropped || neverPlaced) return rebuild(tr.doc, kept)
+  // a replaced paragraph got its source index back (sourceIndex.ts): its marker was dropped with the old one
+  const restored = tr.getMeta(markersKey)?.restored === true
+  if (blockCountChanged || decorationDropped || neverPlaced || restored) return rebuild(tr.doc, kept)
   return { ...kept, set: mapped }
 }
 
@@ -128,6 +132,11 @@ function apply(tr: Transaction, old: MarkersState): MarkersState {
 export const markersPlugin = new Plugin<MarkersState>({
   key: markersKey,
   state: { init: () => initial, apply },
+  appendTransaction: (transactions, oldState, state) => {
+    if (!transactions.some((tr) => tr.docChanged) || transactions.some(replacedWholeDocument)) return null
+    const restore = restoreSourceIndices(transactions, oldState.doc, state)
+    return restore ? restore.setMeta(markersKey, { restored: true }) : null
+  },
   props: {
     decorations: (state) => viewDecorations(state),
   },

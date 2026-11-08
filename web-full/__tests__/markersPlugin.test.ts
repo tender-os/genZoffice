@@ -3,7 +3,7 @@ import { EditorState, type Transaction } from '@tiptap/pm/state'
 import { DecorationSet } from '@tiptap/pm/view'
 import type { SlotMarker } from '../embed-protocol'
 import { markersKey, markersPlugin, saveMeta, viewDecorations } from '../markersPlugin'
-import { doc, para, paragraphs, schema } from './markerSchema'
+import { cell, doc, para, paragraphs, schema, table } from './markerSchema'
 
 const marker = (id: string, paragraph: number): SlotMarker => ({ id, paragraph, scope: 'paragraph', tone: 'proposed', label: id, actions: [] })
 const stateWith = (...blocks: Parameters<typeof doc>) => EditorState.create({ schema, doc: doc(...blocks), plugins: [markersPlugin] })
@@ -242,5 +242,64 @@ describe('markersPlugin', () => {
     state = withMeta(state, { hot: decorated(state)[0].from })
     state = withMeta(state, { markers: [] })
     expect(hotClass(state)).toEqual([])
+  })
+  describe('an emptied field keeps its marker', () => {
+    // a value cell with a marked paragraph, between two plain paragraphs
+    const cellState = () =>
+      withMeta(stateWith(para(0, 'before'), table(cell(para(1, 'Name')), cell(para(2, 'Muster GmbH'))), para(3, 'after')), {
+        markers: [marker('s2', 2), { ...marker('c2', 2), scope: 'cell' }],
+      })
+    /** applies `edit` with the plugins' appended transactions, as the view dispatches it */
+    const edit = (state: EditorState, change: (tr: Transaction) => Transaction) => state.applyTransaction(change(state.tr)).state
+    const valueParagraph = (state: EditorState) => {
+      let found: { pos: number; docxPara: unknown; text: string } | null = null
+      state.doc.descendants((node, pos) => {
+        if (node.isTextblock && node.textContent !== 'Name' && pos > 8 && pos < state.doc.content.size - 8) found = { pos, docxPara: node.attrs.docxPara, text: node.textContent }
+        return !node.isTextblock
+      })
+      return found!
+    }
+
+    it('Backspace in the emptied paragraph turns it into a new default one (Tiptap clearNodes)', () => {
+      let state = cellState()
+      const { pos } = valueParagraph(state)
+      state = edit(state, (tr) => tr.delete(pos + 1, pos + 1 + 'Muster GmbH'.length))
+      state = edit(state, (tr) => tr.setNodeMarkup(pos, schema.nodes.docParagraph, null))
+      expect(valueParagraph(state)).toEqual({ pos, docxPara: 2, text: '' })
+      expect(decorated(state).map((d) => d.id).sort()).toEqual(['c2', 's2'])
+    })
+
+    it('a deleted cell selection fills the cell with a new default paragraph', () => {
+      let state = cellState()
+      const { pos } = valueParagraph(state)
+      const cellEnd = pos + state.doc.nodeAt(pos)!.nodeSize
+      state = edit(state, (tr) => tr.replaceWith(pos, cellEnd, schema.nodes.docParagraph.create()))
+      expect(valueParagraph(state)).toEqual({ pos, docxPara: 2, text: '' })
+      expect(decorated(state).map((d) => d.id).sort()).toEqual(['c2', 's2'])
+    })
+
+    it('typing over a cell selection keeps the index on the paragraph that holds the new text', () => {
+      let state = cellState()
+      const { pos } = valueParagraph(state)
+      const cellEnd = pos + state.doc.nodeAt(pos)!.nodeSize
+      state = edit(state, (tr) => tr.replaceWith(pos, cellEnd, schema.nodes.docParagraph.create(null, schema.text('Beispiel AG'))))
+      expect(valueParagraph(state)).toEqual({ pos, docxPara: 2, text: 'Beispiel AG' })
+    })
+
+    it('gives no index to a new paragraph while its old owner is still in the document', () => {
+      let state = cellState()
+      const { pos } = valueParagraph(state)
+      state = edit(state, (tr) => tr.insert(pos, schema.nodes.docParagraph.create(null, schema.text('new'))))
+      expect(state.doc.nodeAt(pos)!.attrs.docxPara).toBeNull()
+      expect(state.doc.nodeAt(pos + 5)!.attrs.docxPara).toBe(2)
+    })
+
+    it('still drops the marker of a paragraph that was deleted outright', () => {
+      let state = withMeta(stateWith(...paragraphs(0, 4)), { markers: [marker('s2', 2)] })
+      const [block] = decorated(state)
+      state = edit(state, (tr) => tr.delete(block.from, block.to))
+      expect(decorated(state)).toEqual([])
+      expect(info).toHaveBeenCalledWith('[vound] markers dropped', ['s2'])
+    })
   })
 })

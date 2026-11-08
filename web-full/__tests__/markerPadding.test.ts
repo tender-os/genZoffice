@@ -59,6 +59,14 @@ const boxOf = (node: HTMLElement) => {
 const variable = (node: HTMLElement, name: string) =>
   getComputedStyle(node).getPropertyValue(name).trim()
 
+/** the plate's shadow layers with the frame and the bar's end put in */
+const plate = (node: HTMLElement) =>
+  variable(node, '--vs-plate')
+    .replace('var(--vs-frame)', variable(node, '--vs-frame'))
+    .replace('var(--vs-bar-end)', variable(node, '--vs-bar-end'))
+/** a paragraph's tint: an image layer, so it can stop short of an edge */
+const TINT_LAYER = 'linear-gradient(var(--vs-tint), var(--vs-tint))'
+
 /** a bar layer `x 0 0 spread colour`: its left edge and how far it is shortened at each end */
 const dashLayer = (shadow: string) => {
   const [x, , , spread, colour] = shadow.split(' ')
@@ -71,7 +79,7 @@ describe('review field markers', () => {
     (tag) => {
       const plain = boxOf(block(tag))
       for (const tone of TONES) {
-        for (const state of ['', 'vound-slot-current', 'vound-slot-hot']) {
+        for (const state of ['', 'vound-slot-current', 'vound-slot-hot', 'vound-slot-other-above vound-slot-other-below']) {
           const marked = block(tag, `vound-slot vound-slot-${tone} vound-slot-field ${state}`)
           expect(boxOf(marked)).toEqual(plain)
         }
@@ -86,16 +94,45 @@ describe('review field markers', () => {
       variable(paragraph, '--vs-r'),
       variable(paragraph, '--vs-y'),
     ]).toEqual(['5px', '3px', '1px'])
-    expect(variable(paragraph, '--vs-plate')).toBe(
+    expect(plate(paragraph)).toBe(
       '0 0 0 1px var(--vs-tint), -2px 0 0 1px var(--vs-tint), 2px 0 0 1px var(--vs-tint), -4px 0 0 1px var(--vs-bar)',
     )
-    expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe('var(--vs-tint)')
+    expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe(TINT_LAYER)
+  })
+
+  it.each([
+    ['vound-slot-other-below', '0 -1px 0 0', '-3px -1px 0 0', '3px -1px 0 0', '-5px -1px 0 0', 'center top'],
+    ['vound-slot-other-above', '0 1px 0 0', '-3px 1px 0 0', '3px 1px 0 0', '-5px 1px 0 0', 'center bottom'],
+  ])('stop a paragraph tint and bar 1px short of the edge another field touches (%s)', (side, ...expected) => {
+    const [frame, left, right, bar, position] = expected
+    const paragraph = block('p', `vound-slot vound-slot-gap ${side}`)
+    expect(plate(paragraph)).toBe(
+      `${frame} var(--vs-tint), ${left} var(--vs-tint), ${right} var(--vs-tint), ${bar} var(--vs-bar)`,
+    )
+    // jsdom drops the calc() of background-size; the browser renders check the 1px
+    const style = getComputedStyle(paragraph)
+    expect([style.getPropertyValue('background-position'), style.getPropertyValue('background-repeat')]).toEqual([
+      position,
+      'no-repeat',
+    ])
+  })
+
+  it('stop the tint and bar 1px short of both edges between two other fields', () => {
+    const paragraph = block('p', 'vound-slot vound-slot-conditional vound-slot-other-above vound-slot-other-below')
+    const layers = plate(paragraph).split(/,\s*/)
+    expect(layers.slice(0, 3)).toEqual(['0 0 0 -1px var(--vs-tint)', '-4px 0 0 -1px var(--vs-tint)', '4px 0 0 -1px var(--vs-tint)'])
+    expect(layers.at(-1)).toBe('-6px 0 0 -1px var(--vs-bar)')
+    const style = getComputedStyle(paragraph)
+    expect([style.getPropertyValue('background-position'), style.getPropertyValue('background-repeat')]).toEqual([
+      'center center',
+      'no-repeat',
+    ])
   })
 
   it('give a conditional paragraph a dashed bar in the place of the others, over a hatched tint', () => {
     const paragraph = block('p', 'vound-slot vound-slot-conditional')
     expect(variable(paragraph, '--vs-l')).toBe('5px')
-    const layers = variable(paragraph, '--vs-plate').split(/,\s*/)
+    const layers = plate(paragraph).split(/,\s*/)
     expect(layers.slice(0, 3)).toEqual([
       '0 0 0 1px var(--vs-tint)',
       '-2px 0 0 1px var(--vs-tint)',
@@ -110,9 +147,7 @@ describe('review field markers', () => {
       bar.map((_, i) => (i % 2 === 0 ? 'var(--vs-bar)' : 'var(--vs-tint)')),
     )
     expect(bar.at(-1)!.shrink).toBeGreaterThanOrEqual(60)
-    expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe(
-      'var(--vs-hatch), var(--vs-tint)',
-    )
+    expect(getComputedStyle(paragraph).getPropertyValue('background')).toBe(`var(--vs-hatch), ${TINT_LAYER}`)
     expect(variable(paragraph, '--vs-hatch')).toContain(
       'repeating-linear-gradient(-45deg, transparent 0, var(--vound-conditional-hatch)',
     )
