@@ -1283,6 +1283,9 @@ export interface TableParagraph extends ParaFormat {
   /** document-order index of this paragraph's w:p in the original document.xml
    *  (see source-para-index.ts); read-only, never written back */
   sourceParaIndex?: number
+  /** editor only (Vound fork): the source paragraph this one continues after a split; a cell save keeps it
+   *  where that paragraph was. Never parsed or written */
+  continuesSourceParaIndex?: number
 }
 
 /** One cell border (a w:tcBorders child element) */

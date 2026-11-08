@@ -3,6 +3,7 @@ import { MultiSelect } from './multi-select'
 import { Editor, Extension, Node } from '@tiptap/core'
 import { SHAPE_INLINE_WRAP } from './floating-z-order'
 import { StreamingTailGuardExtension } from './streaming-tail-guard'
+import { SplitSourceParagraph } from './split-source-paragraph'
 import { geometryLevelOf } from './list-geometry-level'
 import { wrapGroupCss, type WrapPicture } from './wrap-group'
 import type { ChainedCommands, RawCommands } from '@tiptap/core'
@@ -270,9 +271,12 @@ const anchorAttrs = {
   docxIndex: { default: null as number | null },
   /** source paragraph index (Block.sourceParaIndex) of the paragraph the engine
    *  parsed: its w:p among all paragraphs of the original document.xml. A split
-   *  copies it to the new half (an index two nodes share is never marked);
+   *  keeps it on the first half and marks the second with continuesPara;
    *  paragraphs created from scratch carry null */
   docxPara: { default: null as number | null },
+  /** Vound fork: the source index of the paragraph this one continues after a split (Enter inside it); the
+   *  first half keeps docxPara, so an index names one node (split-source-paragraph.ts) */
+  continuesPara: { default: null as number | null },
   /** JSON of the table-style paragraph properties (convert.ts tableStyleParaAttr); display only */
   tblPara: { default: null as string | null },
   styleId: { default: null as string | null },
@@ -7646,6 +7650,7 @@ export const AutoLinkOnDelimiter = Extension.create({
 
 export const editorExtensions = [
   StreamingTailGuardExtension,
+  SplitSourceParagraph,
   ScriptFonts,
   DocDocument,
   DocText,

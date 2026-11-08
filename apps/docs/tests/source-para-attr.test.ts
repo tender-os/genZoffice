@@ -118,14 +118,15 @@ function nodesWithDocxPara(editor: Editor, index: number): string[] {
 }
 
 describe('docxPara on paragraphs the editor makes from stamped ones', () => {
-  it('a split copies the index to both halves (a shared index is never marked)', async () => {
+  it('a split keeps the index on the first half and makes the second its continuation', async () => {
     const { editor } = await open()
     const { pos } = textblockWithText(editor, 'last')
     editor.view.dispatch(
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, pos + 1 + 2)),
     )
     expect(editor.commands.splitBlock()).toBe(true)
-    expect(nodesWithDocxPara(editor, 7)).toEqual(['la', 'st'])
+    expect(nodesWithDocxPara(editor, 7)).toEqual(['la'])
+    expect(textblockWithText(editor, 'st').node.attrs.continuesPara).toBe(7)
     editor.destroy()
   })
 

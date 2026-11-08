@@ -76,9 +76,11 @@ marked node gets one node decoration, also when several slots share it ("Ort: __
 paragraph with two slots): `data-vound-slot` lists all of its ids separated by spaces (select one with
 `[data-vound-slot~="<id>"]`), the class carries the tone that needs attention most (rejected, gap,
 refused, conditional, proposed, accepted, in that order), and the node is current when any of its ids
-is. An index that matches no node or more than one (a split copies the index to both
-halves) is dropped and logged with `console.info('[vound] markers dropped', ids)`; so is a cell marker
-outside a table cell. Paragraphs of nested tables are not editor nodes and cannot be marked.
+is. An index that matches no node or more than one is dropped and logged with
+`console.info('[vound] markers dropped', ids)`; so is a cell marker outside a table cell. A split (Enter inside a
+paragraph) copies the index to both halves; the editor then keeps it on the first half and marks the second as its
+continuation (`continuesPara`, `split-source-paragraph.ts`), and a paragraph-scope marker covers the paragraph and
+its continuations, drawn as one field over several blocks. Joining the halves gives the one paragraph back. Paragraphs of nested tables are not editor nodes and cannot be marked.
 
 `markersPlugin.ts` keeps the decorations through edits and walks the document again when the block
 count changes (phased loading appends blocks after the first 64, splits, deletions), when an attribute
@@ -298,8 +300,8 @@ run. The layer redraws after every editor update, on a resize of the editor root
 ## Field writes
 
 `vound:setFieldValue` (`fieldWrite.ts`) writes exactly or refuses. The block is the paragraph whose source
-index the `BlockRef` names, or the table cell around it; an index that names no node or several (a split
-paragraph) is `noBlock`. The block's visible text is a paragraph's text, a field passthrough paragraph's
+index the `BlockRef` names, or the table cell around it; an index that names no node or several is `noBlock`;
+of a split paragraph only the first half carries the index, so a write or caret finds that half. The block's visible text is a paragraph's text, a field passthrough paragraph's
 result text (`fieldDisplay.left`), and for a cell its paragraphs' texts joined with line feeds.
 
 - `previous` occurs exactly once: that occurrence is replaced by `value` (empty allowed). In a paragraph

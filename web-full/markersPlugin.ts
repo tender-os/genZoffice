@@ -5,7 +5,7 @@
 // stay until the app's re-parse of the saved bytes replaces the document, and then only if the host posted
 // them again after the save (it does once it has checked the saved file's numbering).
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
-import { ReplaceStep } from '@tiptap/pm/transform'
+import { AttrStep, ReplaceStep } from '@tiptap/pm/transform'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { SlotMarker } from './embed-protocol'
@@ -36,10 +36,12 @@ type MarkersMeta = {
   reset?: true
   saved?: true
   hot?: number | null
-  restored?: true
 }
 
 export const markersKey = new PluginKey<MarkersState>('voundMarkers')
+
+/** the node attributes that say which source paragraph a node is */
+const SOURCE_INDEX_ATTRS = ['docxPara', 'continuesPara']
 
 const initial: MarkersState = {
   markers: [],
@@ -106,9 +108,10 @@ function afterDocChange(tr: Transaction, old: MarkersState): MarkersState {
   // content without changing the block count. Once a build saw a parsed document this stays off, so
   // markers that all missed it do not cost a walk per keystroke
   const neverPlaced = oldCount === 0 && !old.placedOnce
-  // a replaced paragraph got its source index back (sourceIndex.ts): its marker was dropped with the old one
-  const restored = tr.getMeta(markersKey)?.restored === true
-  if (blockCountChanged || decorationDropped || neverPlaced || restored) return rebuild(tr.doc, kept)
+  // a paragraph got a source index back (sourceIndex.ts) or became a split one's continuation
+  // (split-source-paragraph.ts in the editor): the markers follow the indices
+  const indexMoved = tr.steps.some((step) => step instanceof AttrStep && SOURCE_INDEX_ATTRS.includes(step.attr))
+  if (blockCountChanged || decorationDropped || neverPlaced || indexMoved) return rebuild(tr.doc, kept)
   return { ...kept, set: mapped }
 }
 
@@ -134,8 +137,7 @@ export const markersPlugin = new Plugin<MarkersState>({
   state: { init: () => initial, apply },
   appendTransaction: (transactions, oldState, state) => {
     if (!transactions.some((tr) => tr.docChanged) || transactions.some(replacedWholeDocument)) return null
-    const restore = restoreSourceIndices(transactions, oldState.doc, state)
-    return restore ? restore.setMeta(markersKey, { restored: true }) : null
+    return restoreSourceIndices(transactions, oldState.doc, state)
   },
   props: {
     decorations: (state) => viewDecorations(state),

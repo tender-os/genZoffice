@@ -4,6 +4,8 @@ import { DecorationSet } from '@tiptap/pm/view'
 import type { SlotMarker } from '../embed-protocol'
 import { markersKey, markersPlugin, saveMeta, viewDecorations } from '../markersPlugin'
 import { cell, doc, para, paragraphs, schema, table } from './markerSchema'
+import { splitSourceParagraphPlugin } from '../../apps/docs/src/renderer/editor/split-source-paragraph'
+import { locateBlock } from '../markers'
 
 const marker = (id: string, paragraph: number): SlotMarker => ({ id, paragraph, scope: 'paragraph', tone: 'proposed', label: id, actions: [] })
 const stateWith = (...blocks: Parameters<typeof doc>) => EditorState.create({ schema, doc: doc(...blocks), plugins: [markersPlugin] })
@@ -300,6 +302,34 @@ describe('markersPlugin', () => {
       state = edit(state, (tr) => tr.delete(block.from, block.to))
       expect(decorated(state)).toEqual([])
       expect(info).toHaveBeenCalledWith('[vound] markers dropped', ['s2'])
+    })
+  })
+
+  describe('a split field paragraph keeps its marker on both halves', () => {
+    // the editor's own bookkeeping of a split source paragraph runs with the markers, as in the app
+    const splitState = () =>
+      withMeta(
+        EditorState.create({ schema, doc: doc(para(0, 'Firma'), para(1, 'Muster GmbH'), para(2, 'Ort')), plugins: [splitSourceParagraphPlugin, markersPlugin] }),
+        { markers: [marker('s1', 1)] },
+      )
+    const edit = (state: EditorState, change: (tr: Transaction) => Transaction) => state.applyTransaction(change(state.tr)).state
+    const marked = (state: EditorState) => decorated(state).map((d) => [d.id, state.doc.nodeAt(d.from)!.textContent])
+    const gmbh = (state: EditorState) => state.doc.child(1).content.size - 'GmbH'.length + state.doc.child(0).nodeSize + 1
+
+    it('marks both halves after Enter, and a write or caret still finds the first one alone', () => {
+      let state = edit(splitState(), (tr) => tr.split(gmbh(splitState())))
+      expect(marked(state)).toEqual([['s1', 'Muster '], ['s1', 'GmbH']])
+      expect(locateBlock(state.doc, { paragraph: 1, scope: 'paragraph' })?.node.textContent).toBe('Muster ')
+      state = edit(state, (tr) => tr.insertText('Bau ', state.doc.child(0).nodeSize + 1 + 'Muster '.length))
+      state = edit(state, (tr) => tr.insertText(' & Co. KG', state.doc.child(0).nodeSize + state.doc.child(1).nodeSize + 1 + 'GmbH'.length))
+      expect(marked(state)).toEqual([['s1', 'Muster Bau '], ['s1', 'GmbH & Co. KG']])
+    })
+
+    it('gives the single-paragraph field back when the halves are joined', () => {
+      let state = edit(splitState(), (tr) => tr.split(gmbh(splitState())))
+      state = edit(state, (tr) => tr.join(state.doc.child(0).nodeSize + state.doc.child(1).nodeSize))
+      expect(marked(state)).toEqual([['s1', 'Muster GmbH']])
+      expect(state.doc.child(1).attrs).toMatchObject({ docxPara: 1, continuesPara: null })
     })
   })
 })

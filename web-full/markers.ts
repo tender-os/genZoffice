@@ -24,16 +24,20 @@ const attentionRank = (marker: SlotMarker) => tonePriority.indexOf(marker.tone)
 type Located = { pos: number; node: PmNode }
 type Group = { target: Located; markers: SlotMarker[] }
 
-/** every node carrying one of the wanted source paragraph indices, by index */
+/** every node carrying one of the wanted source paragraph indices, by index, and the paragraphs continuing
+ *  one after a split (continuesPara, set by the editor's split-source-paragraph.ts) */
 function nodesByIndex(doc: PmNode, wanted: Set<number>) {
   const found = new Map<number, Located[]>()
+  const continuations = new Map<number, Located[]>()
+  const add = (map: Map<number, Located[]>, index: number, located: Located) => map.set(index, [...(map.get(index) ?? []), located])
   doc.descendants((node, pos) => {
-    const index = node.attrs.docxPara
-    if (typeof index === 'number' && wanted.has(index)) found.set(index, [...(found.get(index) ?? []), { pos, node }])
+    const { docxPara, continuesPara } = node.attrs
+    if (typeof docxPara === 'number' && wanted.has(docxPara)) add(found, docxPara, { pos, node })
+    if (typeof continuesPara === 'number' && wanted.has(continuesPara)) add(continuations, continuesPara, { pos, node })
     // a paragraph's children are inline; nothing below it carries docxPara
     return !node.isTextblock
   })
-  return found
+  return { found, continuations }
 }
 
 /** whether any node carries a source paragraph index: a parsed document does, the editor's initial
@@ -66,7 +70,7 @@ function blockTarget(doc: PmNode, scope: BlockRef['scope'], matches: Located[]) 
 /** the node a field write or caret placement targets, found as a marker on it would be; null when the
  *  index names no node or several, or a cell scope finds no enclosing cell */
 export function locateBlock(doc: PmNode, block: BlockRef): Located | null {
-  const found = nodesByIndex(doc, new Set([block.paragraph]))
+  const { found } = nodesByIndex(doc, new Set([block.paragraph]))
   return blockTarget(doc, block.scope, found.get(block.paragraph) ?? [])
 }
 
@@ -106,15 +110,19 @@ function apartClasses(group: Group, byStart: Map<number, Group>, byEnd: Map<numb
 export function markerDecorations(doc: PmNode, markers: SlotMarker[], currentId: string | null) {
   const dropped: string[] = []
   if (markers.length === 0) return { decorations: [], dropped }
-  const found = nodesByIndex(doc, new Set(markers.map((marker) => marker.paragraph)))
+  const { found, continuations } = nodesByIndex(doc, new Set(markers.map((marker) => marker.paragraph)))
   const byNode = new Map<number, Group>()
+  const mark = (target: Located, marker: SlotMarker) =>
+    byNode.set(target.pos, { target, markers: [...(byNode.get(target.pos)?.markers ?? []), marker] })
   for (const marker of markers) {
     const target = blockTarget(doc, marker.scope, found.get(marker.paragraph) ?? [])
     if (!target) {
       dropped.push(marker.id)
       continue
     }
-    byNode.set(target.pos, { target, markers: [...(byNode.get(target.pos)?.markers ?? []), marker] })
+    mark(target, marker)
+    // a field paragraph split by Enter: the field spans its halves
+    if (marker.scope === 'paragraph') for (const half of continuations.get(marker.paragraph) ?? []) mark(half, marker)
   }
   const groups = [...byNode.values()]
   const byEnd = new Map(groups.map((group) => [group.target.pos + group.target.node.nodeSize, group]))

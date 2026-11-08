@@ -1676,6 +1676,9 @@ export function pmTableToModel(table: PmNode): TableModel {
             ...(typeof paragraph.attrs?.docxPara === 'number'
               ? { sourceParaIndex: paragraph.attrs.docxPara }
               : {}),
+            ...(typeof paragraph.attrs?.continuesPara === 'number'
+              ? { continuesSourceParaIndex: paragraph.attrs.continuesPara }
+              : {}),
             runs: inlineToRuns(paragraph.content ?? []),
           })),
           ...(nestedModels.length > 0
@@ -3098,7 +3101,9 @@ function tableTextsPatchFromModel(
       // untouched paragraphs (per-index text match) keep their original bytes
       if (rich && rich.length === cell.paras.length) {
         // Vound fork: the original paragraph each one continues, so the save keeps content controls around them
-        const origins = rich.map((p) => originalParaIndex(originalCell, p.sourceParaIndex))
+        const origins = rich.map((p) =>
+          originalParaIndex(originalCell, p.sourceParaIndex ?? p.continuesSourceParaIndex),
+        )
         const sameParagraphs = origins.every((origin, i) => origin === undefined || origin === i)
         if (rich.length === origTexts.length && sameParagraphs) {
           return rich.map((p, i): CellParaPatch =>
