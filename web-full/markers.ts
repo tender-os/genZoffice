@@ -11,6 +11,9 @@ export const HOT_CLASS = 'vound-slot-hot'
 /** a block the reviewer can still type in while the document is locked to the fields (host.css) */
 export const FIELD_CLASS = 'vound-slot-field'
 const TOGGLE_CLASS = 'vound-slot-toggle'
+/** another field's block sits right above or below this one (host.css keeps their tints apart) */
+const OTHER_ABOVE_CLASS = 'vound-slot-other-above'
+const OTHER_BELOW_CLASS = 'vound-slot-other-below'
 
 const cellTypes = ['docTableCell', 'docTableHeader']
 
@@ -19,6 +22,7 @@ const tonePriority: MarkerTone[] = ['rejected', 'gap', 'refused', 'conditional',
 const attentionRank = (marker: SlotMarker) => tonePriority.indexOf(marker.tone)
 
 type Located = { pos: number; node: PmNode }
+type Group = { target: Located; markers: SlotMarker[] }
 
 /** every node carrying one of the wanted source paragraph indices, by index */
 function nodesByIndex(doc: PmNode, wanted: Set<number>) {
@@ -69,7 +73,7 @@ export function locateBlock(doc: PmNode, block: BlockRef): Located | null {
 /** one node decoration for every slot on the node: "Ort: ___ Datum: ___" is one paragraph with two
  *  slots. It shows the tone that needs attention most, lists every id in data-vound-slot (space separated,
  *  CSS `~=` matches one) and in its spec, and is current when any of its ids is */
-function nodeDecoration(target: Located, markers: SlotMarker[], currentId: string | null) {
+function nodeDecoration(target: Located, markers: SlotMarker[], currentId: string | null, apart: string) {
   const slotIds = markers.map((marker) => marker.id)
   const shown = markers.reduce((top, marker) => (attentionRank(marker) < attentionRank(top) ? marker : top))
   const current = currentId !== null && slotIds.includes(currentId) ? ` ${CURRENT_CLASS}` : ''
@@ -80,9 +84,21 @@ function nodeDecoration(target: Located, markers: SlotMarker[], currentId: strin
   return Decoration.node(
     target.pos,
     target.pos + target.node.nodeSize,
-    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${toggle}${current}`, 'data-vound-slot': slotIds.join(' ') },
+    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${toggle}${current}${apart}`, 'data-vound-slot': slotIds.join(' ') },
     togglesOnly ? { slotIds, isField, togglesOnly } : { slotIds, isField },
   )
+}
+
+const idsOf = (group: Group) => group.markers.map((marker) => marker.id).join(' ')
+const isCell = (target: Located) => cellTypes.includes(target.node.type.name)
+
+/** the classes of a marked block (not a cell) whose sibling right above or below is marked for other fields */
+function apartClasses(group: Group, byStart: Map<number, Group>, byEnd: Map<number, Group>) {
+  if (isCell(group.target)) return ''
+  const otherField = (neighbour: Group | undefined) => neighbour !== undefined && !isCell(neighbour.target) && idsOf(neighbour) !== idsOf(group)
+  const above = otherField(byEnd.get(group.target.pos)) ? ` ${OTHER_ABOVE_CLASS}` : ''
+  const below = otherField(byStart.get(group.target.pos + group.target.node.nodeSize)) ? ` ${OTHER_BELOW_CLASS}` : ''
+  return `${above}${below}`
 }
 
 /** node decorations for the markers, one per marked node; `dropped` lists ids whose index matches no node
@@ -91,7 +107,7 @@ export function markerDecorations(doc: PmNode, markers: SlotMarker[], currentId:
   const dropped: string[] = []
   if (markers.length === 0) return { decorations: [], dropped }
   const found = nodesByIndex(doc, new Set(markers.map((marker) => marker.paragraph)))
-  const byNode = new Map<number, { target: Located; markers: SlotMarker[] }>()
+  const byNode = new Map<number, Group>()
   for (const marker of markers) {
     const target = blockTarget(doc, marker.scope, found.get(marker.paragraph) ?? [])
     if (!target) {
@@ -100,6 +116,10 @@ export function markerDecorations(doc: PmNode, markers: SlotMarker[], currentId:
     }
     byNode.set(target.pos, { target, markers: [...(byNode.get(target.pos)?.markers ?? []), marker] })
   }
-  const decorations = [...byNode.values()].map((group) => nodeDecoration(group.target, group.markers, currentId))
+  const groups = [...byNode.values()]
+  const byEnd = new Map(groups.map((group) => [group.target.pos + group.target.node.nodeSize, group]))
+  const decorations = groups.map((group) =>
+    nodeDecoration(group.target, group.markers, currentId, apartClasses(group, byNode, byEnd)),
+  )
   return { decorations, dropped }
 }

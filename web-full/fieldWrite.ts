@@ -11,6 +11,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { BlockRef, FieldGap, FieldValueRefusal } from './embed-protocol'
 import { locateBlock } from './markers'
 import { glideIntoView } from './markersPlugin'
+import { placeholderAt } from './placeholderSelect'
 
 /** transaction meta on every host write: not a user edit */
 export const HOST_WRITE_META = 'voundHostWrite'
@@ -249,9 +250,12 @@ function enterFieldEditing(view: EditorView, unit: TextUnit) {
   return true
 }
 
-/** the end of a paragraph's text, or all of it when it is blank and plain text, so typing replaces it */
+/** the end of a paragraph's text, or all of it when it is blank and plain text, or the placeholder text it
+ *  ends with, so typing replaces it */
 function caretInParagraph(view: EditorView, unit: TextUnit) {
   const end = unit.pos + unit.node.nodeSize - 1
+  const placeholder = placeholderAt(view.state.doc, end)
+  if (placeholder) return TextSelection.create(view.state.doc, placeholder.from, placeholder.to)
   let plainText = true
   unit.node.forEach((child) => { plainText &&= child.isText })
   const from = isBlank(unit.text) && plainText ? unit.pos + 1 : end

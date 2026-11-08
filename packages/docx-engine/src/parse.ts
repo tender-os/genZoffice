@@ -171,6 +171,7 @@ import {
   crossParaCommentMarkers,
   emptyParaMarkFont,
   emptyParaSizeHalfPoints,
+  formTextDefaultOf,
   hasLayoutRunContent,
   spaceOnlyRuns,
   breakOnlyRuns,
@@ -234,7 +235,16 @@ import {
   resolveMainDocumentPath,
   resolveRelationshipTargetPath,
 } from './parse-package'
-import { parseSdtBlock, sdtMeta, sdtTableXml, splitSdtParts } from './parse-sdt'
+import {
+  markPlaceholder,
+  parseSdtBlock,
+  placeholderParagraphs,
+  sdtMeta,
+  sdtTableXml,
+  showsPlaceholder,
+  showsPlaceholderXml,
+  splitSdtParts,
+} from './parse-sdt'
 import {
   paragraphIndexAt,
   paragraphIndexMap,
@@ -535,6 +545,7 @@ export async function parseDocx(
         }
         const block = await buildBlock(childEl, i, childXml, buildCtx)
         stampSourceParagraph(block, childEl, childXml, buildCtx)
+        if (showsPlaceholderXml(xml)) markPlaceholder(block.runs)
         block.originalXml = xml.slice(part.start, part.end)
         block.sdtShell = {
           ...meta,
@@ -997,6 +1008,7 @@ async function buildBlock(
       // Attach the sdt shell and preserve the full sdt XML as the original
       innerBlock.originalXml = xml
       innerBlock.sdtShell = shell
+      if (showsPlaceholderXml(xml)) markPlaceholder(innerBlock.runs)
       // Label the block with the alias for UI affordance
       if (!innerBlock.label) {
         const aliasLabel = shell.alias || shell.tag || 'Content control'
@@ -4359,6 +4371,13 @@ function extractRuns(
           } else if (eqField(fieldInstr)) {
             const eq = eqField(fieldInstr)!
             pushRun({ ...resultFormat(), text: eq.text, math: { omml: eq.omml } }, rev)
+          } else if (
+            /^\s*FORMTEXT\s*$/.test(fieldInstr) &&
+            fieldCached !== '' &&
+            fieldCached === formTextDefaultOf(fieldBeginRun)
+          ) {
+            // a text form field still showing its default text: typing replaces it whole, as in Word
+            for (const cached of fieldCachedRuns) pushRun({ ...cached, placeholder: true }, rev)
           } else if (fieldCachedRuns.length > 0) {
             // any other field (HYPERLINK with switches, ASK / FILLIN, the
             // mail-merge control fields NEXT / SKIPIF...): the cached result is
@@ -4604,6 +4623,10 @@ function extractRuns(
         const base = runs.slice(first).find((r) => r.text.trim() !== '') ?? runs[first]
         runs.length = first
         pushRun({ ...(base ?? {}), text: control.glyph, sdtCheckboxXml: control.sdtPrXml }, rev)
+      } else if (name === 'w:sdt' && showsPlaceholder(node)) {
+        const first = runs.length
+        walk(childrenOf(node), link, rev)
+        markPlaceholder(runs.slice(first))
       } else if (
         name === 'w:smartTag' ||
         name === 'w:sdt' ||
@@ -5827,6 +5850,7 @@ function extractCell(
   let sawNonBold = false
   const runColors = new Set<string>()
   const textParaJcs = new Set<string>()
+  const placeholders = placeholderParagraphs(tc)
   for (const block of childrenThroughSdt(tc, ['w:p', 'w:tbl'])) {
     if (nameOf(block) === 'w:tbl') {
       const model =
@@ -5906,6 +5930,7 @@ function extractCell(
       : undefined
     const eff0 = resolveParagraphProps(pPr, rctx)
     const runs = extractRuns(p, ctx, [], [], true, undefined, { eff: eff0, rctx })
+    if (placeholders.has(block)) markPlaceholder(runs)
     const eff = eff0.indent.chars
       ? resolveParagraphProps(pPr, rctx, {
           charUnits: charUnitsOf(ctx, runs, p, pPr, cellStyleId, docOffset),

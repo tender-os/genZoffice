@@ -1,6 +1,7 @@
 // A minimal stand-in for the Docs schema: the node names the markers code looks for, docxPara, the
 // run-formatting mark (docTextStyle) and line break (docBreak) the review-mode paste tests read, and the
-// field passthrough block (docProtected with fieldDisplay) the field writes edit.
+// field passthrough block (docProtected with fieldDisplay) the field writes edit, and placeholder text
+// (ctrlPlaceholder) the review mode selects whole.
 import { Schema, type Node as PmNode } from '@tiptap/pm/model'
 
 export const schema = new Schema({
@@ -27,6 +28,7 @@ export const schema = new Schema({
     text: { group: 'inline' },
   },
   marks: {
+    ctrlPlaceholder: { inclusive: false, toDOM: () => ['span', { 'data-ctrl-placeholder': '' }, 0] },
     instrField: { inclusive: false, attrs: { instr: { default: '' } }, toDOM: () => ['span', 0] },
     docTextStyle: {
       attrs: { bold: { default: null }, font: { default: null } },
@@ -38,6 +40,13 @@ export const schema = new Schema({
 
 export const para = (docxPara: number | null, text = '') =>
   schema.nodes.docParagraph.create({ docxPara }, text ? schema.text(text) : null)
+/** a paragraph holding `before`, then placeholder text (the ctrlPlaceholder mark), then `after` */
+export const placeholderPara = (docxPara: number, before: string, placeholder: string, after = '') =>
+  schema.nodes.docParagraph.create({ docxPara }, [
+    ...(before ? [schema.text(before)] : []),
+    schema.text(placeholder, [schema.marks.ctrlPlaceholder.create()]),
+    ...(after ? [schema.text(after)] : []),
+  ])
 export const protectedBlock = (docxPara: number) => schema.nodes.docProtected.create({ docxPara })
 /** a legacy form-field paragraph as the editor parses it: a passthrough block whose visible text is
  *  fieldDisplay.left */

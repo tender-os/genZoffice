@@ -1,6 +1,7 @@
 // Structured document tags (w:sdt): block-level SDT classification and the
 // split of an SDT's run/table content.
 import type { SdtShell } from './types'
+import { boolProp, childrenOf, findChild, nameOf, type XNode } from './xml-utils'
 
 /**
  * Extract a SdtShell from a raw <w:sdt>…</w:sdt> XML string.
@@ -170,4 +171,36 @@ export function sdtTableXml(sdtXml: string): string | null {
     } else depth++
   }
   return null
+}
+
+/** a content control showing its placeholder (w:sdtPr/w:showingPlcHdr) rather than content of its own */
+export function showsPlaceholder(sdt: XNode): boolean {
+  const sdtPr = findChild(sdt, 'w:sdtPr')
+  return sdtPr !== undefined && boolProp(sdtPr, 'w:showingPlcHdr')
+}
+
+/** the same for a control's raw XML: its first w:sdtPr is its own */
+export function showsPlaceholderXml(sdtXml: string): boolean {
+  const sdtPr = /<w:sdtPr>[\s\S]*?<\/w:sdtPr>/.exec(sdtXml)?.[0]
+  return sdtPr !== undefined && /<w:showingPlcHdr(?:\s+w:val="(?:1|true|on)")?\s*\/>/.test(sdtPr)
+}
+
+/** the paragraphs under `node` that sit in block-level controls showing their placeholder */
+export function placeholderParagraphs(node: XNode): Set<XNode> {
+  const found = new Set<XNode>()
+  const visit = (parent: XNode, shown: boolean) => {
+    for (const child of childrenOf(parent)) {
+      if (nameOf(child) === 'w:p' && shown) found.add(child)
+      if (nameOf(child) !== 'w:sdt') continue
+      const content = findChild(child, 'w:sdtContent')
+      if (content) visit(content, shown || showsPlaceholder(child))
+    }
+  }
+  visit(node, false)
+  return found
+}
+
+/** marks runs as placeholder text */
+export function markPlaceholder(runs: { placeholder?: true }[] | undefined): void {
+  for (const run of runs ?? []) run.placeholder = true
 }

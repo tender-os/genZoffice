@@ -7,7 +7,7 @@ import type { Node as PmNode } from '@tiptap/pm/model'
 import type { BlockRef, FieldGap } from '../embed-protocol'
 import { applyFieldValue, HOST_WRITE_META, placeCaret, type FieldValueResult } from '../fieldWrite'
 import { fieldNodeView } from './fieldNodeView'
-import { cell, doc, fieldPara, para, schema, table } from './markerSchema'
+import { cell, doc, fieldPara, para, placeholderPara, schema, table } from './markerSchema'
 
 let view: EditorView | null = null
 afterEach(() => { view?.dom.remove(); view?.destroy(); view = null })
@@ -367,6 +367,13 @@ describe('placeCaret', () => {
     // ProseMirror's selection moved next to the field: the next key cannot replace the block
     expect(v.state.selection).not.toBeInstanceOf(NodeSelection)
     expect(v.state.selection.$from.parent.attrs.docxPara).toBe(2)
+  })
+
+  it("selects a content control's placeholder text at the end of the block so typing replaces it", () => {
+    const v = viewOf(para(0, 'Rechtsform'), table(cell(placeholderPara(1, '', 'Rechtsform eingeben'))))
+    expect(placeCaret(v, cellBlock(1))).toBe(true)
+    const { from, to } = v.state.selection
+    expect(v.state.doc.textBetween(from, to)).toBe('Rechtsform eingeben')
   })
 
   it("selects an empty field's placeholder so typing replaces it", () => {

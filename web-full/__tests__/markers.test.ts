@@ -25,8 +25,8 @@ describe('markerDecorations', () => {
     )
     expect(dropped).toEqual([])
     expect(decorations.map(described)).toEqual([
-      node(0, 3, ['p'], 'vound-slot vound-slot-proposed'),
-      node(3, 4, ['x'], 'vound-slot vound-slot-conditional'),
+      node(0, 3, ['p'], 'vound-slot vound-slot-proposed vound-slot-other-below'),
+      node(3, 4, ['x'], 'vound-slot vound-slot-conditional vound-slot-other-above'),
       node(6, 14, ['c'], 'vound-slot vound-slot-gap'),
     ])
   })
@@ -80,5 +80,24 @@ describe('markerDecorations', () => {
   it('groups two cell-scoped slots of one cell onto the cell', () => {
     const { decorations } = markerDecorations(sample, [marker('c2', 2, 'cell', 'proposed'), marker('c3', 3, 'cell', 'refused')], null)
     expect(decorations.map(described)).toEqual([node(6, 14, ['c2', 'c3'], 'vound-slot vound-slot-refused')])
+  })
+
+  it('marks where another field starts right above or below a block, so adjacent fields show apart', () => {
+    // paragraphs 0..5: fields a, b, b (one field over two paragraphs), plain, c, then a cell field d in two rows
+    const blocks = doc(para(0, 'a'), para(1, 'b1'), para(2, 'b2'), para(3, 'plain'), para(4, 'c'))
+    const { decorations } = markerDecorations(blocks, [marker('a', 0), marker('b', 1), marker('b', 2), marker('c', 4)], null)
+    expect(decorations.map((d) => attrsOf(d).class)).toEqual([
+      'vound-slot vound-slot-proposed vound-slot-other-below',
+      'vound-slot vound-slot-proposed vound-slot-other-above',
+      'vound-slot vound-slot-proposed',
+      'vound-slot vound-slot-proposed',
+    ])
+    const cells = doc(table(cell(para(0, 'x'), para(1, 'y'))), table(cell(para(2, 'z'))))
+    const { decorations: inCells } = markerDecorations(cells, [marker('x', 0), marker('y', 1), marker('z', 2, 'cell')], null)
+    expect(inCells.map((d) => attrsOf(d).class)).toEqual([
+      'vound-slot vound-slot-proposed vound-slot-other-below',
+      'vound-slot vound-slot-proposed vound-slot-other-above',
+      'vound-slot vound-slot-proposed',
+    ])
   })
 })

@@ -513,6 +513,14 @@ export function checkboxStateOf(beginRun: XNode | null): { checked: boolean } | 
   return { checked: isOn(val) }
 }
 
+/** a legacy text form field's default text (w:ffData/w:textInput/w:default), if its begin run sets one */
+export function formTextDefaultOf(beginRun: XNode | null): string | undefined {
+  const ffData = beginRun ? findChild(findChild(beginRun, 'w:fldChar') ?? {}, 'w:ffData') : undefined
+  const input = ffData ? findChild(ffData, 'w:textInput') : undefined
+  const fallback = input ? findChild(input, 'w:default') : undefined
+  return fallback ? attrsOf(fallback)['w:val'] : undefined
+}
+
 /**
  * Twips attributes a w:ind specifies (hanging as a negative firstLine). Explicit
  * zeros are kept: in Word a direct or child-style 0 cancels that component's
@@ -981,6 +989,7 @@ function sameStyle(a: Run, b: Run): boolean {
   if (a.refField !== undefined || b.refField !== undefined) return false
   if (a.instrField !== undefined || b.instrField !== undefined) return false
   if (a.sdtCheckboxXml !== undefined || b.sdtCheckboxXml !== undefined) return false
+  if (a.placeholder !== b.placeholder) return false
   if (a.math || b.math) return false
   if (a.sym || b.sym) return false
   if (a.ruby || b.ruby) return false

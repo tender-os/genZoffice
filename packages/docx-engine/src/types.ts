@@ -172,6 +172,9 @@ export interface Run {
   /** w:sdtPr of a content-control checkbox (w14:checkbox) wrapping this run; the run text is the
    * box glyph, and write-back sets w14:checked from it */
   sdtCheckboxXml?: string
+  /** placeholder text (Vound fork): what a content control shows while it holds no content
+   * (w:showingPlcHdr), or a legacy text form field's default text; typing replaces it whole */
+  placeholder?: true
   /**
    * Run-level formatting revision (w:rPrChange): records the review info and the modeled
    * subset of the pre-revision formatting. Accept = keep the current formatting and clear

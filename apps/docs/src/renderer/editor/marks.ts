@@ -453,6 +453,16 @@ export const CtrlCheckboxMark = Mark.create({
   },
 })
 
+/** Placeholder text (Vound fork): what a content control shows while empty, or a form field's default text.
+ * Typing replaces it whole and does not continue it; a copy of it pastes as plain text, so no parse rule. */
+export const CtrlPlaceholderMark = Mark.create({
+  name: 'ctrlPlaceholder',
+  inclusive: false,
+  renderHTML() {
+    return ['span', { 'data-ctrl-placeholder': '' }, 0]
+  },
+})
+
 /**
  * CSS-only system keywords: names that resolve to a face inside a UA, never a
  * real font family. They reach a pasted chain as ordinary-looking entries — a
