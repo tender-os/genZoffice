@@ -13,7 +13,8 @@
 // again. They stay while the pointer moves from the block to
 // the chip and hide 220ms after it left both; a field the pointer crosses on its way right to the chip (the
 // next cell of the row) takes the chip over only after resting there 220ms. Moving the caret into a field
-// shows its chip at once, and out of the fields hides it. The chip never grows past the gutter
+// shows its chip at once, and out of the fields hides it; the pointer leaving brings the chip back to the
+// caret's field instead of hiding it. The chip never grows past the gutter
 // (reviewGutter.ts, which also keeps that gutter free): labels shrink or wrap above their buttons, and only
 // a gutter narrower than the buttons hides the chip (the host's bar offers the current field's buttons
 // then); the hover outline stays. The hovered block is a decoration (markersPlugin.ts, setHot), which fieldRing.ts rings: a class
@@ -181,7 +182,7 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
   }
   const scheduleHide = () => {
     cancelPending()
-    pending = setTimeout(hide, HIDE_DELAY_MS)
+    pending = setTimeout(settle, HIDE_DELAY_MS)
   }
 
   /** the scroll container, with the layer in it (the app may have re-rendered the container) */
@@ -281,15 +282,17 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     else if (hoveredBlock) hide()
   }
   let restTimer: ReturnType<typeof setTimeout> | undefined
-  const showCaretChip = () => {
+  /** the pointer left the chip's field, or the page came to rest: the caret's field keeps or gets the chip */
+  const settle = () => {
     const block = blockAtCaret()
     if (block) show(block)
+    else hide()
   }
   // the page moves under a placed chip; once it rests, the caret's field gets its chip back
   const hideUntilRest = () => {
     hide()
     clearTimeout(restTimer)
-    restTimer = setTimeout(showCaretChip, HIDE_DELAY_MS)
+    restTimer = setTimeout(settle, HIDE_DELAY_MS)
   }
   // the pointer left the document (relatedTarget null): mouseover fires nowhere else
   const onOut = (event: MouseEvent) => {
