@@ -1293,8 +1293,11 @@ export interface TableParagraph extends ParaFormat {
   /** editor only (Vound fork): the source paragraph this one continues after a split; a cell save keeps it
    *  where that paragraph was. Never parsed or written */
   continuesSourceParaIndex?: number
-  /** Vound fork: what Enter does in the content control the source w:p holds; never written */
+  /** Vound fork: what Enter does in the content control the source w:p holds or sits in; never written */
   controlEnter?: ControlEnter
+  /** Vound fork: the block-level content control of the cell this paragraph sits in, numbered within the
+   *  cell; never written */
+  cellControl?: number
 }
 
 /** One cell border (a w:tcBorders child element) */

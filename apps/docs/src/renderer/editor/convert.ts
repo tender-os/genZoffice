@@ -1339,6 +1339,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
     const docxPara =
       ('sourceParaIndex' in paragraph ? paragraph.sourceParaIndex : undefined) ?? null
     const controlEnter = ('controlEnter' in paragraph ? paragraph.controlEnter : undefined) ?? null
+    const cellControl = ('cellControl' in paragraph ? paragraph.cellControl : undefined) ?? null
     return list
       ? {
           type: 'docListItem',
@@ -1347,6 +1348,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
             styleId,
             docxPara,
             controlEnter,
+            cellControl,
             kind: list.kind,
             numId: list.numId,
             ilvl: list.ilvl,
@@ -1355,7 +1357,13 @@ function cellContentNodes(cell: TableCell): PmNode[] {
         }
       : {
           type: 'docParagraph',
-          attrs: { ...formatAttrs(paragraph, paragraph.runs), styleId, docxPara, controlEnter },
+          attrs: {
+            ...formatAttrs(paragraph, paragraph.runs),
+            styleId,
+            docxPara,
+            controlEnter,
+            cellControl,
+          },
           content: runsToInline(paragraph.runs),
         }
   })

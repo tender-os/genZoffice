@@ -28,7 +28,7 @@ import { DEFAULT_THEME_COLORS, THEME_PART_PATH, readThemeColors, readThemeFonts 
 import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { assertZipWithinLimits, loadDocxZip } from './zip-load'
 import { altChunkToDocx, hasAltChunkHtmlConverter } from './alt-chunk'
-import { controlEnterOfXml, inlineControlEnterOf } from './control-enter'
+import { blockControlParagraphs, controlEnterOfXml, inlineControlEnterOf } from './control-enter'
 import type {
   FormulaDisplay,
   Block,
@@ -5757,6 +5757,19 @@ const TXBX_CONTENT = new Set(['w:txbxContent'])
 const SDT = new Set(['w:sdt'])
 /** Vound fork: a w:p holding an inline content control outside its textboxes */
 const holdsInlineControl = (pNode: XNode) => hasDeepChildOutside(pNode, SDT, TXBX_CONTENT)
+/** Vound fork: what Enter does in a cell paragraph's content control, its inline one or the block-level one
+ *  around it (which a paragraph holding a control of its own keeps whole), and that block-level control */
+function cellControlFields(
+  p: XNode,
+  wrapping: { enter: ControlEnter; control: number } | undefined,
+) {
+  const inline = holdsInlineControl(p) ? inlineControlEnterOf(p) : undefined
+  if (!wrapping) return inline === undefined ? {} : { controlEnter: inline }
+  return {
+    controlEnter: inline === undefined ? wrapping.enter : 'none',
+    cellControl: wrapping.control,
+  }
+}
 /** Vound fork: a paragraph a block-level control wraps takes the control's Enter, unless it holds a control itself */
 function wrapControlEnter(block: Block, enter: ControlEnter) {
   if (block.type === 'table') return
@@ -5868,6 +5881,7 @@ function extractCell(
   const runColors = new Set<string>()
   const textParaJcs = new Set<string>()
   const placeholders = placeholderParagraphs(tc)
+  const controls = blockControlParagraphs(tc)
   for (const block of childrenThroughSdt(tc, ['w:p', 'w:tbl'])) {
     if (nameOf(block) === 'w:tbl') {
       const model =
@@ -5972,7 +5986,7 @@ function extractCell(
       ...(markSz ? { markSizeHalfPoints: markSz } : {}),
       ...(list ? { list } : {}),
       ...(sourceParaIndex !== undefined ? { sourceParaIndex } : {}),
-      ...(holdsInlineControl(p) ? { controlEnter: inlineControlEnterOf(p) } : {}),
+      ...cellControlFields(p, controls.get(block)),
       runs,
     })
     if (paraText !== '') textParaJcs.add(attrsOf(findChild(pPr ?? {}, 'w:jc') ?? {})['w:val'] ?? '')

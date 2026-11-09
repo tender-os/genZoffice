@@ -195,6 +195,8 @@ describe('content controls through a review edit', () => {
   describe('Enter by control type', () => {
     const para = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
     const PLACEHOLDER = 'Klicken Sie hier, um Text einzugeben.'
+    const blockOfLines = (sdtPr: string, lines: string[]) =>
+      `<w:sdt><w:sdtPr><w:id w:val="7"/>${sdtPr}</w:sdtPr><w:sdtContent>${lines.map(para).join('')}</w:sdtContent></w:sdt>`
     const blockOf = (sdtPr: string) =>
       `<w:sdt><w:sdtPr><w:id w:val="5"/>${sdtPr}</w:sdtPr><w:sdtContent>${para(PLACEHOLDER)}</w:sdtContent></w:sdt>`
     const inlineOf = (sdtPr: string) =>
@@ -221,6 +223,8 @@ describe('content controls through a review edit', () => {
         return paragraphs.length > 0 ? paragraphs.map(lineOf) : [lineOf(control)]
       })
     }
+    const inCell = (content: string) =>
+      `<w:tbl><w:tblGrid><w:gridCol w:w="3000"/><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr>${content}</w:tc><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr>${para('Daneben')}</w:tc></w:tr></w:tbl>`
     async function typeLines(bodyXml: string) {
       const { parsed, editor } = await open(`${para('Vorher')}${bodyXml}${para('Nachher')}`)
       editor.commands.setTextSelection(textPos(editor, PLACEHOLDER) + PLACEHOLDER.length)
@@ -247,8 +251,66 @@ describe('content controls through a review edit', () => {
       },
     )
 
+    it.each([
+      ['in the body', (body: string) => body],
+      ['in a table cell', (body: string) => inCell(body)],
+    ])('Shift+Enter in a plain-text control %s adds no line break', async (_, place) => {
+      const { parsed, editor } = await open(place(blockOf('<w:text/>')))
+      editor.commands.setTextSelection(textPos(editor, PLACEHOLDER) + PLACEHOLDER.length)
+      editor.commands.keyboardShortcut('Shift-Enter')
+      editor.commands.insertContent('Zweite Zeile')
+
+      expect(await savedControlLines(parsed, editor)).toEqual([[`${PLACEHOLDER}Zweite Zeile`]])
+    })
+
     it('an inline rich-text control filling its paragraph takes a line break', async () => {
       expect(await typeLines(inlineOf(''))).toEqual([[`${PLACEHOLDER}\nZweite Zeile`]])
+    })
+
+    describe('a block-level control in a table cell', () => {
+      const LONG_ANSWER = inCell(
+        `${para('Vorher')}${blockOfLines('', ['Erste Zeile', 'Zweite Zeile'])}${para('Nachher')}`,
+      )
+
+      it('a rich-text one takes a new paragraph and stays one control', async () => {
+        const { parsed, editor } = await open(LONG_ANSWER)
+        editor.commands.setTextSelection(textPos(editor, 'Zweite Zeile') + 'Zweite Zeile'.length)
+        editor.commands.keyboardShortcut('Enter')
+        editor.commands.insertContent('Dritte Zeile')
+
+        expect(await savedControlLines(parsed, editor)).toEqual([
+          ['Erste Zeile', 'Zweite Zeile', 'Dritte Zeile'],
+        ])
+      })
+
+      it.each([
+        ['its first paragraph', 'Erste Zeile'],
+        ['the paragraph after it', 'Nachher'],
+      ])('Backspace at the start of %s moves no text across its edge', async (_, text) => {
+        const { parsed, editor } = await open(LONG_ANSWER)
+        editor.commands.setTextSelection(textPos(editor, text))
+        editor.commands.keyboardShortcut('Backspace')
+
+        expect(await savedControlLines(parsed, editor)).toEqual([['Erste Zeile', 'Zweite Zeile']])
+      })
+
+      it('a plain-text one takes no Enter', async () => {
+        const { parsed, editor } = await open(inCell(blockOf('<w:text/>')))
+        editor.commands.setTextSelection(textPos(editor, PLACEHOLDER) + 'Klicken'.length)
+        editor.commands.keyboardShortcut('Enter')
+
+        expect(await savedControlLines(parsed, editor)).toEqual([[PLACEHOLDER]])
+      })
+
+      it('Backspace at the start of a second control does not join it into the first', async () => {
+        const { parsed, editor } = await open(
+          inCell(`${blockOfLines('', ['Erste'])}${blockOfLines('<w:text/>', ['Zweite'])}`),
+        )
+        editor.commands.setTextSelection(textPos(editor, 'Zweite'))
+        editor.commands.keyboardShortcut('Backspace')
+
+        expect(await savedControlLines(parsed, editor)).toEqual([['Erste'], ['Zweite']])
+      })
     })
   })
 })

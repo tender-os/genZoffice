@@ -281,6 +281,8 @@ const anchorAttrs = {
   /** Vound fork: what Enter does in the content control the source paragraph holds or sits in
    *  (Block.controlEnter); review mode keeps the control whole on save (web-full/editScope.ts) */
   controlEnter: { default: null as ControlEnter | null },
+  /** Vound fork: the block-level content control of its cell the paragraph sits in (TableParagraph.cellControl) */
+  cellControl: { default: null as number | null },
   /** JSON of the table-style paragraph properties (convert.ts tableStyleParaAttr); display only */
   tblPara: { default: null as string | null },
   styleId: { default: null as string | null },

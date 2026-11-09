@@ -4,10 +4,10 @@
 // replaced or deleted, only edited in place: a keystroke on the selected block would otherwise swap the
 // form's paragraph for the typed text. Content controls take Enter as Word does: a rich-text block control a
 // new paragraph (and joins inside it), a multi-line plain-text control or a rich-text one filling its paragraph
-// a line break, any other none. Nor is text moved into or out of a control: the save would drop or double it,
-// so the keystroke does nothing. Host writes, the app's own refreshes and a document opening are not the
-// reviewer's edits, and a document with no field markers has nothing to protect the fields from, so it stays
-// editable.
+// a line break, any other none, not even a line break. Nor is text moved into or out of a control: the save
+// would drop or double it, so the keystroke does nothing. Host writes, the app's own refreshes and a document
+// opening are not the reviewer's edits, and a document with no field markers has nothing to protect the
+// fields from, so it stays editable.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Decoration, EditorView } from '@tiptap/pm/view'
@@ -90,10 +90,12 @@ const staysOneParagraph = (tr: Transaction, node: PmNode, pos: number) => {
   )
 }
 
-/** the rich-text block control a paragraph takes new paragraphs in, as a key, or null: its group when it
- *  spans several paragraphs, else its own paragraph's index, which a split twin keeps */
+/** the rich-text block control a paragraph takes new paragraphs in, as a key, or null: its number in its
+ *  cell, its group when it spans several body paragraphs, else its own paragraph's index (a split twin keeps
+ *  each) */
 const paragraphControlOf = (node: PmNode) => {
   if (node.attrs.controlEnter !== 'paragraph') return null
+  if (node.attrs.cellControl != null) return `cell ${node.attrs.cellControl}`
   const shell: { group?: number } = JSON.parse(node.attrs.sdtShell ?? '{}')
   if (shell.group === undefined) return `index ${node.attrs.docxIndex}`
   return `group ${shell.group}`
@@ -108,10 +110,27 @@ const paragraphControlAt = (doc: PmNode, pos: number) => {
 /** a paragraph whose control keeps it one paragraph: any control but a rich-text block one */
 const keepsOneParagraph = (node: PmNode) => ['lineBreak', 'none'].includes(node.attrs.controlEnter)
 
+const LINE_BREAK = 'hardBreak'
+
+const lineBreaksIn = (node: PmNode | null) => {
+  let count = 0
+  node?.forEach((child) => {
+    if (child.type.name === LINE_BREAK) count += 1
+  })
+  return count
+}
+
+/** whether the paragraph at `pos` gained no line break where its control takes none (Shift+Enter, a paste) */
+const gainsNoLineBreak = (tr: Transaction, node: PmNode, pos: number) =>
+  node.attrs.controlEnter !== 'none' ||
+  lineBreaksIn(tr.doc.nodeAt(tr.mapping.map(pos, 1))) <= lineBreaksIn(node)
+
 /** whether the text of the paragraph at `pos` stays in its control after the edit: a paragraph its control
  *  keeps whole stays one paragraph; a rich-text block control's text stays in it and other text stays out */
 const keepsItsControl = (tr: Transaction, node: PmNode, pos: number) => {
-  if (keepsOneParagraph(node)) return staysOneParagraph(tr, node, pos)
+  if (keepsOneParagraph(node)) {
+    return staysOneParagraph(tr, node, pos) && gainsNoLineBreak(tr, node, pos)
+  }
   const control = paragraphControlOf(node)
   return (
     paragraphControlAt(tr.doc, tr.mapping.map(pos + 1, -1)) === control &&
@@ -124,7 +143,7 @@ const enterAsLineBreak = (view: EditorView, event: KeyboardEvent) => {
   const plainEnter =
     event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
   const { $from, $to } = view.state.selection
-  const lineBreak = view.state.schema.nodes.hardBreak
+  const lineBreak = view.state.schema.nodes[LINE_BREAK]
   if (!plainEnter || !lineBreak || $from.parent !== $to.parent) return false
   if ($from.parent.attrs.controlEnter !== 'lineBreak') return false
   view.dispatch(view.state.tr.replaceSelectionWith(lineBreak.create()).scrollIntoView())

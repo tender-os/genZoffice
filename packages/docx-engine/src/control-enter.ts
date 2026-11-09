@@ -61,6 +61,26 @@ export function inlineControlEnterOf(p: XNode): ControlEnter {
   return controlEnterOf(content[0]) === 'none' ? 'none' : 'lineBreak'
 }
 
+type WrappingControl = { enter: ControlEnter; control: number }
+
+/** the paragraphs under `node` (a table cell) that block-level controls wrap, each with what Enter does in the
+ *  innermost one and that control's number within `node` */
+export function blockControlParagraphs(node: XNode): Map<XNode, WrappingControl> {
+  const found = new Map<XNode, WrappingControl>()
+  let count = 0
+  const visit = (parent: XNode, wrapping: WrappingControl | null) => {
+    for (const child of childrenOf(parent)) {
+      const name = nameOf(child)
+      if (name === 'w:p' && wrapping) found.set(child, wrapping)
+      if (name !== 'w:sdt') continue
+      const content = findChild(child, 'w:sdtContent')
+      if (content) visit(content, { enter: controlEnterOf(child), control: count++ })
+    }
+  }
+  visit(node, null)
+  return found
+}
+
 /** what Enter does in a block-level content control, from its XML */
 export function controlEnterOfXml(sdtXml: string): ControlEnter {
   const nodes: XNode[] = xmlParser.parse(sdtXml)
