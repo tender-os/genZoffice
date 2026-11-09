@@ -13,6 +13,7 @@
 // is selected whole when the caret lands in it (placeholderSelect.ts).
 import type { Editor } from '@tiptap/core'
 import { NodeSelection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
+import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
@@ -63,6 +64,9 @@ function replaceFormFieldBlank(view: EditorView, from: number, to: number, text:
   return true
 }
 
+/** the class host.css gives an emptied content control's stand-in: a box to click */
+export const EMPTY_CONTROL_CLASS = 'vound-empty-control'
+
 /** the class host.css gives an empty form field result's en spaces: no width */
 export const FORM_FIELD_BLANK_CLASS = 'vound-blank'
 
@@ -72,6 +76,9 @@ function blankDecorations(doc: PmNode) {
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
     if (isFormFieldBlank(node)) decorations.push(Decoration.inline(pos + 1, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
+    node.forEach((child, offset) => {
+      if (child.text === EMPTY_CONTROL_TEXT) decorations.push(Decoration.inline(pos + 1 + offset, pos + 1 + offset + child.nodeSize, { class: EMPTY_CONTROL_CLASS }))
+    })
     return false
   })
   return DecorationSet.create(doc, decorations)

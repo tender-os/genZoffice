@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { textHunks, type TextHunk } from '../src/text-hunks'
+import { joinedWithinStretches, textHunks, type TextHunk } from '../src/text-hunks'
 
 const applied = (oldText: string, hunks: TextHunk[]) =>
   hunks.reduceRight(
@@ -24,6 +24,24 @@ describe('textHunks', () => {
       'Ort: Berlin, Datum: 09.11.2026',
     )
     expect(hunks.every((hunk) => (hunk.from >= 5 && hunk.to <= 18) || hunk.from >= 27)).toBe(true)
+  })
+
+  test('changes inside one stretch join, changes around a whole stretch stay apart', () => {
+    const value = textHunks('Datum: 09.11.2026', 'Datum: 10.11.2026')
+    expect(value.length).toBeGreaterThan(1)
+    const stretches = [
+      { start: 0, end: 7 },
+      { start: 7, end: 17 },
+    ]
+    expect(joinedWithinStretches(value, 'Datum: 09.11.2026', stretches)).toEqual([
+      { from: 7, to: 9, text: '10' },
+    ])
+    const around = [
+      { from: 3, to: 3, text: 'x' },
+      { from: 5, to: 5, text: 'y' },
+    ]
+    const literal = [{ start: 3, end: 5 }]
+    expect(joinedWithinStretches(around, 'abcde', literal)).toEqual(around)
   })
 
   test('applying the changes gives the new text, in order and without overlap', () => {

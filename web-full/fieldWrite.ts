@@ -5,6 +5,7 @@
 // written place is answered with its gap when one is unique. Anything else is refused and the document stays
 // untouched. A write is an ordinary editor transaction, so it saves the way typing does; it carries
 // HOST_WRITE_META so edit reporting (fieldReporting.ts) does not count it as the reviewer's edit.
+import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Selection, TextSelection, type Transaction } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
@@ -145,9 +146,9 @@ function trimmedFieldMatch(units: TextUnit[], needle: string): Planned {
 
 /** where the rule puts the value, or why it refuses */
 function plan(units: TextUnit[], previous: string): Planned {
-  if (previous === '' && units.every((unit) => unit.text === '')) {
-    // an empty block takes the value, a cell in its first paragraph
-    return units[0] ? { unit: units[0], from: 0, to: 0 } : { refused: 'notEditable' }
+  if (previous === '' && units.every((unit) => unit.text === '' || unit.text === EMPTY_CONTROL_TEXT)) {
+    // an empty block takes the value, a cell in its first paragraph, over an emptied control's stand-in
+    return units[0] ? { unit: units[0], from: 0, to: units[0].text.length } : { refused: 'notEditable' }
   }
   const joined = joinedText(units)
   const starts = previous === '' ? [] : occurrences(joined, previous)

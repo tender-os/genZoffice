@@ -1,8 +1,8 @@
 import { isOn } from './checkbox-control'
 import { decodeEntities } from './parse-xml-text'
 import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
-import type { Run } from './types'
-import { textHunks } from './text-hunks'
+import { EMPTY_CONTROL_TEXT, type Run } from './types'
+import { joinedWithinStretches, textHunks } from './text-hunks'
 import { escapeXmlText } from './xml-utils'
 
 /**
@@ -227,6 +227,10 @@ function decodedTextOf(paraXml: string): string {
     .join('')
 }
 
+/** Vound fork: whether an offset of the paragraph XML lies inside a content control's content */
+const insideControl = (paraXml: string, at: number) =>
+  paraXml.lastIndexOf(CONTENT_OPEN, at) > paraXml.lastIndexOf(CONTENT_CLOSE, at)
+
 function patchOneParagraph(
   paraXml: string,
   newText: string,
@@ -252,10 +256,12 @@ function patchOneParagraph(
   }
   const rewritten = new Set<number>()
   // back to front: a later change never moves the offsets of an earlier one
-  for (const hunk of textHunks(oldText, newText).reverse()) {
+  const stretches = bounds.map(({ start, end }) => ({ start: start - lead, end: end - lead }))
+  for (const hunk of joinedWithinStretches(textHunks(oldText, newText), oldText, stretches).reverse()) {
     const changeStart = lead + hunk.from
     const changeEnd = lead + hunk.to
-    // the w:t the change touches; a pure insertion takes the first one covering its point
+    // the w:t the change touches; a pure insertion goes into one of those covering its point: an empty one
+    // (a control emptied before), else one in a control, else the first
     const touched = bounds.flatMap(({ start, end }, i) => {
       const touches =
         changeStart === changeEnd
@@ -265,10 +271,14 @@ function patchOneParagraph(
     })
     // insertion point outside every w:t (in theory only an empty paragraph): no anchor, give up
     if (touched.length === 0) return null
-    // Vound fork: an insertion beside an empty w:t goes into it: the anchor of a control emptied before
-    const emptyAnchor = touched.find((i) => changeStart === changeEnd && bounds[i].start === bounds[i].end)
-    const first = emptyAnchor ?? touched[0]
-    const last = emptyAnchor ?? touched[touched.length - 1]
+    const insertedInto =
+      changeStart === changeEnd
+        ? (touched.find((i) => bounds[i].start === bounds[i].end) ??
+          touched.find((i) => insideControl(paraXml, slices[i].tagStart)) ??
+          touched[0])
+        : undefined
+    const first = insertedInto ?? touched[0]
+    const last = insertedInto ?? touched[touched.length - 1]
     // first takes its head, the new text and last's tail; the rest are emptied
     const head = texts[first].slice(0, changeStart - bounds[first].start)
     const tail = texts[last].slice(changeEnd - bounds[last].start)
@@ -336,10 +346,11 @@ export function patchFieldParagraphText(
   })
 }
 
-type WtMappedRun = Pick<Run, 'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml'>
+type WtMappedRun = Pick<Run, 'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder'>
 
 /** A run's text that lives in w:t: note markers, symbols, formulas, tracked deletions and legacy box glyphs do not. */
 function wtTextOf(run: WtMappedRun): string {
+  if (run.placeholder && run.text === EMPTY_CONTROL_TEXT) return ''
   return run.noteRef || run.sym || run.math || run.del || run.fldBeginXml ? '' : run.text
 }
 
