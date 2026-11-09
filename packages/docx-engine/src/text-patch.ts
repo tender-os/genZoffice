@@ -1,7 +1,7 @@
-import { isOn } from './checkbox-control'
 import { decodeEntities } from './parse-xml-text'
 import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
 import { EMPTY_CONTROL_TEXT, type Run } from './types'
+import { checkboxControlRanges, showsEveryBox, withBoxStates } from './box-state'
 import { withFormTextAnchors } from './form-text-anchor'
 import { joinedWithinStretches, textHunks } from './text-hunks'
 import { escapeXmlText } from './xml-utils'
@@ -218,7 +218,7 @@ const withoutFiller = (text: string) => text.replaceAll(EMPTY_CONTROL_TEXT, '')
 function patchParagraphLines(paraXml: string, newText: string): string | null {
   const patched = patchOneParagraph(paraXml, newText, false, 'inText')
   if (patched === null) return null
-  const check = lineSlices(patched)
+  const check = outsideCheckboxControls(patched, lineSlices(patched))
     .map((slice) => slice.text)
     .join('')
   return withoutFiller(check) === withoutFiller(newText) ? patched : null
@@ -234,6 +234,19 @@ function decodedTextOf(paraXml: string): string {
 const insideControl = (paraXml: string, at: number) =>
   paraXml.lastIndexOf(CONTENT_OPEN, at) > paraXml.lastIndexOf(CONTENT_CLOSE, at)
 
+/** Vound fork: the slices text may go into: never a checkbox control's glyph */
+function outsideCheckboxControls(paraXml: string, slices: TSlice[]) {
+  const controls = checkboxControlRanges(paraXml)
+  return slices.filter(({ tagStart }) => !controls.some(({ start, end }) => start <= tagStart && tagStart < end))
+}
+
+/** Vound fork: an empty run closing a paragraph no text can go into (only boxes), so typed text has a place */
+function withClosingAnchor(paraXml: string, lineBreaks: LineBreaks) {
+  if (outsideCheckboxControls(paraXml, LINE_BREAKS[lineBreaks].slices(paraXml)).length > 0) return paraXml
+  const end = paraXml.lastIndexOf('</w:p>')
+  return end === -1 ? paraXml : `${paraXml.slice(0, end)}<w:r>${wtXml('')}</w:r>${paraXml.slice(end)}`
+}
+
 function patchOneParagraph(
   paraXml: string,
   newText: string,
@@ -241,7 +254,7 @@ function patchOneParagraph(
   lineBreaks: LineBreaks,
 ): string | null {
   const { slices: slicesOf, write } = LINE_BREAKS[lineBreaks]
-  const slices = slicesOf(paraXml)
+  const slices = outsideCheckboxControls(paraXml, slicesOf(paraXml))
   if (slices.length === 0) return null
   const raw = slices.map((t) => t.text).join('')
   // First paragraph's leading whitespace (spacer run after the self-reference mark) is
@@ -329,15 +342,17 @@ export function patchFieldParagraphText(
   // tabs and line breaks are their own elements, not w:t text: as long as the edit did
   // not add or remove one, they stay where they are and the w:t mapping ignores them;
   // in a content control's paragraph a line break is written back as a w:br (Vound fork)
-  const mode = LINE_BREAKS[lineBreaksOf(originalParaXml)]
+  const lineBreaks = lineBreaksOf(originalParaXml)
+  const mode = LINE_BREAKS[lineBreaks]
   const controls = (joined.match(mode.outsideChars) ?? []).length
   const originalControls = (originalParaXml.match(mode.outsideElements) ?? []).length
   if (controls !== originalControls && !/<w:ffData\b|<w:sdt\b/.test(originalParaXml)) return null
   const newText = joined.replace(mode.outsideChars, controls > originalControls ? ' ' : '')
-  const source = mode.anchor(originalParaXml)
+  const boxed = withBoxStates(originalParaXml, runs)
+  const source = withClosingAnchor(mode.anchor(boxed), lineBreaks)
   const patched = mode.patch(source, newText)
   if (patched === null) return null
-  if (patched === source) return originalParaXml
+  if (patched === source) return boxed
   if (!patched.includes('<w:showingPlcHdr')) return patched
   // typed text replaced a placeholder: that control loses its placeholder flag and the
   // placeholder character style, as in Word; controls whose text is unchanged keep both
@@ -351,11 +366,13 @@ export function patchFieldParagraphText(
   })
 }
 
-type WtMappedRun = Pick<Run, 'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder'>
+type WtMappedRun = Pick<Run, 'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder' | 'sdtCheckboxXml'>
 
 /** A run's text that lives in w:t: note markers, symbols, formulas, tracked deletions and legacy box glyphs do not. */
 function wtTextOf(run: WtMappedRun): string {
   if (run.placeholder && run.text === EMPTY_CONTROL_TEXT) return ''
+  // a checkbox control's first character is its glyph; anything after it was typed beside the control
+  if (run.sdtCheckboxXml) return [...run.text].slice(1).join('')
   return run.noteRef || run.sym || run.math || run.del || run.fldBeginXml ? '' : run.text
 }
 
@@ -363,7 +380,7 @@ function wtTextOf(run: WtMappedRun): string {
 function sameContentOutsideWt(paraXml: string, runs: ReadonlyArray<WtMappedRun>): boolean {
   const runCount = (kind: 'noteRef' | 'sym' | 'math') => runs.filter((r) => r[kind]).length
   const xmlCount = (element: RegExp) => paraXml.match(element)?.length ?? 0
-  const runText = (kind: 'del' | 'fldBeginXml') =>
+  const runText = (kind: 'del') =>
     runs
       .filter((r) => r[kind])
       .map((r) => r.text)
@@ -376,18 +393,6 @@ function sameContentOutsideWt(paraXml: string, runs: ReadonlyArray<WtMappedRun>)
     runCount('sym') === xmlCount(/<w:sym\b/g) &&
     runCount('math') === xmlCount(/<m:oMath\b/g) &&
     runText('del') === deletedText &&
-    runText('fldBeginXml') === legacyBoxGlyphs(paraXml)
+    showsEveryBox(paraXml, runs)
   )
-}
-
-/** The glyphs the parser shows for the paragraph's legacy checkboxes: w:checked wins over w:default. */
-function legacyBoxGlyphs(paraXml: string): string {
-  const boxes = paraXml.match(/<w:checkBox\b(?:[^>]*\/>|[\s\S]*?<\/w:checkBox>)/g) ?? []
-  return boxes
-    .map((box) => {
-      const state = /<w:checked\b[^>]*>/.exec(box) ?? /<w:default\b[^>]*>/.exec(box)
-      if (!state) return '☐'
-      return isOn(/w:val="([^"]*)"/.exec(state[0])?.[1]) ? '☒' : '☐'
-    })
-    .join('')
 }

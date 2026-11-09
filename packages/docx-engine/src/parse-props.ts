@@ -457,6 +457,13 @@ export function fieldInstructions(xml: string): string[] {
   return out
 }
 
+/** Vound fork: a paragraph whose fields are all legacy form fields, a checkbox among them */
+export function formBoxLine(xml: string): boolean {
+  if (xml.includes('<w:fldSimple') || !xml.includes('<w:checkBox') || !fieldCharsBalanced(xml)) return false
+  const codes = fieldInstructions(xml).map((instruction) => instruction.trim().split(/\s+/)[0])
+  return codes.includes('FORMCHECKBOX') && codes.every((code) => code.startsWith('FORM'))
+}
+
 export function onlyXeFields(xml: string): boolean {
   // fldSimple instructions fold too (extractRuns turns XE / REF / simple
   // fields into the same runs as the fldChar form); one without w:instr can't

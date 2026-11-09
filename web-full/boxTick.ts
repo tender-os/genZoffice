@@ -1,8 +1,15 @@
 // Click-to-tick in review mode: a click on a box drawn as a text glyph toggles it, the way a reviewer
-// expects a form to behave. It is an ordinary editor transaction, so it undoes and saves as typing does.
+// expects a form to behave; a click elsewhere on its line places the caret as usual. It is an ordinary editor transaction, so it undoes and saves as typing does.
 // Word's legacy form boxes show as a glyph carrying the field's mark, which the save needs to keep the field.
 // Word's other checkbox controls and symbol-font boxes are not text glyphs and are left alone.
-import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
+import {
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type EditorState,
+  type Transaction,
+} from '@tiptap/pm/state'
+import type { EditorView } from '@tiptap/pm/view'
 
 const TOGGLED: Record<string, string> = { '☐': '☒', '☒': '☐', '☑': '☐' }
 
@@ -27,16 +34,34 @@ export function toggleBoxAt(state: EditorState, pos: number): Transaction | null
   return state.tr.replaceWith(box.from, box.from + 1, state.schema.text(TOGGLED[box.char], marks))
 }
 
+/** how far from the glyph (px) a click still counts as on it */
+const GLYPH_SLOP_PX = 2
+
+/** whether the click landed on the drawn glyph at `from`, not elsewhere on its line */
+function clickedGlyph(view: EditorView, from: number, event: MouseEvent) {
+  const start = view.coordsAtPos(from, 1)
+  const end = view.coordsAtPos(from + 1, -1)
+  return (
+    event.clientX >= start.left - GLYPH_SLOP_PX &&
+    event.clientX <= end.right + GLYPH_SLOP_PX &&
+    event.clientY >= start.top - GLYPH_SLOP_PX &&
+    event.clientY <= end.bottom + GLYPH_SLOP_PX
+  )
+}
+
 export const boxTickKey = new PluginKey('voundBoxTick')
 
 export const boxTickPlugin = new Plugin({
   key: boxTickKey,
   props: {
-    handleClick(view, pos) {
+    handleClick(view, pos, event) {
       if (!view.editable) return false
+      const box = boxAt(view.state, pos)
       const toggle = toggleBoxAt(view.state, pos)
-      if (!toggle) return false
-      view.dispatch(toggle)
+      if (!box || !toggle || !clickedGlyph(view, box.from, event)) return false
+      // the caret goes to the box's line, so typing does not continue wherever it was before the click
+      view.dispatch(toggle.setSelection(TextSelection.create(toggle.doc, box.from + 1)))
+      view.focus()
       return true
     },
   },

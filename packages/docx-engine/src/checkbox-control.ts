@@ -64,6 +64,15 @@ export function sdtCheckboxIsChecked(sdtPrXml: string, glyph: string): boolean {
   return /[☑☒✓✔✅]/u.test(glyph)
 }
 
+/** A legacy form checkbox's XML (its w:checkBox, or the field begin holding it) with w:checked set. */
+export function syncFormCheckbox(xml: string, checked: boolean): string {
+  const val = `<w:checked w:val="${checked ? '1' : '0'}"/>`
+  const stripped = xml.replace(/<w:checked(?:\s[^>]*)?\/>/g, '')
+  if (stripped.includes('</w:checkBox>'))
+    return stripped.replace('</w:checkBox>', `${val}</w:checkBox>`)
+  return stripped.replace(/<w:checkBox((?:\s[^>]*)?)\/>/, `<w:checkBox$1>${val}</w:checkBox>`)
+}
+
 /** The w:sdtPr with w14:checked set to `checked`. */
 export function syncSdtCheckbox(sdtPrXml: string, checked: boolean): string {
   const val = `<w14:checked w14:val="${checked ? '1' : '0'}"/>`
