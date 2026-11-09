@@ -40,6 +40,22 @@ describe('markerDecorations', () => {
     expect(markerDecorations(split, [marker('split', 5)], null).decorations.map((d) => d.from)).toEqual([3, 15])
   })
 
+  it('marks every paragraph of the block-level control the field paragraph sits in, and no other', () => {
+    const member = (index: number, text: string, attrs: Record<string, unknown>) =>
+      schema.nodes.docParagraph.create({ docxPara: index, ...attrs }, schema.text(text))
+    const inGroup = { sdtShell: JSON.stringify({ group: 2 }) }
+    const body = doc(para(0, 'a'), member(1, 'first', inGroup), member(2, 'added', inGroup), para(3, 'b'))
+    expect(markerDecorations(body, [marker('long', 1)], null).decorations.map((d) => [d.from, d.spec.slotIds])).toEqual([
+      [3, ['long']],
+      [10, ['long']],
+    ])
+    const inCell = doc(table(cell(member(4, 'label', {}), member(5, 'first', { cellControl: 0 }), member(6, 'added', { cellControl: 0 }))))
+    expect(markerDecorations(inCell, [marker('cell field', 5)], null).decorations.map((d) => d.spec.slotIds)).toEqual([
+      ['cell field'],
+      ['cell field'],
+    ])
+  })
+
   it('drops a cell marker whose paragraph sits outside a table cell', () => {
     const { decorations, dropped } = markerDecorations(sample, [marker('outside', 0, 'cell')], null)
     expect(dropped).toEqual(['outside'])

@@ -12,6 +12,7 @@ import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Decoration, EditorView } from '@tiptap/pm/view'
 import type { EditScope, EditorToHost } from './embed-protocol'
+import { blockControlKey } from './blockControl'
 import { editedRanges, isUserEdit } from './fieldReporting'
 import { markersKey } from './markersPlugin'
 
@@ -95,10 +96,7 @@ const staysOneParagraph = (tr: Transaction, node: PmNode, pos: number) => {
  *  each) */
 const paragraphControlOf = (node: PmNode) => {
   if (node.attrs.controlEnter !== 'paragraph') return null
-  if (node.attrs.cellControl != null) return `cell ${node.attrs.cellControl}`
-  const shell: { group?: number } = JSON.parse(node.attrs.sdtShell ?? '{}')
-  if (shell.group === undefined) return `index ${node.attrs.docxIndex}`
-  return `group ${shell.group}`
+  return blockControlKey(node) ?? `index ${node.attrs.docxIndex}`
 }
 
 /** the rich-text block control of the paragraph around a position after the edit, or null */
