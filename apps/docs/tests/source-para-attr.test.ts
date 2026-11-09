@@ -18,7 +18,7 @@ const P = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
 const TC = (inner: string, tcPr = '') => `<w:tc>${tcPr}${inner}</w:tc>`
 const FORM_FIELD_P =
   '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
-  '<w:r><w:instrText xml:space="preserve"> FORMTEXT </w:instrText></w:r>' +
+  '<w:r><w:instrText xml:space="preserve"> FORMDROPDOWN </w:instrText></w:r>' +
   '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>entry</w:t></w:r>' +
   '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
 const LIST_P =

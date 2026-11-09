@@ -20,7 +20,7 @@ import { editorExtensions } from '../src/renderer/editor/extensions'
 const TABBED_BLANK_FIELD =
   '<w:p><w:r><w:tab/></w:r>' +
   '<w:r><w:fldChar w:fldCharType="begin"><w:ffData><w:name w:val="Text1"/><w:enabled/><w:textInput/></w:ffData></w:fldChar></w:r>' +
-  '<w:r><w:instrText xml:space="preserve"> FORMTEXT </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
+  '<w:r><w:instrText xml:space="preserve"> FORMDROPDOWN </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
   '<w:r><w:t>     </w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
 const BODY =
   '<w:p><w:r><w:t>Frau/Herr</w:t></w:r></w:p>' +

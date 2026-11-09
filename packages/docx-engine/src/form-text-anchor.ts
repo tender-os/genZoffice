@@ -29,6 +29,22 @@ export function withFormTextAnchors(paraXml: string): string {
   return out + paraXml.slice(cursor)
 }
 
+/** Vound fork: where each legacy text field's result lies, for XML that went through withFormTextAnchors */
+export function formTextResultSpans(paraXml: string): { from: number; to: number }[] {
+  const spans: { from: number; to: number }[] = []
+  for (
+    let field = paraXml.indexOf(FORM_TEXT);
+    field !== -1;
+    field = paraXml.indexOf(FORM_TEXT, field + 1)
+  ) {
+    const from = paraXml.indexOf(FIELD_SEPARATE, field)
+    const to = from === -1 ? -1 : paraXml.indexOf(FIELD_END, from)
+    if (to === -1) return []
+    spans.push({ from, to })
+  }
+  return spans
+}
+
 /** Vound fork: where the result of a paragraph's only legacy text field lies; null without exactly one */
 export function onlyFormTextResult(paraXml: string): { from: number; to: number } | null {
   const field = paraXml.indexOf(FORM_TEXT)

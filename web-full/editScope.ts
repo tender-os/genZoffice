@@ -20,6 +20,7 @@ import type { Decoration, EditorView } from '@tiptap/pm/view'
 import type { EditScope, EditorToHost } from './embed-protocol'
 import { blockControlKey } from './blockControl'
 import { opensWithBox } from './boxGap'
+import { formTextFieldAt, labelsOf } from './formTextField'
 import { editedRanges, isUserEdit } from './fieldReporting'
 import { HOST_WRITE_META } from './fieldWrite'
 import { markersKey, replacedWholeDocument } from './markersPlugin'
@@ -57,9 +58,19 @@ const keepsItsWords = (tr: Transaction, block: Decoration) =>
   wordsOf(tr.before.textBetween(block.from, block.to)) ===
     wordsOf(tr.doc.textBetween(tr.mapping.map(block.from, -1), tr.mapping.map(block.to, 1)))
 
+/** the words around a line's legacy text fields stay as they are; a box's state is no word */
+const keepsFormLabels = (tr: Transaction, range: { from: number }) => {
+  const before = tr.before.resolve(range.from).parent
+  const after = tr.doc.resolve(tr.mapping.map(range.from)).parent
+  return wordsOf(labelsOf(before)) === wordsOf(labelsOf(after))
+}
+
 const staysInFields = (tr: Transaction, blocks: Decoration[]) =>
-  editedRanges([tr]).before.every((range) =>
-    blocks.some((block) => isWithin(block, range) && keepsItsWords(tr, block)),
+  editedRanges([tr]).before.every(
+    (range) =>
+      formTextFieldAt(tr.before, range.from, range.to) !== null ||
+      (blocks.some((block) => isWithin(block, range) && keepsItsWords(tr, block)) &&
+        keepsFormLabels(tr, range)),
   )
 
 /** a block the editor shows whole and edits in place through its own view; a picture may be removed */
@@ -168,6 +179,12 @@ function selectFieldOnly(view: EditorView, event: KeyboardEvent) {
   const blocks = fieldBlocks(view.state)
   if (blocks.length === 0) return false
   const { from, to } = view.state.selection
+  const formText = formTextFieldAt(view.state.doc, from, to)
+  if (formText) {
+    const selection = TextSelection.create(view.state.doc, formText.from, formText.to)
+    view.dispatch(view.state.tr.setSelection(selection))
+    return true
+  }
   const field = blocks.find((block) => block.from <= from && to <= block.to)
   if (!field) return isLockedToFields()
   const { doc } = view.state

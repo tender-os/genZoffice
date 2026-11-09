@@ -175,6 +175,8 @@ export interface Run {
   /** placeholder text (Vound fork): what a content control shows while it holds no content
    * (w:showingPlcHdr), or a legacy text form field's default text; typing replaces it whole */
   placeholder?: true
+  /** Vound fork: which legacy text form field of its paragraph this run is the result of, counted from 0 */
+  formText?: number
   /**
    * Run-level formatting revision (w:rPrChange): records the review info and the modeled
    * subset of the pre-revision formatting. Accept = keep the current formatting and clear

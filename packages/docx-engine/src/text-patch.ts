@@ -2,7 +2,7 @@ import { decodeEntities } from './parse-xml-text'
 import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
 import { EMPTY_CONTROL_TEXT, type Run } from './types'
 import { checkboxControlRanges, showsEveryBox, withBoxStates } from './box-state'
-import { withFormTextAnchors } from './form-text-anchor'
+import { formTextResultSpans, withFormTextAnchors } from './form-text-anchor'
 import { joinedWithinStretches, textHunks } from './text-hunks'
 import { escapeXmlText } from './xml-utils'
 
@@ -350,6 +350,8 @@ export function patchFieldParagraphText(
   const newText = joined.replace(mode.outsideChars, controls > originalControls ? ' ' : '')
   const boxed = withBoxStates(originalParaXml, runs)
   const source = withClosingAnchor(mode.anchor(boxed), lineBreaks)
+  const byField = withFormTextValues(source, runs, mode.outsideChars)
+  if (byField !== null) return byField
   const patched = mode.patch(source, newText)
   if (patched === null) return null
   if (patched === source) return boxed
@@ -366,7 +368,41 @@ export function patchFieldParagraphText(
   })
 }
 
-type WtMappedRun = Pick<Run, 'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder' | 'sdtCheckboxXml'>
+type WtMappedRun = Pick<
+  Run,
+  'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder' | 'sdtCheckboxXml' | 'formText'
+>
+
+/** Vound fork: each legacy text field's text in its own result; null when the text around the fields changed,
+ *  which the mapping over the whole paragraph takes */
+function withFormTextValues(
+  xml: string,
+  runs: ReadonlyArray<WtMappedRun>,
+  outsideChars: RegExp,
+): string | null {
+  const results = formTextResultSpans(xml)
+  if (!runs.some((run) => run.formText !== undefined)) return null
+  if (runs.some((run) => (run.formText ?? 0) >= results.length)) return null
+  const textOf = (matching: ReadonlyArray<WtMappedRun>) => withoutFiller(matching.map(wtTextOf).join(''))
+  const slices = tSlices(xml)
+  const insideResult = (slice: TSlice, result: { from: number; to: number }) =>
+    slice.tagStart > result.from && slice.tagStart < result.to
+  const around = slices.filter((slice) => !results.some((result) => insideResult(slice, result)))
+  const typedAround = textOf(runs.filter((run) => run.formText === undefined)).replace(outsideChars, '')
+  if (around.map((slice) => slice.text).join('') !== typedAround) return null
+  let out = xml
+  results.forEach((_, index) => {
+    const last = results.length - 1 - index
+    const typed = runs.filter((run) => run.formText === last)
+    const inside = slices.filter((slice) => insideResult(slice, results[last]))
+    const value = textOf(typed)
+    if (typed.length === 0 || inside.map((slice) => slice.text).join('') === value) return
+    for (let at = inside.length - 1; at >= 0; at--) {
+      out = out.slice(0, inside[at].tagStart) + wtXml(at === 0 ? value : '') + out.slice(inside[at].end)
+    }
+  })
+  return out
+}
 
 /** A run's text that lives in w:t: note markers, symbols, formulas, tracked deletions and legacy box glyphs do not. */
 function wtTextOf(run: WtMappedRun): string {

@@ -68,9 +68,9 @@ describe('placeholder runs', () => {
 
   it("gives a form field paragraph outside a table its field's default text", async () => {
     const doc = await parse(p(formText('Ort', 'Ort')) + p(formText('Ort', 'Berlin')) + p(formText('', 'Berlin')))
-    expect(doc.blocks.slice(0, 3).map((b) => [b.fieldDisplay?.left, b.fieldDisplay?.defaultText])).toEqual([
-      ['Ort', 'Ort'],
-      ['Berlin', 'Ort'],
+    expect(doc.blocks.slice(0, 3).map((b) => [b.runs?.[0].text, b.runs?.[0].placeholder])).toEqual([
+      ['Ort', true],
+      ['Berlin', undefined],
       ['Berlin', undefined],
     ])
   })

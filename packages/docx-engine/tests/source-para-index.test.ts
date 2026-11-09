@@ -28,7 +28,7 @@ const TABLE = (rows: string[], cols = 2) =>
 /** a paragraph holding a whole legacy text form field: a protected passthrough block */
 const FIELD_P =
   '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
-  '<w:r><w:instrText xml:space="preserve"> FORMTEXT </w:instrText></w:r>' +
+  '<w:r><w:instrText xml:space="preserve"> FORMDROPDOWN </w:instrText></w:r>' +
   '<w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>entry</w:t></w:r>' +
   '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
 
