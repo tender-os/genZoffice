@@ -2,10 +2,12 @@
 // own text. An edit outside the fields is refused whole and reported, and the host offers the way to unlock
 // the document. In either scope a block the editor shows whole (a field, a nested table, a text box) is never
 // replaced or deleted, only edited in place: a keystroke on the selected block would otherwise swap the
-// form's paragraph for the typed text. Nor is a paragraph holding or wrapped in a content control split or
-// joined (Enter, a Backspace or Delete across its edge, a multi-line paste): the save would drop or double the
-// control, so the keystroke does nothing. Host writes, the app's own refreshes and a document opening are not the reviewer's
-// edits, and a document with no field markers has nothing to protect the fields from, so it stays editable.
+// form's paragraph for the typed text. Nor is a paragraph a content control owns alone (an inline control's, a
+// one-paragraph block control's) split or joined (Enter, a Backspace or Delete across its edge, a multi-line
+// paste), nor text moved into or out of a multi-paragraph control: the save would drop or double the control,
+// so the keystroke does nothing. Inside a multi-paragraph control paragraphs may be added and joined. Host
+// writes, the app's own refreshes and a document opening are not the reviewer's edits, and a document with no
+// field markers has nothing to protect the fields from, so it stays editable.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Decoration } from '@tiptap/pm/view'
@@ -88,23 +90,47 @@ const staysOneParagraph = (tr: Transaction, node: PmNode, pos: number) => {
   )
 }
 
-/** a paragraph holding an inline content control, or one a block-level control wraps */
-const holdsControl = (node: PmNode) =>
-  node.isTextblock && (node.attrs.holdsControl === true || node.attrs.sdtShell != null)
+/** the multi-paragraph block control a paragraph belongs to, or null */
+const controlGroupOf = (node: PmNode) => {
+  if (typeof node.attrs.sdtShell !== 'string') return null
+  const shell: { group?: number } = JSON.parse(node.attrs.sdtShell)
+  return shell.group ?? null
+}
 
-/** whether the edit splits or joins a paragraph holding a content control */
-const splitsControlParagraph = (tr: Transaction) =>
+/** a paragraph a content control owns alone: one holding an inline control, or a one-paragraph block control */
+const ownsControl = (node: PmNode) =>
+  node.attrs.holdsControl === true || (node.attrs.sdtShell != null && controlGroupOf(node) === null)
+
+/** the multi-paragraph control of the paragraph around a position after the edit, or null */
+const controlGroupAt = (doc: PmNode, pos: number) => {
+  const { parent } = doc.resolve(pos)
+  return parent.isTextblock ? controlGroupOf(parent) : null
+}
+
+/** whether the text of the paragraph at `pos` stays in its control after the edit: a paragraph a control
+ *  owns alone stays one paragraph; a multi-paragraph control's text stays in it and other text stays out */
+const keepsItsControl = (tr: Transaction, node: PmNode, pos: number) => {
+  if (ownsControl(node)) return staysOneParagraph(tr, node, pos)
+  const group = controlGroupOf(node)
+  return (
+    controlGroupAt(tr.doc, tr.mapping.map(pos + 1, -1)) === group &&
+    controlGroupAt(tr.doc, tr.mapping.map(pos + node.nodeSize - 1, 1)) === group
+  )
+}
+
+/** whether the edit splits or joins a paragraph a control owns, or moves text into or out of a control */
+const breaksControl = (tr: Transaction) =>
   editedRanges([tr]).before.some((range) => {
-    let split = false
+    let broken = false
     tr.before.nodesBetween(
       Math.max(0, range.from - 1),
       Math.min(tr.before.content.size, range.to + 1),
       (node, pos) => {
-        split ||= holdsControl(node) && !staysOneParagraph(tr, node, pos)
-        return !split && !node.isTextblock
+        broken ||= node.isTextblock && !keepsItsControl(tr, node, pos)
+        return !broken && !node.isTextblock
       },
     )
-    return split
+    return broken
   })
 
 /** the plugin refusing edits outside the fields and edits that remove a whole block, reported through `post`; one per review-mode session */
@@ -113,7 +139,7 @@ export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
     key: editScopeKey,
     filterTransaction: (tr, state) => {
       if (!isUserEdit(tr) || tr.getMeta('appendedTransaction')) return true
-      if (splitsControlParagraph(tr)) return false
+      if (breaksControl(tr)) return false
       const refused =
         removesWholeBlock(tr) || (scope === 'fields' && !keepsToFields(tr, fieldBlocks(state)))
       if (refused) post({ type: 'vound:editRefused' })

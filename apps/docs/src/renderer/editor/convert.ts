@@ -2340,9 +2340,16 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
   const recordSdtEmit = (node: PmNode, sb: SaveBlock, at: number) => {
     const idx = node.attrs?.docxIndex as number | null | undefined
     if (idx === null || idx === undefined) return
-    if (saveBlockIndexByDocx.get(idx) !== at) return
     const group = sdtGroupOf.get(idx)
     if (group === undefined) return
+    let emits = sdtGroupEmits.get(group)
+    if (!emits) sdtGroupEmits.set(group, (emits = []))
+    // Vound fork: a member's split twin (Enter inside the control) sits inside the control too, so the
+    // group close follows the last of them
+    if (saveBlockIndexByDocx.get(idx) !== at) {
+      emits.push({ at, idx, open: false, close: false })
+      return
+    }
     const shell = sdtGroupShells.get(group)!
     let open = false
     let close = false
@@ -2361,8 +2368,6 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
     // members' bytes are the group open/close the rebalance below cares about
     open = open && sdtGroupFirst.get(group) === idx
     close = close && sdtGroupLast.get(group) === idx
-    let emits = sdtGroupEmits.get(group)
-    if (!emits) sdtGroupEmits.set(group, (emits = []))
     emits.push({ at, idx, open, close })
   }
 
@@ -2875,10 +2880,31 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
     }
     if (prefixFrags.length > 0) appendXml(sorted[0].at, prefixFrags.join(''), true, group)
   }
+  /** Vound fork: take the group close off a member a split twin now follows */
+  const detachClose = (emit: { at: number; idx: number }) => {
+    const close = originalByIndex.get(emit.idx)?.sdtShell?.closeXml ?? ''
+    const sb = saveBlocks[emit.at]
+    if (sb.kind === 'generated' && sb.block.sdtShell) {
+      sb.block.sdtShell = { ...sb.block.sdtShell, closeXml: '' }
+    } else if (sb.kind === 'original') {
+      const xml = originalByIndex.get(emit.idx)?.originalXml ?? ''
+      saveBlocks[emit.at] = {
+        kind: 'xml',
+        xml: xml.slice(0, xml.length - close.length),
+        docxIndex: emit.idx,
+        ...(sb.revision ? { revision: sb.revision } : {}),
+      }
+    } else if (sb.kind === 'xml') {
+      sb.xml = sb.xml.slice(0, sb.xml.length - close.length)
+    }
+  }
   for (const [group, emits] of sdtGroupEmits) {
     const shell = sdtGroupShells.get(group)!
     if (shell.openXml && !emits.some((e) => e.open)) attachShell(emits[0], 'open')
-    if (shell.closeXml && !emits.some((e) => e.close)) attachShell(emits[emits.length - 1], 'close')
+    const closer = emits.find((e) => e.close)
+    const last = emits[emits.length - 1]
+    if (closer && closer !== last) detachClose(closer)
+    if (shell.closeXml && closer !== last) attachShell(last, 'close')
   }
 
   const deletedCount = [...originalByIndex.keys()].filter((i) => !usedIndexes.has(i)).length

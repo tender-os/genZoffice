@@ -51,15 +51,23 @@ function selectPlaceholder(editor: Editor, text: string) {
   )
 }
 
-async function savedControls(parsed: ParsedDocFull, editor: Editor) {
+/** the saved file's content controls, each as the texts of its paragraphs */
+async function savedControlParagraphs(parsed: ParsedDocFull, editor: Editor) {
   const saved = await saveDocx(
     parsed,
     pmDocToSavePlan(editor.getJSON() as never, parsed.blocks).saveBlocks,
   )
   const xml = await (await JSZip.loadAsync(saved)).file('word/document.xml')!.async('string')
-  return new DOMParser().parseFromString(xml, 'application/xml').getElementsByTagName('w:sdt')
-    .length
+  const controls = new DOMParser()
+    .parseFromString(xml, 'application/xml')
+    .getElementsByTagName('w:sdt')
+  return [...controls].map((control) =>
+    [...control.getElementsByTagName('w:p')].map((paragraph) => paragraph.textContent),
+  )
 }
+
+const savedControls = async (parsed: ParsedDocFull, editor: Editor) =>
+  (await savedControlParagraphs(parsed, editor)).length
 
 const controlParagraphTexts = (editor: Editor) => {
   const texts: string[] = []
@@ -133,5 +141,54 @@ describe('content controls through a review edit', () => {
 
     expect(controlParagraphTexts(editor)).toEqual(['Musterstadt', 'Musterweg 21'])
     expect(await savedControls(parsed, editor)).toBe(2)
+  })
+
+  describe('a multi-paragraph control (a long answer)', () => {
+    const para = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
+    const LONG_ANSWER =
+      `${para('Vorher')}<w:sdt><w:sdtPr><w:id w:val="9"/><w:richText/></w:sdtPr><w:sdtContent>` +
+      `${para('Erste Zeile')}${para('Zweite Zeile')}</w:sdtContent></w:sdt>${para('Nachher')}`
+
+    it('Enter at the end of its last paragraph adds a paragraph inside the one control', async () => {
+      const { parsed, editor } = await open(LONG_ANSWER)
+      editor.commands.setTextSelection(textPos(editor, 'Zweite Zeile') + 'Zweite Zeile'.length)
+      editor.commands.enter()
+      editor.commands.insertContent('Dritte Zeile')
+
+      expect(await savedControlParagraphs(parsed, editor)).toEqual([
+        ['Erste Zeile', 'Zweite Zeile', 'Dritte Zeile'],
+      ])
+    })
+
+    it('Enter inside its first paragraph keeps both halves inside', async () => {
+      const { parsed, editor } = await open(LONG_ANSWER)
+      editor.commands.setTextSelection(textPos(editor, 'Erste Zeile') + 'Erste'.length)
+      editor.commands.enter()
+
+      expect(await savedControlParagraphs(parsed, editor)).toEqual([
+        ['Erste', ' Zeile', 'Zweite Zeile'],
+      ])
+    })
+
+    it('Backspace between two of its paragraphs joins them inside the control', async () => {
+      const { parsed, editor } = await open(LONG_ANSWER)
+      editor.commands.setTextSelection(textPos(editor, 'Zweite Zeile'))
+      editor.commands.keyboardShortcut('Backspace')
+
+      expect(await savedControlParagraphs(parsed, editor)).toEqual([['Erste ZeileZweite Zeile']])
+    })
+
+    it.each([
+      ['its first paragraph', 'Erste Zeile'],
+      ['the paragraph after it', 'Nachher'],
+    ])('Backspace at the start of %s moves no text across its edge', async (_, text) => {
+      const { parsed, editor } = await open(LONG_ANSWER)
+      editor.commands.setTextSelection(textPos(editor, text))
+      editor.commands.keyboardShortcut('Backspace')
+
+      expect(await savedControlParagraphs(parsed, editor)).toEqual([
+        ['Erste Zeile', 'Zweite Zeile'],
+      ])
+    })
   })
 })
