@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { history, undo } from '@tiptap/pm/history'
 import { EditorState, NodeSelection, type Transaction } from '@tiptap/pm/state'
 import { EditorView } from '@tiptap/pm/view'
+import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { BlockRef, FieldGap } from '../embed-protocol'
 import { applyFieldValue, HOST_WRITE_META, placeCaret, type FieldValueResult } from '../fieldWrite'
@@ -101,6 +102,12 @@ describe('applyFieldValue', () => {
   it('refuses when previous is absent', () => {
     const v = viewOf(para(0, 'Name: Muster'))
     expect(write(v, paragraphBlock(0), 'Beispiel', 'X')).toEqual({ ok: false, reason: 'absent' })
+  })
+
+  it('writes over an emptied control\'s stand-in when previous is empty', () => {
+    const v = viewOf(table(cell(placeholderPara(1, '', EMPTY_CONTROL_TEXT))))
+    expect(write(v, cellBlock(1), '', 'Muster GmbH')).toEqual({ ok: true })
+    expect(texts(v).at(-1)).toBe('Muster GmbH')
   })
 
   it('inserts into an empty cell when previous is empty', () => {

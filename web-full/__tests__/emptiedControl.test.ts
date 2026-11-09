@@ -3,7 +3,7 @@ import { Editor } from '@tiptap/core'
 import JSZip from 'jszip'
 import { afterEach, describe, expect, it } from 'vitest'
 import { TextSelection } from '@tiptap/pm/state'
-import { parseDocx, saveDocx } from '@genoffice/docx-engine'
+import { EMPTY_CONTROL_TEXT, parseDocx, saveDocx } from '@genoffice/docx-engine'
 import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
@@ -44,13 +44,13 @@ const textPos = (editor: Editor, text: string) => {
   return found
 }
 
-/** the paragraph end of the paragraph holding `text`, or of the first empty one in a table cell */
+/** the paragraph end of the paragraph holding `text`, or of the first emptied control's in a table cell */
 function paragraphEnd(editor: Editor, text: string | null) {
   let end = -1
   editor.state.doc.descendants((node, pos, parent) => {
     const matches =
       text === null
-        ? parent?.type.name.includes('Cell') && node.textContent === ''
+        ? parent?.type.name.includes('Cell') && node.textContent === EMPTY_CONTROL_TEXT
         : node.textContent.startsWith(text)
     if (end === -1 && node.isTextblock && matches) end = pos + node.nodeSize - 1
     return end === -1

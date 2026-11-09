@@ -7,6 +7,37 @@ export interface TextHunk {
   text: string
 }
 
+type Stretch = { start: number; end: number }
+
+/** whether the changes around old text [from, to) both lie in one stretch that holds more than that text */
+const sameStretch = (previous: TextHunk, next: TextHunk, stretches: Stretch[]) =>
+  stretches.some(
+    ({ start, end }) =>
+      start <= previous.from && next.to <= end && (start < previous.to || next.from < end),
+  )
+
+/** The changes with those of one stretch of the old text (a w:t) joined: a value retyped over its old
+ *  characters is one replacement, not an insertion at the stretch's edge and a deletion inside it. */
+export function joinedWithinStretches(
+  hunks: TextHunk[],
+  oldText: string,
+  stretches: Stretch[],
+): TextHunk[] {
+  const joined: TextHunk[] = []
+  for (const hunk of hunks) {
+    const previous = joined.at(-1)
+    if (previous && sameStretch(previous, hunk, stretches)) {
+      const between = oldText.slice(previous.to, hunk.from)
+      joined[joined.length - 1] = {
+        from: previous.from,
+        to: hunk.to,
+        text: previous.text + between + hunk.text,
+      }
+    } else joined.push(hunk)
+  }
+  return joined
+}
+
 /** ponytail: the character diff is quadratic; a changed stretch longer than this stays one hunk */
 const MAX_DIFF_CELLS = 250_000
 

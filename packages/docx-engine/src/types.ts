@@ -327,6 +327,10 @@ export interface SdtShell {
   group?: number
 }
 
+/** Vound fork: the placeholder run an inline control without any text shows, so the editor has a place to
+ *  click; display only, a save never writes it */
+export const EMPTY_CONTROL_TEXT = '\u200b'
+
 /**
  * Vound fork: what Enter does inside a content control, as in Word: a rich-text block control takes a new
  * paragraph, a multi-line plain-text control or a rich-text control filling its paragraph a line break, and

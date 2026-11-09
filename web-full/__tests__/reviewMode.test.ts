@@ -14,7 +14,8 @@ import { EditorView, type EditorProps } from '@tiptap/pm/view'
 import { mountFieldChip } from '../fieldChip'
 import { fieldReportingKey } from '../fieldReporting'
 import { fieldRingKey } from '../fieldRing'
-import { enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
+import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
+import { EMPTY_CONTROL_CLASS, enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
 import { doc, fieldPara, para, schema } from './markerSchema'
 
 // the chip itself is tested in fieldChip.test.ts; here only that review mode mounts and unmounts it
@@ -269,6 +270,12 @@ describe("typing into Word's empty form field result in review mode", () => {
     const mixed = caretIn(`${enSpaces}Muster`, 5)
     typeAtCaret(mixed, 'x')
     expect(mixed.state.doc.child(1).textContent).toBe(`${enSpaces}xMuster`)
+  })
+
+  it('gives an emptied control\'s stand-in a box to click', () => {
+    expect(caretIn(EMPTY_CONTROL_TEXT, 0).dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)?.textContent).toBe(EMPTY_CONTROL_TEXT)
+    view?.destroy()
+    expect(caretIn('Muster', 0).dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)).toBeNull()
   })
 
   it('gives the blank no width, so the caret starts at the field edge, and keeps its en spaces', () => {

@@ -25,7 +25,7 @@ import { emptyDocumentProperties, readDocumentProperties } from './doc-propertie
 import { computeListMarkerInfos, type ListItemRef } from './list-markers'
 import { FONT_TABLE_PART_PATH, parseFontTable, readEmbeddedFonts } from './font-table'
 import { DEFAULT_THEME_COLORS, THEME_PART_PATH, readThemeColors, readThemeFonts } from './theme'
-import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
+import { EMPTY_CONTROL_TEXT, PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { assertZipWithinLimits, loadDocxZip } from './zip-load'
 import { altChunkToDocx, hasAltChunkHtmlConverter } from './alt-chunk'
 import { blockControlParagraphs, controlEnterOfXml, inlineControlEnterOf } from './control-enter'
@@ -4275,6 +4275,12 @@ function extractRuns(
       )
     })
   }
+  // Vound fork: only for the paragraphs the reviewer edits (body and cell paragraphs resolve `para`)
+  const showEmptyControl = (first: number, rev?: RevCtx) => {
+    if (!para || runs.slice(first).some((run) => run.text !== '' || run.image)) return
+    runs.length = first
+    pushRun({ text: EMPTY_CONTROL_TEXT, placeholder: true }, rev)
+  }
   const handleRun = (node: XNode, link: Run['link'] | undefined, rev?: RevCtx) => {
     const fldChar = findChild(node, 'w:fldChar')
     if (fldChar) {
@@ -4636,9 +4642,13 @@ function extractRuns(
         const first = runs.length
         walk(childrenOf(node), link, rev)
         markPlaceholder(runs.slice(first))
+        showEmptyControl(first, rev)
+      } else if (name === 'w:sdt') {
+        const first = runs.length
+        walk(childrenOf(node), link, rev)
+        showEmptyControl(first, rev)
       } else if (
         name === 'w:smartTag' ||
-        name === 'w:sdt' ||
         name === 'w:sdtContent' ||
         name === 'w:dir' ||
         name === 'w:bdo'
