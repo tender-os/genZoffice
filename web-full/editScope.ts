@@ -19,6 +19,7 @@ import {
 import type { Decoration, EditorView } from '@tiptap/pm/view'
 import type { EditScope, EditorToHost } from './embed-protocol'
 import { blockControlKey } from './blockControl'
+import { opensWithBox } from './boxGap'
 import { editedRanges, isUserEdit } from './fieldReporting'
 import { HOST_WRITE_META } from './fieldWrite'
 import { markersKey, replacedWholeDocument } from './markersPlugin'
@@ -155,26 +156,24 @@ const enterAsLineBreak = (view: EditorView, event: KeyboardEvent) => {
   return true
 }
 
-/** Select-all while locked to the fields: only the field around the caret, nothing outside one */
+/** Select-all takes only the field around the caret, past the box it opens with; outside a field, nothing while
+ *  locked to the fields and the whole document otherwise */
 function selectFieldOnly(view: EditorView, event: KeyboardEvent) {
   const selectAll =
     event.key.toLowerCase() === 'a' &&
     (event.metaKey || event.ctrlKey) &&
     !event.shiftKey &&
     !event.altKey
-  if (!selectAll || !isLockedToFields()) return false
+  if (!selectAll) return false
   const blocks = fieldBlocks(view.state)
   if (blocks.length === 0) return false
   const { from, to } = view.state.selection
   const field = blocks.find((block) => block.from <= from && to <= block.to)
-  if (field) {
-    const { doc } = view.state
-    view.dispatch(
-      view.state.tr.setSelection(
-        TextSelection.between(doc.resolve(field.from + 1), doc.resolve(field.to - 1)),
-      ),
-    )
-  }
+  if (!field) return isLockedToFields()
+  const { doc } = view.state
+  const text = TextSelection.between(doc.resolve(field.from + 1), doc.resolve(field.to - 1))
+  const start = text.from + (opensWithBox(text.$from.parent) ? 1 : 0)
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, start, text.to)))
   return true
 }
 

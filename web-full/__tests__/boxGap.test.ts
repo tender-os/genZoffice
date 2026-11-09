@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 import { Editor } from '@tiptap/core'
 import JSZip from 'jszip'
-import { afterEach, describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TextSelection } from '@tiptap/pm/state'
 import { parseDocx, saveDocx } from '@genoffice/docx-engine'
 import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
 import { BOX_GAP_CLASS } from '../boxGap'
+import { editScopePlugin } from '../editScope'
+import { markersPlugin, setMarkers } from '../markersPlugin'
 import { reviewModePlugin } from '../reviewMode'
 
 const W14 = 'xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"'
@@ -93,6 +97,90 @@ describe('a box on a hanging line with nothing after it', () => {
     typeAtLineEnd(editor, VALUE)
     expect(gap(editor)?.textContent).toBe('☒')
     expect(boxParagraph(editor).node.textContent).toBe(`☒${VALUE}`)
+  })
+})
+
+describe('select-all in a field that opens with a box', () => {
+  async function field(bodyXml: string) {
+    const { parsed, editor } = await open(bodyXml)
+    editor.registerPlugin(markersPlugin)
+    editor.registerPlugin(editScopePlugin(vi.fn()), (plugin, plugins) => [plugin, ...plugins])
+    setMarkers(editor.view, [
+      {
+        id: 'f',
+        paragraph: editor.state.doc.child(0).attrs.docxPara,
+        scope: 'paragraph',
+        tone: 'proposed',
+        label: 'F',
+        actions: ['ask'],
+      },
+    ])
+    editor.commands.setTextSelection(3)
+    return { parsed, editor }
+  }
+
+  const pressSelectAll = (editor: Editor) =>
+    editor.view.someProp('handleKeyDown', (handler) =>
+      handler(editor.view, new KeyboardEvent('keydown', { key: 'a', metaKey: true })),
+    )
+
+  it.each([
+    ['a legacy box', legacyBox],
+    ['a checkbox control', controlBox],
+  ])('selects the text after %s, so deleting it keeps the box', async (_, box) => {
+    const { editor } = await field(`<w:p>${HANGING}${box}${plain(VALUE)}</w:p>`)
+    expect(pressSelectAll(editor)).toBe(true)
+    const { from, to } = editor.state.selection
+    expect(editor.state.doc.textBetween(from, to)).toBe(VALUE)
+    const glyph = editor.state.doc.child(0).textContent[0]
+    editor.view.dispatch(editor.state.tr.deleteSelection())
+    expect(editor.state.doc.child(0).textContent).toBe(glyph)
+  })
+
+  it('leaves the caret after the box when the field has no text', async () => {
+    const { editor } = await field(`<w:p>${HANGING}${controlBox}</w:p>`)
+    editor.commands.setTextSelection(2)
+    expect(pressSelectAll(editor)).toBe(true)
+    expect(editor.state.selection.empty).toBe(true)
+    expect(editor.state.selection.from).toBe(2)
+  })
+})
+
+describe('a box field with no text yet stays one line tall', () => {
+  const trailingBreak = (editor: Editor) =>
+    editor.view.dom.querySelector<HTMLElement>('.ProseMirror-trailingBreak')
+
+  async function attached(bodyXml: string) {
+    const { editor } = await open(bodyXml)
+    document.body.append(editor.view.dom)
+    const style = document.head.appendChild(document.createElement('style'))
+    style.textContent = readFileSync(resolve(__dirname, '../host.css'), 'utf8')
+    document.documentElement.classList.add('vound-review')
+    return editor
+  }
+
+  afterEach(() => {
+    document.head.replaceChildren()
+    document.body.replaceChildren()
+    document.documentElement.classList.remove('vound-review')
+  })
+
+  it('hides the break after the box, for a legacy box and a checkbox control', async () => {
+    for (const box of [legacyBox, controlBox]) {
+      const editor = await attached(`<w:p>${HANGING}${box}</w:p>`)
+      expect(gap(editor)).not.toBeNull()
+      expect(getComputedStyle(trailingBreak(editor)!).display).toBe('none')
+    }
+  })
+
+  it('keeps the break of an empty paragraph with no box', async () => {
+    const editor = await attached(`<w:p>${HANGING}</w:p>`)
+    expect(getComputedStyle(trailingBreak(editor)!).display).not.toBe('none')
+  })
+
+  it('keeps the break that holds the new line after a line break', async () => {
+    const editor = await attached(`<w:p>${HANGING}${controlBox}<w:r><w:br/></w:r></w:p>`)
+    expect(getComputedStyle(trailingBreak(editor)!).display).not.toBe('none')
   })
 })
 

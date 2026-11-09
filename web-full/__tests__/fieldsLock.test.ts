@@ -173,9 +173,19 @@ describe('locked to the fields', () => {
 })
 
 describe('editing the whole document', () => {
-  it("select-all stays the editor's own, and deleting everything works", async () => {
+  it('select-all in a field selects only that field, also pressed twice', async () => {
     const editor = await open('everything')
     editor.commands.setTextSelection(posIn(editor, 'Erstes') + 2)
+    for (const press of [1, 2]) {
+      expect(pressSelectAll(editor), `press ${press}`).toBe(true)
+      const { from, to } = editor.state.selection
+      expect(editor.state.doc.textBetween(from, to)).toBe('Erstes Feld')
+    }
+  })
+
+  it("select-all outside a field stays the editor's own, and deleting everything works", async () => {
+    const editor = await open('everything')
+    editor.commands.setTextSelection(posIn(editor, 'Kopf') + 1)
     expect(pressSelectAll(editor)).toBe(false)
     selectEverything(editor)
     editor.view.dispatch(editor.state.tr.deleteSelection())
