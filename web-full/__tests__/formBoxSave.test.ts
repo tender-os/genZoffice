@@ -260,10 +260,9 @@ describe('clicking a line with a box', () => {
   function click(editor: Editor, clientX: number) {
     editor.registerPlugin(boxTickPlugin)
     const view: EditorView = editor.view
-    view.coordsAtPos = vi.fn((pos: number) => {
-      const left = pos <= glyphPos(editor) ? 10 : 20
-      return { left, right: left, top: 100, bottom: 120 }
-    })
+    Range.prototype.getBoundingClientRect = vi.fn(
+      () => ({ left: 10, right: 20, top: 100, bottom: 120 }) as DOMRect,
+    )
     const event = new MouseEvent('click', { clientX, clientY: 110 })
     const pos = glyphPos(editor) + 1
     return view.someProp('handleClick', (handler) => handler(view, pos, event)) ?? false
@@ -277,6 +276,12 @@ describe('clicking a line with a box', () => {
     expect(editor.state.doc.resolve(glyphPos(editor)).parent.textContent).toBe('☐')
     expect(editor.state.selection.empty).toBe(true)
     expect(editor.state.selection.from).toBe(paragraphStart + 1)
+  })
+
+  it('in the widened gap after the glyph leaves the tick alone', async () => {
+    const { editor } = await open(line)
+    expect(click(editor, 26)).toBe(false)
+    expect(editor.state.doc.resolve(glyphPos(editor)).parent.textContent).toBe('☒')
   })
 
   it('beside the glyph leaves the tick and the caret to the click', async () => {
