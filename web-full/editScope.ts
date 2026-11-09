@@ -9,12 +9,19 @@
 // opening are not the reviewer's edits, and a document with no field markers has nothing to protect the
 // fields from, so it stays editable.
 import type { Node as PmNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
+import {
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type EditorState,
+  type Transaction,
+} from '@tiptap/pm/state'
 import type { Decoration, EditorView } from '@tiptap/pm/view'
 import type { EditScope, EditorToHost } from './embed-protocol'
 import { blockControlKey } from './blockControl'
 import { editedRanges, isUserEdit } from './fieldReporting'
-import { markersKey } from './markersPlugin'
+import { HOST_WRITE_META } from './fieldWrite'
+import { markersKey, replacedWholeDocument } from './markersPlugin'
 
 export const editScopeKey = new PluginKey('voundEditScope')
 
@@ -148,6 +155,37 @@ const enterAsLineBreak = (view: EditorView, event: KeyboardEvent) => {
   return true
 }
 
+/** Select-all while locked to the fields: only the field around the caret, nothing outside one */
+function selectFieldOnly(view: EditorView, event: KeyboardEvent) {
+  const selectAll =
+    event.key.toLowerCase() === 'a' &&
+    (event.metaKey || event.ctrlKey) &&
+    !event.shiftKey &&
+    !event.altKey
+  if (!selectAll || !isLockedToFields()) return false
+  const blocks = fieldBlocks(view.state)
+  if (blocks.length === 0) return false
+  const { from, to } = view.state.selection
+  const field = blocks.find((block) => block.from <= from && to <= block.to)
+  if (field) {
+    const { doc } = view.state
+    view.dispatch(
+      view.state.tr.setSelection(
+        TextSelection.between(doc.resolve(field.from + 1), doc.resolve(field.to - 1)),
+      ),
+    )
+  }
+  return true
+}
+
+/** the reviewer's edit that replaces the whole document (select-all and a keystroke, a cut or a paste), told apart
+ *  from a document opening (setContent marks it) and the app's own refreshes */
+const replacesDocumentByHand = (tr: Transaction) =>
+  replacedWholeDocument(tr) &&
+  tr.getMeta('preventUpdate') === undefined &&
+  tr.getMeta('addToHistory') !== false &&
+  !tr.getMeta(HOST_WRITE_META)
+
 /** whether the edit splits or joins a paragraph a control owns, or moves text into or out of a control */
 const breaksControl = (tr: Transaction) =>
   editedRanges([tr]).before.some((range) => {
@@ -167,9 +205,16 @@ const breaksControl = (tr: Transaction) =>
 export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
   new Plugin({
     key: editScopeKey,
-    props: { handleKeyDown: enterAsLineBreak },
+    props: {
+      handleKeyDown: (view, event) => enterAsLineBreak(view, event) || selectFieldOnly(view, event),
+    },
     filterTransaction: (tr, state) => {
-      if (!isUserEdit(tr) || tr.getMeta('appendedTransaction')) return true
+      if (tr.getMeta('appendedTransaction')) return true
+      if (scope === 'fields' && fieldBlocks(state).length > 0 && replacesDocumentByHand(tr)) {
+        post({ type: 'vound:editRefused' })
+        return false
+      }
+      if (!isUserEdit(tr)) return true
       if (breaksControl(tr)) return false
       const refused =
         removesWholeBlock(tr) || (scope === 'fields' && !keepsToFields(tr, fieldBlocks(state)))

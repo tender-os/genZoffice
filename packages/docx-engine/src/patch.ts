@@ -83,6 +83,7 @@ import type {
   ThemeFonts,
 } from './types'
 import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
+import { keepsFormFields } from './form-field-guard'
 import { patchFieldParagraphText, patchParagraphTexts } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import { balanceFieldChars } from './field-balance'
@@ -1600,6 +1601,8 @@ export async function saveDocx(
           ? patchFieldParagraphText(originalPara, fb.block.runs)
           : null
       xml = surgical ?? generateParagraphXml(fb.block, genCtx)
+      // Vound fork: a rebuild that would lose a form field or a control keeps the original paragraph
+      if (originalPara && !keepsFormFields(originalPara, xml)) xml = originalPara
       // If the original paragraph was inside a w:sdt shell, re-wrap it
       const shell = fb.block.sdtShell
       if (shell && !unwrapTags.has(shell.tag)) {

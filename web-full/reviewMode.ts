@@ -12,7 +12,7 @@
 // shows no width, so the caret sits at the field's start (the en spaces stay in the document). Placeholder text
 // is selected whole when the caret lands in it (placeholderSelect.ts).
 import type { Editor } from '@tiptap/core'
-import { NodeSelection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
+import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
@@ -56,7 +56,10 @@ function replaceFormFieldBlank(view: EditorView, from: number, to: number, text:
   if (!$from.sameParent(view.state.doc.resolve(to))) return false
   const start = formFieldBlankStart($from.parent)
   if (start === null || $from.parentOffset < start) return false
-  view.dispatch(view.state.tr.insertText(text, $from.start() + start, $from.end()))
+  const blank = $from.start() + start
+  // the caret goes after the text: mapped from the blank's start, the next key would type in front of it
+  const tr = view.state.tr.insertText(text, blank, $from.end())
+  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, blank + text.length)))
   return true
 }
 

@@ -188,6 +188,7 @@ import {
   mergedBorderLinesOf,
   onlyOleFields,
   onlyXeFields,
+  formBoxLine,
   paraBorderSidesOf,
   paraBordersOf,
   partXmlSpacePreserve,
@@ -1154,7 +1155,8 @@ async function buildBlock(
     }
     // XE (index entry) fields are invisible markers; a paragraph whose only
     // fields are XE stays editable (extractRuns round-trips the markers).
-    if (!onlyXeFields(detect)) return fieldPassthrough()
+    // Vound fork: a line of form fields with a box is text with its box, as in a table cell
+    if (!onlyXeFields(detect) && !formBoxLine(detect)) return fieldPassthrough()
   }
   // TOC-styled paragraphs are part of a TOC field result even when they carry
   // no field chars themselves (entries with literal page numbers). Editing
@@ -2465,7 +2467,8 @@ function buildTextParagraph(
     },
     docOffset,
   )
-  const control = holdsInlineControl(pNode) ? { controlEnter: inlineControlEnterOf(pNode) } : {}
+  const controlEnter = inlineControlEnter(pNode)
+  const control = controlEnter === undefined ? {} : { controlEnter }
   /** extra revision fields shared across all return paths */
   const revExtras = {
     ...(moveRevision ? { moveRevision } : {}),
@@ -5765,15 +5768,22 @@ function applyTableStyleDisplay(
 const ANCHOR_HOSTS = new Set(['w:drawing', 'w:pict'])
 const TXBX_CONTENT = new Set(['w:txbxContent'])
 const SDT = new Set(['w:sdt'])
+const FORM_FIELD_DATA = new Set(['w:ffData'])
 /** Vound fork: a w:p holding an inline content control outside its textboxes */
 const holdsInlineControl = (pNode: XNode) => hasDeepChildOutside(pNode, SDT, TXBX_CONTENT)
+/** Vound fork: what Enter does in a w:p holding a form field (nothing) or inline content controls; undefined
+ *  without either */
+function inlineControlEnter(p: XNode): ControlEnter | undefined {
+  if (hasDeepChildOutside(p, FORM_FIELD_DATA, TXBX_CONTENT)) return 'none'
+  return holdsInlineControl(p) ? inlineControlEnterOf(p) : undefined
+}
 /** Vound fork: what Enter does in a cell paragraph's content control, its inline one or the block-level one
  *  around it (which a paragraph holding a control of its own keeps whole), and that block-level control */
 function cellControlFields(
   p: XNode,
   wrapping: { enter: ControlEnter; control: number } | undefined,
 ) {
-  const inline = holdsInlineControl(p) ? inlineControlEnterOf(p) : undefined
+  const inline = inlineControlEnter(p)
   if (!wrapping) return inline === undefined ? {} : { controlEnter: inline }
   return {
     controlEnter: inline === undefined ? wrapping.enter : 'none',

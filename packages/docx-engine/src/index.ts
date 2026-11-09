@@ -1,6 +1,7 @@
 // one definition, in the package both carriers and both apps can reach
 export { REDACT_EL, REDACT_NS, REDACT_PREFIX } from '@genoffice/agent-core/redact-range'
 export * from './types'
+export { keepsFormFields } from './form-field-guard'
 export {
   deobfuscateOdttf,
   isSfnt,

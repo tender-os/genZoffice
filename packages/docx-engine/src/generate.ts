@@ -1,8 +1,14 @@
 import { formTextResults } from './parse-fields'
+import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
 import { patchFieldParagraphText } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
-import { sdtCheckboxGlyphs, sdtCheckboxIsChecked, syncSdtCheckbox } from './checkbox-control'
+import {
+  sdtCheckboxGlyphs,
+  sdtCheckboxIsChecked,
+  syncFormCheckbox,
+  syncSdtCheckbox,
+} from './checkbox-control'
 import type {
   CellMargins,
   CharIndents,
@@ -718,6 +724,7 @@ function patchCellXml(tcXml: string, paras: readonly CellParaPatch[]): string | 
       ? mergeCellParaFormat(pPrOf(template), entry.format, entry.original)
       : pPrOf(template)
     const emitted = entry.xml ?? runsXml(entry.runs, null)
+    if (groupSize(i) === 1 && !keepsFormFields(template, emitted)) return template
     const emittedMedia = new Set(mediaRIds(emitted))
     const keep = firstOfGroup(i)
       ? carriedRunsOf(template, emittedMedia)
@@ -3168,15 +3175,8 @@ function runFragmentXml(run: Run, insideLink: boolean): string {
       // same ffData; characters typed beside them survive as plain text runs.
       // The glyph is the source of truth for the checked state: an in-editor
       // ☐↔☒ edit must land in w:checked or Word keeps the old state.
-      const syncedField = (checked: boolean): string => {
-        const val = `<w:checked w:val="${checked ? '1' : '0'}"/>`
-        let begin = run.fldBeginXml!.replace(/<w:checked(?:\s[^>]*)?\/>/g, '')
-        if (begin.includes('</w:checkBox>'))
-          begin = begin.replace('</w:checkBox>', `${val}</w:checkBox>`)
-        else
-          begin = begin.replace(/<w:checkBox((?:\s[^>]*)?)\/>/, `<w:checkBox$1>${val}</w:checkBox>`)
-        return begin + instrXml + endXml
-      }
+      const syncedField = (checked: boolean): string =>
+        syncFormCheckbox(run.fldBeginXml!, checked) + instrXml + endXml
       // no glyph left = the user typed over / deleted the checkbox; Word also
       // removes the form field then, so only the replacement text survives
       return splitGlyphRuns(

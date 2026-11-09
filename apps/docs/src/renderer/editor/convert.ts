@@ -14,6 +14,7 @@ import {
   applyShapeZOrderAt,
   patchImageParagraphXml,
   patchMathTokens,
+  keepsFormFields,
   patchTableCellTexts,
   type CellParaPatch,
   type CellTextsPatch,
@@ -2282,6 +2283,16 @@ function sdtGroupKeyOf(block: Block) {
   return undefined
 }
 
+/** Vound fork: a table rebuilt from its model, unless that would lose a form field or a content control: then
+ *  only its cell texts change, in the original XML */
+function regeneratedTableXml(model: TableModel, original: Block) {
+  const source = original.originalXml ?? undefined
+  const rebuilt = generateTableModelXml(model, source)
+  if (source === undefined || keepsFormFields(source, rebuilt)) return rebuilt
+  const texts = tableTextsPatchFromModel(model, original)
+  return texts ? patchTableCellTexts(source, texts) : source
+}
+
 export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): SavePlan {
   newPictures.clear()
   newPictureSeq = 0
@@ -2439,10 +2450,7 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
           pushBlock({ kind: 'original', docxIndex: idx! })
         } else {
           changedCount++
-          pushBlock({
-            kind: 'xml',
-            xml: generateTableModelXml(model, original.originalXml ?? undefined),
-          })
+          pushBlock({ kind: 'xml', xml: regeneratedTableXml(model, original) })
         }
       } else {
         changedCount++

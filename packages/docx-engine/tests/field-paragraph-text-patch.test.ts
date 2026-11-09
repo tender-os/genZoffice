@@ -187,12 +187,14 @@ describe('text the run model holds but the paragraph does not keep in w:t (Vound
     expect(out).toContain('<w:sdt>')
   })
 
-  test('a ticked or deleted legacy checkbox falls back to the rebuild, which saves its state', () => {
+  test('a ticked legacy checkbox saves its state in place, a deleted one falls back to the rebuild', () => {
     const paragraph = `<w:p>${legacyBox('<w:default w:val="0"/>')}${LABEL}</w:p>`
     const box = { fldBeginXml: '<w:r/>' }
     const unchanged = [{ text: '☐', ...box }, { text: 'Option Ax' }]
     expect(patchFieldParagraphText(paragraph, unchanged)).toContain('>Option Ax</w:t>')
-    expect(patchFieldParagraphText(paragraph, [{ text: '☒', ...box }, { text: 'Option A' }])).toBeNull()
+    expect(patchFieldParagraphText(paragraph, [{ text: '☒', ...box }, { text: 'Option A' }])).toContain(
+      '<w:checked w:val="1"/>',
+    )
     expect(patchFieldParagraphText(paragraph, [{ text: 'Option A' }])).toBeNull()
   })
 
