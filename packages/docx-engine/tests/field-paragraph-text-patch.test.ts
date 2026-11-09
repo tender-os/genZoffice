@@ -34,6 +34,34 @@ describe('patchFieldParagraphText (Vound fork)', () => {
     expect(out).not.toContain('showingPlcHdr')
     expect(out).not.toContain('Platzhaltertext')
   })
+  test('two controls of one paragraph edited before one save each get their own text', () => {
+    const control = (id: string, text: string) =>
+      `<w:sdt><w:sdtPr><w:id w:val="${id}"/><w:showingPlcHdr/><w:text/></w:sdtPr><w:sdtContent><w:r><w:t>${text}</w:t></w:r></w:sdtContent></w:sdt>`
+    const two =
+      `<w:p><w:r><w:t xml:space="preserve">Ort: </w:t></w:r>${control('1', 'Ort eintragen')}` +
+      `<w:r><w:t xml:space="preserve">, Datum: </w:t></w:r>${control('2', 'Datum eingeben')}</w:p>`
+    const out = patchFieldParagraphText(two, [{ text: 'Ort: Berlin, Datum: 09.11.2026' }])!
+    expect(out).toContain('<w:r><w:t xml:space="preserve">Ort: </w:t></w:r>')
+    expect(out).toContain('<w:sdtContent><w:r><w:t xml:space="preserve">Berlin</w:t></w:r></w:sdtContent>')
+    expect(out).toContain('<w:r><w:t xml:space="preserve">, Datum: </w:t></w:r>')
+    expect(out).toContain('<w:sdtContent><w:r><w:t xml:space="preserve">09.11.2026</w:t></w:r></w:sdtContent>')
+    expect(out).not.toContain('showingPlcHdr')
+  })
+  test('a line break typed into a control is written as a w:br inside it', () => {
+    const control =
+      '<w:p><w:sdt><w:sdtPr><w:id w:val="8"/></w:sdtPr><w:sdtContent><w:r><w:t>Erste</w:t></w:r></w:sdtContent></w:sdt></w:p>'
+    const once = patchFieldParagraphText(control, [{ text: 'Erste\nZweite' }])!
+    expect(once).toContain(
+      '<w:sdtContent><w:r><w:t xml:space="preserve">Erste</w:t><w:br/><w:t xml:space="preserve">Zweite</w:t></w:r></w:sdtContent>',
+    )
+    const twice = patchFieldParagraphText(once, [{ text: 'Erste\nZweite\nDritte' }])!
+    expect(twice).toContain(
+      '<w:t xml:space="preserve">Erste</w:t><w:br/><w:t xml:space="preserve">Zweite</w:t><w:br/><w:t xml:space="preserve">Dritte</w:t>',
+    )
+    expect(patchFieldParagraphText(twice, [{ text: 'Erste\nZweiteDritte' }])).not.toContain(
+      'Zweite</w:t><w:br/>',
+    )
+  })
   test('a control whose text did not change keeps its placeholder flag', () => {
     // the edit sits inside the first run; an insertion exactly at the control boundary is
     // ambiguous and may be attributed to the control (then the flag goes, as if typed into it)

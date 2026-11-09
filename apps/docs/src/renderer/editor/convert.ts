@@ -917,6 +917,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
+          controlEnter: block.controlEnter ?? null,
           styleId: block.styleId ?? null,
           aiChanged: false,
           level: block.level ?? 1,
@@ -939,6 +940,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
+          controlEnter: block.controlEnter ?? null,
           styleId: block.styleId ?? null,
           aiChanged: false,
           kind: block.list?.kind ?? 'bullet',
@@ -963,6 +965,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
+          controlEnter: block.controlEnter ?? null,
           styleId: block.styleId ?? null,
           aiChanged: false,
           bookmarks: block.bookmarks ?? null,
@@ -1335,6 +1338,8 @@ function cellContentNodes(cell: TableCell): PmNode[] {
     const styleId = ('styleId' in paragraph ? paragraph.styleId : undefined) ?? null
     const docxPara =
       ('sourceParaIndex' in paragraph ? paragraph.sourceParaIndex : undefined) ?? null
+    const controlEnter = ('controlEnter' in paragraph ? paragraph.controlEnter : undefined) ?? null
+    const cellControl = ('cellControl' in paragraph ? paragraph.cellControl : undefined) ?? null
     return list
       ? {
           type: 'docListItem',
@@ -1342,6 +1347,8 @@ function cellContentNodes(cell: TableCell): PmNode[] {
             ...formatAttrs(paragraph, paragraph.runs),
             styleId,
             docxPara,
+            controlEnter,
+            cellControl,
             kind: list.kind,
             numId: list.numId,
             ilvl: list.ilvl,
@@ -1350,7 +1357,13 @@ function cellContentNodes(cell: TableCell): PmNode[] {
         }
       : {
           type: 'docParagraph',
-          attrs: { ...formatAttrs(paragraph, paragraph.runs), styleId, docxPara },
+          attrs: {
+            ...formatAttrs(paragraph, paragraph.runs),
+            styleId,
+            docxPara,
+            controlEnter,
+            cellControl,
+          },
           content: runsToInline(paragraph.runs),
         }
   })
@@ -2261,6 +2274,14 @@ export function normalizeZoteroFieldParts(doc: PmNode): PmNode {
   return rebuild(doc)
 }
 
+/** Vound fork: the sdt group a block saves in; a one-paragraph rich-text control is a group of one (keyed
+ *  below 0), so a paragraph added in it stays inside */
+function sdtGroupKeyOf(block: Block) {
+  if (block.sdtShell?.group !== undefined) return block.sdtShell.group
+  if (block.controlEnter === 'paragraph' && block.docxIndex !== null) return -1 - block.docxIndex
+  return undefined
+}
+
 export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): SavePlan {
   newPictures.clear()
   newPictureSeq = 0
@@ -2308,12 +2329,13 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
   const sdtGroupLast = new Map<number, number>()
   for (const block of originalBlocks) {
     const shell = block.sdtShell
-    if (block.hidden || block.docxIndex === null || shell?.group === undefined) continue
-    sdtGroupOf.set(block.docxIndex, shell.group)
-    if (!sdtGroupFirst.has(shell.group)) sdtGroupFirst.set(shell.group, block.docxIndex)
-    sdtGroupLast.set(shell.group, block.docxIndex)
-    const agg = sdtGroupShells.get(shell.group)
-    if (!agg) sdtGroupShells.set(shell.group, { ...shell })
+    const group = sdtGroupKeyOf(block)
+    if (block.hidden || block.docxIndex === null || !shell || group === undefined) continue
+    sdtGroupOf.set(block.docxIndex, group)
+    if (!sdtGroupFirst.has(group)) sdtGroupFirst.set(group, block.docxIndex)
+    sdtGroupLast.set(group, block.docxIndex)
+    const agg = sdtGroupShells.get(group)
+    if (!agg) sdtGroupShells.set(group, { ...shell })
     else {
       if (shell.openXml) agg.openXml = shell.openXml
       if (shell.closeXml) agg.closeXml = shell.closeXml
@@ -2335,9 +2357,16 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
   const recordSdtEmit = (node: PmNode, sb: SaveBlock, at: number) => {
     const idx = node.attrs?.docxIndex as number | null | undefined
     if (idx === null || idx === undefined) return
-    if (saveBlockIndexByDocx.get(idx) !== at) return
     const group = sdtGroupOf.get(idx)
     if (group === undefined) return
+    let emits = sdtGroupEmits.get(group)
+    if (!emits) sdtGroupEmits.set(group, (emits = []))
+    // Vound fork: a member's split twin (Enter inside the control) sits inside the control too, so the
+    // group close follows the last of them
+    if (saveBlockIndexByDocx.get(idx) !== at) {
+      emits.push({ at, idx, open: false, close: false })
+      return
+    }
     const shell = sdtGroupShells.get(group)!
     let open = false
     let close = false
@@ -2356,8 +2385,6 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
     // members' bytes are the group open/close the rebalance below cares about
     open = open && sdtGroupFirst.get(group) === idx
     close = close && sdtGroupLast.get(group) === idx
-    let emits = sdtGroupEmits.get(group)
-    if (!emits) sdtGroupEmits.set(group, (emits = []))
     emits.push({ at, idx, open, close })
   }
 
@@ -2785,7 +2812,7 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
         delete generated.commentEnds
         // A grouped shell (partial open/close of a multi-block sdt) must be
         // emitted exactly once, by the anchor.
-        if (generated.sdtShell?.group !== undefined) delete generated.sdtShell
+        if (sdtGroupOf.has(idx!)) delete generated.sdtShell
       }
       pushBlock({
         kind: 'generated',
@@ -2870,10 +2897,31 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
     }
     if (prefixFrags.length > 0) appendXml(sorted[0].at, prefixFrags.join(''), true, group)
   }
+  /** Vound fork: take the group close off a member a split twin now follows */
+  const detachClose = (emit: { at: number; idx: number }) => {
+    const close = originalByIndex.get(emit.idx)?.sdtShell?.closeXml ?? ''
+    const sb = saveBlocks[emit.at]
+    if (sb.kind === 'generated' && sb.block.sdtShell) {
+      sb.block.sdtShell = { ...sb.block.sdtShell, closeXml: '' }
+    } else if (sb.kind === 'original') {
+      const xml = originalByIndex.get(emit.idx)?.originalXml ?? ''
+      saveBlocks[emit.at] = {
+        kind: 'xml',
+        xml: xml.slice(0, xml.length - close.length),
+        docxIndex: emit.idx,
+        ...(sb.revision ? { revision: sb.revision } : {}),
+      }
+    } else if (sb.kind === 'xml') {
+      sb.xml = sb.xml.slice(0, sb.xml.length - close.length)
+    }
+  }
   for (const [group, emits] of sdtGroupEmits) {
     const shell = sdtGroupShells.get(group)!
     if (shell.openXml && !emits.some((e) => e.open)) attachShell(emits[0], 'open')
-    if (shell.closeXml && !emits.some((e) => e.close)) attachShell(emits[emits.length - 1], 'close')
+    const closer = emits.find((e) => e.close)
+    const last = emits[emits.length - 1]
+    if (closer && closer !== last) detachClose(closer)
+    if (shell.closeXml && closer !== last) attachShell(last, 'close')
   }
 
   const deletedCount = [...originalByIndex.keys()].filter((i) => !usedIndexes.has(i)).length

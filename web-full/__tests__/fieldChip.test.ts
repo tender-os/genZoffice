@@ -41,6 +41,7 @@ afterEach(() => {
   scroller.remove()
   vi.restoreAllMocks()
   vi.useRealTimers()
+  document.getSelection()?.removeAllRanges()
 })
 
 /** paragraphs 0..4 in the scroll container, the chip mounted, these markers set */
@@ -215,6 +216,55 @@ describe('mountFieldChip', () => {
     caretIn(left)
     expect(owner()).toBe('nummer')
     caretIn(view!.dom.querySelector('p')!)
+    expect(shown()).toBe(false)
+  })
+
+  it('the caret\'s chip stays when the pointer leaves for the page or the window', () => {
+    vi.useFakeTimers()
+    const { left } = twoCellRow()
+    hover(left)
+    caretIn(left)
+    hover(view!.dom)
+    vi.advanceTimersByTime(500)
+    expect(owner()).toBe('nummer')
+    document.dispatchEvent(new MouseEvent('mouseout', { relatedTarget: null }))
+    vi.advanceTimersByTime(500)
+    expect(owner()).toBe('nummer')
+    expect(left.classList.contains('vound-slot-hot')).toBe(true)
+  })
+
+  it('leaving another field the pointer hovered brings the chip back to the caret\'s field', () => {
+    vi.useFakeTimers()
+    const { left, right } = twoCellRow()
+    caretIn(right)
+    hover(left)
+    expect(owner()).toBe('nummer')
+    hover(view!.dom)
+    vi.advanceTimersByTime(220)
+    expect(owner()).toBe('wert')
+  })
+
+  it('after a scroll the caret\'s field gets its chip back once the page rests', () => {
+    vi.useFakeTimers()
+    const { left } = twoCellRow()
+    caretIn(left)
+    scroller.dispatchEvent(new Event('scroll'))
+    expect(shown()).toBe(false)
+    vi.advanceTimersByTime(150)
+    scroller.dispatchEvent(new Event('scroll'))
+    vi.advanceTimersByTime(219)
+    expect(shown()).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(owner()).toBe('nummer')
+  })
+
+  it('after a scroll with the caret outside the fields the chip stays hidden', () => {
+    vi.useFakeTimers()
+    const { left } = twoCellRow()
+    hover(left)
+    caretIn(view!.dom.querySelector('p')!)
+    scroller.dispatchEvent(new Event('scroll'))
+    vi.advanceTimersByTime(500)
     expect(shown()).toBe(false)
   })
 

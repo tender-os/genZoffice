@@ -2,6 +2,7 @@ import { isOn } from './checkbox-control'
 import { decodeEntities } from './parse-xml-text'
 import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
 import type { Run } from './types'
+import { textHunks } from './text-hunks'
 import { escapeXmlText } from './xml-utils'
 
 /**
@@ -46,7 +47,7 @@ export function patchParagraphTexts(
       out += para.xml
     } else {
       const skipLeading = i === 0 && opts.stripFirstParaLeadingSpace === true
-      const patched = patchOneParagraph(para.xml, newParaTexts[i], skipLeading)
+      const patched = patchOneParagraph(para.xml, newParaTexts[i], skipLeading, 'outsideText')
       if (patched === null) return null
       out += patched
     }
@@ -102,8 +103,9 @@ interface TSlice {
   /** offsets of the inner content within the paragraph XML */
   innerStart: number
   innerEnd: number
-  /** offset of the opening <w:t ...> tag */
+  /** offset of the opening <w:t ...> tag, and of the end of the element */
   tagStart: number
+  end: number
   text: string
 }
 
@@ -116,6 +118,7 @@ function tSlices(paraXml: string): TSlice[] {
     const innerStart = m.index + m[0].length - inner.length - '</w:t>'.length
     out.push({
       tagStart: m.index,
+      end: m.index + m[0].length,
       innerStart,
       innerEnd: innerStart + inner.length,
       text: decodeEntities(inner),
@@ -124,14 +127,85 @@ function tSlices(paraXml: string): TSlice[] {
   return out
 }
 
+/** Vound fork: the w:t of a paragraph and its line breaks (w:br, w:cr) between them, a break as a newline */
+function lineSlices(paraXml: string): TSlice[] {
+  const breaks: TSlice[] = []
+  const re = /<w:br\s*\/>|<w:cr\s*\/>/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(paraXml)) !== null) {
+    const at = m.index
+    breaks.push({ tagStart: at, end: at + m[0].length, innerStart: at, innerEnd: at, text: '\n' })
+  }
+  return [...tSlices(paraXml), ...breaks].sort((a, b) => a.tagStart - b.tagStart)
+}
+
+const wtXml = (text: string) => `<w:t xml:space="preserve">${escapeXmlText(text)}</w:t>`
+
+/** Vound fork: where a paragraph patch finds line breaks: outside the patched text (a field's, a comment's),
+ *  or in it, written back as w:br (a content control's) */
+type LineBreaks = 'outsideText' | 'inText'
+
+const LINE_BREAKS: Record<
+  LineBreaks,
+  {
+    slices: (paraXml: string) => TSlice[]
+    write: (text: string) => string
+    /** the characters and elements the w:t mapping leaves alone */
+    outsideChars: RegExp
+    outsideElements: RegExp
+    patch: (paraXml: string, newText: string) => string | null
+  }
+> = {
+  outsideText: {
+    slices: tSlices,
+    write: wtXml,
+    outsideChars: /[\t\n]/g,
+    outsideElements: /<w:tab\s*\/>|<w:tab>\s*<\/w:tab>|<w:br\s*\/>|<w:cr\s*\/>/g,
+    patch: patchParagraphTexts,
+  },
+  inText: {
+    slices: lineSlices,
+    write: (text) =>
+      text
+        .split('\n')
+        .map((part) => (part === '' ? '' : wtXml(part)))
+        .join('<w:br/>'),
+    outsideChars: /\t/g,
+    outsideElements: /<w:tab\s*\/>|<w:tab>\s*<\/w:tab>/g,
+    patch: patchParagraphLines,
+  },
+}
+
+/** Vound fork: a field's paragraph, or one with typed breaks (column, page), keeps line breaks outside the patch */
+function lineBreaksOf(paraXml: string): LineBreaks {
+  if (paraXml.includes('<w:fldChar') || paraXml.includes('<w:br ')) return 'outsideText'
+  return 'inText'
+}
+
+/** Vound fork: one paragraph's text, line breaks included, patched onto its XML */
+function patchParagraphLines(paraXml: string, newText: string): string | null {
+  const patched = patchOneParagraph(paraXml, newText, false, 'inText')
+  if (patched === null) return null
+  const check = lineSlices(patched)
+    .map((slice) => slice.text)
+    .join('')
+  return check === newText ? patched : null
+}
+
 function decodedTextOf(paraXml: string): string {
   return tSlices(paraXml)
     .map((t) => t.text)
     .join('')
 }
 
-function patchOneParagraph(paraXml: string, newText: string, skipLeading: boolean): string | null {
-  const slices = tSlices(paraXml)
+function patchOneParagraph(
+  paraXml: string,
+  newText: string,
+  skipLeading: boolean,
+  lineBreaks: LineBreaks,
+): string | null {
+  const { slices: slicesOf, write } = LINE_BREAKS[lineBreaks]
+  const slices = slicesOf(paraXml)
   if (slices.length === 0) return null
   const raw = slices.map((t) => t.text).join('')
   // First paragraph's leading whitespace (spacer run after the self-reference mark) is
@@ -140,69 +214,45 @@ function patchOneParagraph(paraXml: string, newText: string, skipLeading: boolea
   const oldText = raw.slice(lead)
   if (oldText === newText) return paraXml
 
-  let prefix = 0
-  const maxCommon = Math.min(oldText.length, newText.length)
-  while (prefix < maxCommon && oldText[prefix] === newText[prefix]) prefix++
-  let suffix = 0
-  while (
-    suffix < maxCommon - prefix &&
-    oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]
-  ) {
-    suffix++
-  }
-  // Changed range (relative to the full raw text)
-  const changeStart = lead + prefix
-  const changeEnd = lead + oldText.length - suffix
-  const replacement = newText.slice(prefix, newText.length - suffix)
-
-  // Find the w:t intersecting the changed range; for pure insertion (changeStart ===
-  // changeEnd), take the slice covering that point
-  let acc = 0
-  let first = -1
-  let last = -1
+  const texts = slices.map((t) => t.text)
   const bounds: Array<{ start: number; end: number }> = []
-  for (let i = 0; i < slices.length; i++) {
-    const start = acc
-    const end = acc + slices[i].text.length
-    bounds.push({ start, end })
-    const touches =
-      changeStart === changeEnd
-        ? start <= changeStart && changeStart <= end
-        : start < changeEnd && end > changeStart
-    if (touches) {
-      if (first === -1) first = i
-      last = i
-    }
-    acc = end
+  let acc = 0
+  for (const slice of slices) {
+    bounds.push({ start: acc, end: acc + slice.text.length })
+    acc += slice.text.length
   }
-  if (first === -1) {
-    // Insertion point falls outside every w:t (in theory only an empty paragraph) —
-    // no anchor, give up
-    return null
-  }
-
-  // Rewrite [first..last]: first takes the prefix remainder + replacement text + last's
-  // suffix remainder; the rest are emptied
-  const newInner: string[] = []
-  for (let i = first; i <= last; i++) {
-    if (i === first) {
-      const head = slices[i].text.slice(0, changeStart - bounds[i].start)
-      const tail = slices[last].text.slice(changeEnd - bounds[last].start)
-      newInner.push(escapeXmlText(head + replacement + tail))
-    } else {
-      newInner.push('')
+  const rewritten = new Set<number>()
+  // back to front: a later change never moves the offsets of an earlier one
+  for (const hunk of textHunks(oldText, newText).reverse()) {
+    const changeStart = lead + hunk.from
+    const changeEnd = lead + hunk.to
+    // the w:t the change touches; a pure insertion takes the first one covering its point
+    const touched = bounds.flatMap(({ start, end }, i) => {
+      const touches =
+        changeStart === changeEnd
+          ? start <= changeStart && changeStart <= end
+          : start < changeEnd && end > changeStart
+      return touches ? [i] : []
+    })
+    // insertion point outside every w:t (in theory only an empty paragraph): no anchor, give up
+    if (touched.length === 0) return null
+    const first = touched[0]
+    const last = touched[touched.length - 1]
+    // first takes its head, the new text and last's tail; the rest are emptied
+    const head = texts[first].slice(0, changeStart - bounds[first].start)
+    const tail = texts[last].slice(changeEnd - bounds[last].start)
+    for (let i = first; i <= last; i++) {
+      texts[i] = ''
+      rewritten.add(i)
     }
+    texts[first] = head + hunk.text + tail
   }
 
   // Replace back-to-front so offsets stay valid; changed w:t all get xml:space="preserve"
   let out = paraXml
-  for (let i = last; i >= first; i--) {
-    const s = slices[i]
-    const closeEnd = s.innerEnd + '</w:t>'.length
-    out =
-      out.slice(0, s.tagStart) +
-      `<w:t xml:space="preserve">${newInner[i - first]}</w:t>` +
-      out.slice(closeEnd)
+  for (let i = slices.length - 1; i >= 0; i--) {
+    if (!rewritten.has(i)) continue
+    out = out.slice(0, slices[i].tagStart) + write(texts[i]) + out.slice(slices[i].end)
   }
   return out
 }
@@ -231,12 +281,14 @@ export function patchFieldParagraphText(
   const joined = runs.map(wtTextOf).join('')
   if (/[\f\v\u001e]/.test(joined)) return null
   // tabs and line breaks are their own elements, not w:t text: as long as the edit did
-  // not add or remove one, they stay where they are and the w:t mapping ignores them
-  const controls = (joined.match(/[\t\n]/g) ?? []).length
-  const originalControls = (originalParaXml.match(/<w:tab\s*\/>|<w:tab>\s*<\/w:tab>|<w:br\s*\/>|<w:cr\s*\/>/g) ?? []).length
+  // not add or remove one, they stay where they are and the w:t mapping ignores them;
+  // in a content control's paragraph a line break is written back as a w:br (Vound fork)
+  const mode = LINE_BREAKS[lineBreaksOf(originalParaXml)]
+  const controls = (joined.match(mode.outsideChars) ?? []).length
+  const originalControls = (originalParaXml.match(mode.outsideElements) ?? []).length
   if (controls !== originalControls && !/<w:ffData\b|<w:sdt\b/.test(originalParaXml)) return null
-  const newText = joined.replace(/[\t\n]/g, controls > originalControls ? ' ' : '')
-  const patched = patchParagraphTexts(originalParaXml, newText)
+  const newText = joined.replace(mode.outsideChars, controls > originalControls ? ' ' : '')
+  const patched = mode.patch(originalParaXml, newText)
   if (patched === null) return null
   if (patched === originalParaXml || !patched.includes('<w:showingPlcHdr')) return patched
   // typed text replaced a placeholder: that control loses its placeholder flag and the

@@ -452,6 +452,7 @@ import {
   stepDocsZoom,
   type ZoomFitMode,
 } from './wheel-zoom'
+import { zoomRefit } from './zoom-refit'
 import {
   allocateListNumId as allocateListNumIdImpl,
   addPictureBullet,
@@ -3089,6 +3090,22 @@ export function App() {
     [refitZoom],
   )
 
+  // the width fit at the last follow/clamp check: a re-parse after a save (same canvas, same page) or a
+  // height-only change (a horizontal scrollbar for the zoomed-in page) must not clamp a zoom the user chose
+  const lastRawFitRef = useRef<number | null>(null)
+  const followFit = useCallback(() => {
+    const raw = rawFitWidth()
+    if (raw == null) return
+    const mode = zoomRefit({
+      zoom: zoomLiveRef.current,
+      raw,
+      previousRaw: lastRawFitRef.current,
+      lastFit: lastFitRef.current,
+    })
+    lastRawFitRef.current = raw
+    if (mode) refitZoom(mode)
+  }, [rawFitWidth, refitZoom])
+
   // On scroller size changes (window/AI-dock/nav-pane toggles): follow with a
   // re-fit while in fit mode, and clamp any manual zoom back down to width-fit
   // whenever the page no longer fits horizontally — the canvas must never
@@ -3097,38 +3114,16 @@ export function App() {
   useEffect(() => {
     const el = document.querySelector('.editor-scroll')
     if (!doc || !el) return
-    let lastWidth = -1
-    const ro = new ResizeObserver(() => {
-      const raw = rawFitWidth()
-      if (raw == null) return
-      const widthChanged = el.clientWidth !== lastWidth
-      lastWidth = el.clientWidth
-      const lf = lastFitRef.current
-      if (lf != null && Math.abs(zoomLiveRef.current - lf.value) <= 0.5) {
-        refitZoom(lf.mode) // fit mode: follow the container in the user's chosen fit
-        return
-      }
-      // The overflow test uses the uncapped ratio: a manual zoom that still
-      // fits (or is smaller than fit) is the user's choice and must be kept.
-      // A height-only change (a classic horizontal scrollbar appearing for the
-      // zoomed-in page) must not clamp a zoom the user just chose.
-      if (!widthChanged || zoomLiveRef.current <= raw + 0.5) return
-      refitZoom('width')
-    })
+    const ro = new ResizeObserver(followFit)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [doc, refitZoom, rawFitWidth])
+  }, [doc, followFit])
 
   // markup column appearing/disappearing changes the canvas width without a
   // pane resize: apply the same follow/clamp rules as the ResizeObserver above
   useEffect(() => {
-    if (!doc) return
-    const raw = rawFitWidth()
-    if (raw == null) return
-    const lf = lastFitRef.current
-    if (lf != null && Math.abs(zoomLiveRef.current - lf.value) <= 0.5) refitZoom(lf.mode)
-    else if (zoomLiveRef.current > raw + 0.5) refitZoom('width')
-  }, [doc, markupExtra, rawFitWidth, refitZoom])
+    if (doc) followFit()
+  }, [doc, markupExtra, followFit])
 
   // Read Mode opens at 1:1 — the same page size as the Page Preview — and the
   // user's zoom / fit mode is restored on exit (wheel zoom still works inside).

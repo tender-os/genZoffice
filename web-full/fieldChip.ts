@@ -9,10 +9,12 @@
 // vound:fieldAction; the host decides what it does.
 //
 // The chip and tether live in a zero-height layer inside the page's scroll container, so they scroll with
-// the document; a scroll or a resize hides them anyway. They stay while the pointer moves from the block to
+// the document; a scroll or a resize hides them anyway, and 220ms after it the caret's field shows its chip
+// again. They stay while the pointer moves from the block to
 // the chip and hide 220ms after it left both; a field the pointer crosses on its way right to the chip (the
 // next cell of the row) takes the chip over only after resting there 220ms. Moving the caret into a field
-// shows its chip at once, and out of the fields hides it. The chip never grows past the gutter
+// shows its chip at once, and out of the fields hides it; the pointer leaving brings the chip back to the
+// caret's field instead of hiding it. The chip never grows past the gutter
 // (reviewGutter.ts, which also keeps that gutter free): labels shrink or wrap above their buttons, and only
 // a gutter narrower than the buttons hides the chip (the host's bar offers the current field's buttons
 // then); the hover outline stays. The hovered block is a decoration (markersPlugin.ts, setHot), which fieldRing.ts rings: a class
@@ -180,7 +182,7 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
   }
   const scheduleHide = () => {
     cancelPending()
-    pending = setTimeout(hide, HIDE_DELAY_MS)
+    pending = setTimeout(settle, HIDE_DELAY_MS)
   }
 
   /** the scroll container, with the layer in it (the app may have re-rendered the container) */
@@ -264,16 +266,33 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     else if (block) show(block)
     else if (hoveredBlock) scheduleHide()
   }
-  // a caret moved into another block (a click, the keyboard): typing inside one block changes nothing
-  const onSelection = () => {
+  /** the marked block holding the caret, null in unmarked text; undefined with the caret outside the document */
+  const blockAtCaret = () => {
     const focus = ownerDocument.getSelection()?.focusNode
     const element = focus instanceof Element ? focus : focus?.parentElement
-    if (!element || !view.dom.contains(element)) return
-    const block = markedBlock(view, element)
-    if (block === caretBlock) return
+    if (!element || !view.dom.contains(element)) return undefined
+    return markedBlock(view, element)
+  }
+  // a caret moved into another block (a click, the keyboard): typing inside one block changes nothing
+  const onSelection = () => {
+    const block = blockAtCaret()
+    if (block === undefined || block === caretBlock) return
     caretBlock = block
     if (block) show(block)
     else if (hoveredBlock) hide()
+  }
+  let restTimer: ReturnType<typeof setTimeout> | undefined
+  /** the pointer left the chip's field, or the page came to rest: the caret's field keeps or gets the chip */
+  const settle = () => {
+    const block = blockAtCaret()
+    if (block) show(block)
+    else hide()
+  }
+  // the page moves under a placed chip; once it rests, the caret's field gets its chip back
+  const hideUntilRest = () => {
+    hide()
+    clearTimeout(restTimer)
+    restTimer = setTimeout(settle, HIDE_DELAY_MS)
   }
   // the pointer left the document (relatedTarget null): mouseover fires nowhere else
   const onOut = (event: MouseEvent) => {
@@ -295,19 +314,20 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
   ownerDocument.addEventListener('mouseout', onOut)
   ownerDocument.addEventListener('selectionchange', onSelection)
   // scroll does not bubble; a capture listener on the document hears the scroll container's
-  ownerDocument.addEventListener('scroll', hide, true)
+  ownerDocument.addEventListener('scroll', hideUntilRest, true)
   // a resize (or the app's zoom refit that follows it) moves the page under a placed chip
-  ownerDocument.defaultView?.addEventListener('resize', hide)
+  ownerDocument.defaultView?.addEventListener('resize', hideUntilRest)
   chip.addEventListener('mousedown', keepFocus)
   chip.addEventListener('click', onClick)
 
   return () => {
     hide()
+    clearTimeout(restTimer)
     ownerDocument.removeEventListener('mouseover', onOver)
     ownerDocument.removeEventListener('mouseout', onOut)
     ownerDocument.removeEventListener('selectionchange', onSelection)
-    ownerDocument.removeEventListener('scroll', hide, true)
-    ownerDocument.defaultView?.removeEventListener('resize', hide)
+    ownerDocument.removeEventListener('scroll', hideUntilRest, true)
+    ownerDocument.defaultView?.removeEventListener('resize', hideUntilRest)
     layer.remove()
   }
 }

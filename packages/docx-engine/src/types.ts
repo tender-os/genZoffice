@@ -327,6 +327,13 @@ export interface SdtShell {
   group?: number
 }
 
+/**
+ * Vound fork: what Enter does inside a content control, as in Word: a rich-text block control takes a new
+ * paragraph, a multi-line plain-text control or a rich-text control filling its paragraph a line break, and
+ * any other control nothing.
+ */
+export type ControlEnter = 'paragraph' | 'lineBreak' | 'none'
+
 /** One custom tab stop from w:tabs/w:tab. Positions are in twips. */
 export interface TabStop {
   /** position in twips (w:pos); percent of the text column when rel is set */
@@ -1286,6 +1293,11 @@ export interface TableParagraph extends ParaFormat {
   /** editor only (Vound fork): the source paragraph this one continues after a split; a cell save keeps it
    *  where that paragraph was. Never parsed or written */
   continuesSourceParaIndex?: number
+  /** Vound fork: what Enter does in the content control the source w:p holds or sits in; never written */
+  controlEnter?: ControlEnter
+  /** Vound fork: the block-level content control of the cell this paragraph sits in, numbered within the
+   *  cell; never written */
+  cellControl?: number
 }
 
 /** One cell border (a w:tcBorders child element) */
@@ -1593,6 +1605,8 @@ export interface Block {
    *  (see source-para-index.ts); set for every block built from a body paragraph,
    *  whatever its type; read-only, never written back */
   sourceParaIndex?: number
+  /** Vound fork: what Enter does in the content control the source w:p holds or sits in; never written */
+  controlEnter?: ControlEnter
   /** expanded from a w:altChunk part: the chunk's own (modern) layout, not the host's compat mode */
   altChunk?: boolean
   /** heading level 1-9 (type === 'heading') */
