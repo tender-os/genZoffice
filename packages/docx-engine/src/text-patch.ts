@@ -2,6 +2,7 @@ import { isOn } from './checkbox-control'
 import { decodeEntities } from './parse-xml-text'
 import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
 import { EMPTY_CONTROL_TEXT, type Run } from './types'
+import { withFormTextAnchors } from './form-text-anchor'
 import { joinedWithinStretches, textHunks } from './text-hunks'
 import { escapeXmlText } from './xml-utils'
 
@@ -164,7 +165,7 @@ const LINE_BREAKS: Record<
     outsideChars: /[\t\n]/g,
     outsideElements: /<w:tab\s*\/>|<w:tab>\s*<\/w:tab>|<w:br\s*\/>|<w:cr\s*\/>/g,
     patch: patchParagraphTexts,
-    anchor: (paraXml) => paraXml,
+    anchor: (paraXml) => withControlAnchors(withFormTextAnchors(paraXml)),
   },
   inText: {
     slices: lineSlices,

@@ -1,4 +1,5 @@
 import { formTextResults } from './parse-fields'
+import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
 import { patchFieldParagraphText } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import { sdtCheckboxGlyphs, sdtCheckboxIsChecked, syncSdtCheckbox } from './checkbox-control'
@@ -498,13 +499,33 @@ function firstFormTextNodes(xml: string, nodes: XmlTextNode[]): XmlTextNode[] | 
     : null
 }
 
+/** Vound fork: an edit of a line that keeps the label before its only legacy text field, and has nothing after
+ *  the field: what follows the label is the field's value. Null for any other edit or paragraph. */
+function formTextValueNodes(xml: string, nodes: XmlTextNode[], left: string) {
+  const result = onlyFormTextResult(xml)
+  if (!result) return null
+  const inside = nodes.filter((node) => node.start > result.from && node.start < result.to)
+  const label = nodes
+    .filter((node) => node.start < result.from)
+    .map((node) => node.text)
+    .join('')
+    .trim()
+  const after = nodes.filter((node) => node.start > result.to)
+  if (inside.length === 0 || label === '' || after.length > 0 || !left.startsWith(label)) return null
+  const value = left.slice(label.length).trimStart()
+  return inside.map((node, index) => ({ node, text: index === 0 ? value : '' }))
+}
+
 /**
  * Patch only cached visible w:t text in a field paragraph. Field instructions,
  * hyperlinks, tabs, run styling, and field boundaries remain byte-identical.
  */
-export function patchFieldParagraphXml(xml: string, patch: FieldTextPatch): string {
+export function patchFieldParagraphXml(original: string, patch: FieldTextPatch): string {
+  const xml = withFormTextAnchors(original)
   const nodes = textNodes(xml, 'w:t')
-  if (nodes.length === 0) return xml
+  if (nodes.length === 0) return original
+  const value = patch.left === undefined ? null : formTextValueNodes(xml, nodes, patch.left)
+  if (value) return replaceTextNodes(xml, value)
   // run-level tab only (attribute-less CT_Empty) — `<w:tab w:val=…/>` inside
   // w:tabs is a tab-stop definition and must not split the left/right texts.
   // Mirrors fieldDisplayOf: the page number follows the LAST tab, and a short
@@ -517,7 +538,7 @@ export function patchFieldParagraphXml(xml: string, patch: FieldTextPatch): stri
   let tabMatch: RegExpExecArray | null
   while ((tabMatch = tabRe.exec(xml)) !== null) tabStarts.push(tabMatch.index)
   const lastTab = tabStarts.length > 0 ? tabStarts[tabStarts.length - 1] : -1
-  if (patch.right !== undefined && lastTab === -1) return xml
+  if (patch.right !== undefined && lastTab === -1) return original
   let leftFrom = -1
   if (tabStarts.length >= 2) {
     const firstSeg = nodes
@@ -532,8 +553,8 @@ export function patchFieldParagraphXml(xml: string, patch: FieldTextPatch): stri
       ? (firstFormTextNodes(xml, nodes) ?? nodes)
       : nodes.filter((node) => node.start > leftFrom && node.start < lastTab)
   const rightNodes = lastTab === -1 ? [] : nodes.filter((node) => node.start > lastTab)
-  if (patch.left !== undefined && leftNodes.length === 0) return xml
-  if (patch.right !== undefined && rightNodes.length === 0) return xml
+  if (patch.left !== undefined && leftNodes.length === 0) return original
+  if (patch.right !== undefined && rightNodes.length === 0) return original
 
   const replacements: Array<{ node: XmlTextNode; text: string }> = []
   if (patch.left !== undefined) {
