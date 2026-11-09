@@ -16,6 +16,7 @@ import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState } fro
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
+import { boxGapDecorations } from './boxGap'
 import { boxTickKey, boxTickPlugin } from './boxTick'
 import { editScopeKey, editScopePlugin } from './editScope'
 import { mountFieldChip } from './fieldChip'
@@ -74,6 +75,7 @@ function blankDecorations(doc: PmNode) {
   const decorations: Decoration[] = []
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
+    decorations.push(...boxGapDecorations(node, pos))
     const blank = formFieldBlankStart(node)
     if (blank !== null) decorations.push(Decoration.inline(pos + 1 + blank, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
     node.forEach((child, offset) => {

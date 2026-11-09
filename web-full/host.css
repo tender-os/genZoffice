@@ -59,6 +59,8 @@ html.vound-review { --vound-gutter: 110px; }
 /* Word's empty form field result (five en spaces) in review mode (reviewMode.ts): no width, so the caret and
    the typed text start at the field's left edge; the en spaces stay in the document */
 html.vound-review .vound-blank { letter-spacing: -0.5em; }
+html.vound-review .vound-box-gap { display: inline-block; text-indent: 0; }
+@media print { html.vound-review .vound-box-gap { display: inline; min-width: 0 !important; } }
 html.vound-review .vound-empty-control { display: inline-block; min-width: 3em; background: var(--vound-missing-tint); border-bottom: 1px solid var(--vound-missing-bar); cursor: text; }
 @media print { html.vound-review .vound-empty-control { display: inline; min-width: 0; background: none; border: 0; } }
 /* View mode (viewMode.ts sets html.vound-view on a vound:open with mode 'view'): the document alone. No ribbon,

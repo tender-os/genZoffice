@@ -37,15 +37,27 @@ export function toggleBoxAt(state: EditorState, pos: number): Transaction | null
 /** how far from the glyph (px) a click still counts as on it */
 const GLYPH_SLOP_PX = 2
 
+/** the box the glyph character at `from` is drawn in; its element can be wider (boxGap.ts) */
+function glyphRect(view: EditorView, from: number) {
+  let { node, offset } = view.domAtPos(from, 1)
+  while (node.nodeType !== Node.TEXT_NODE && node.childNodes[offset]) {
+    node = node.childNodes[offset]
+    offset = 0
+  }
+  const range = view.dom.ownerDocument.createRange()
+  range.setStart(node, offset)
+  range.setEnd(node, offset + 1)
+  return range.getBoundingClientRect()
+}
+
 /** whether the click landed on the drawn glyph at `from`, not elsewhere on its line */
 function clickedGlyph(view: EditorView, from: number, event: MouseEvent) {
-  const start = view.coordsAtPos(from, 1)
-  const end = view.coordsAtPos(from + 1, -1)
+  const glyph = glyphRect(view, from)
   return (
-    event.clientX >= start.left - GLYPH_SLOP_PX &&
-    event.clientX <= end.right + GLYPH_SLOP_PX &&
-    event.clientY >= start.top - GLYPH_SLOP_PX &&
-    event.clientY <= end.bottom + GLYPH_SLOP_PX
+    event.clientX >= glyph.left - GLYPH_SLOP_PX &&
+    event.clientX <= glyph.right + GLYPH_SLOP_PX &&
+    event.clientY >= glyph.top - GLYPH_SLOP_PX &&
+    event.clientY <= glyph.bottom + GLYPH_SLOP_PX
   )
 }
 
