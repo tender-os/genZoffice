@@ -12,7 +12,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { BlockRef, FieldGap, FieldValueRefusal } from './embed-protocol'
 import { locateBlock } from './markers'
 import { glideIntoView } from './markersPlugin'
-import { placeholderAt } from './placeholderText'
+import { formFieldBlankStart, isEmptyControlFiller, placeholderAt } from './placeholderText'
 
 /** transaction meta on every host write: not a user edit */
 export const HOST_WRITE_META = 'voundHostWrite'
@@ -60,8 +60,19 @@ function unitsOf(block: PmNode, pos: number): TextUnit[] {
 /** a block's visible text, its paragraphs joined by line feeds */
 const joinedText = (units: TextUnit[]) => units.map((unit) => unit.text).join('\n')
 
+/** a unit's text without an emptied control's filler */
+function textWithoutFiller(unit: TextUnit) {
+  if (unit.kind !== 'text') return unit.text
+  let text = ''
+  unit.node.forEach((child) => {
+    if (!isEmptyControlFiller(child)) text += child.textContent
+  })
+  return text
+}
+
 /** the visible text of a marked block at `pos`, as a write reads it */
-export const blockText = (block: PmNode, pos: number) => joinedText(unitsOf(block, pos))
+export const blockText = (block: PmNode, pos: number) =>
+  joinedText(unitsOf(block, pos).map((unit) => ({ ...unit, text: textWithoutFiller(unit) })))
 
 /** start offsets of every occurrence, overlapping ones included ("aa" occurs twice in "aaa") */
 function occurrences(text: string, needle: string) {
@@ -271,16 +282,16 @@ export function enterFieldShowingDefault(view: EditorView, target: EventTarget |
   return entered
 }
 
-/** the end of a paragraph's text, or all of it when it is blank and plain text, or the placeholder text it
- *  ends with, so typing replaces it */
+/** the end of a paragraph's text, or its empty form field result or all of it when it is blank and plain text,
+ *  or the placeholder text it ends with, so typing replaces it */
 function caretInParagraph(view: EditorView, unit: TextUnit) {
   const end = unit.pos + unit.node.nodeSize - 1
   const placeholder = placeholderAt(view.state.doc, end)
   if (placeholder) return TextSelection.create(view.state.doc, placeholder.from, placeholder.to)
   let plainText = true
   unit.node.forEach((child) => { plainText &&= child.isText })
-  const from = isBlank(unit.text) && plainText ? unit.pos + 1 : end
-  return TextSelection.create(view.state.doc, from, end)
+  const blank = formFieldBlankStart(unit.node) ?? (isBlank(unit.text) && plainText ? 0 : null)
+  return TextSelection.create(view.state.doc, blank === null ? end : unit.pos + 1 + blank, end)
 }
 
 /** vound:placeCaret: the caret at the end of the block's text (a cell's last paragraph), focused and

@@ -13,7 +13,6 @@
 // is selected whole when the caret lands in it (placeholderSelect.ts).
 import type { Editor } from '@tiptap/core'
 import { NodeSelection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
-import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
@@ -23,6 +22,7 @@ import { mountFieldChip } from './fieldChip'
 import { fieldRingKey, fieldRingPlugin } from './fieldRing'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
 import { placeholderSelectKey, placeholderSelectPlugin } from './placeholderSelect'
+import { formFieldBlankStart, isEmptyControlFiller } from './placeholderText'
 import { clipboardText } from './pasteText'
 import { blockedInReview, isMacPlatform, keepsNativeAction } from './reviewShortcuts'
 
@@ -47,20 +47,16 @@ function keepFieldBlock(view: EditorView, event: Event) {
 
 const deletesSelection = (event: KeyboardEvent) => event.key === 'Backspace' || event.key === 'Delete'
 
-/** A paragraph of plain text made of en spaces only. That is how Word's empty legacy form field result shows
- *  in a table cell (a plain paragraph holding the field's result), but the editor does not mark field
- *  paragraphs, so any such paragraph matches: en spaces are not typed by hand. */
-function isFormFieldBlank(node: PmNode) {
-  let plainText = node.childCount > 0
-  node.forEach((child) => { plainText &&= child.isText })
-  return plainText && /^\u2002+$/.test(node.textContent)
-}
-
-/** Typing into an empty form field result replaces its en spaces, wherever the caret sits in them. */
+/** Typing into an empty form field result replaces its en spaces, wherever the caret sits at or in them. That is
+ *  how Word's empty legacy form field shows in a table cell (plain text holding the field's result, alone or
+ *  after a box or a label), but the editor does not mark field text, so any such text matches: en spaces are
+ *  not typed by hand. */
 function replaceFormFieldBlank(view: EditorView, from: number, to: number, text: string) {
   const $from = view.state.doc.resolve(from)
-  if (!$from.sameParent(view.state.doc.resolve(to)) || !isFormFieldBlank($from.parent)) return false
-  view.dispatch(view.state.tr.insertText(text, $from.start(), $from.end()))
+  if (!$from.sameParent(view.state.doc.resolve(to))) return false
+  const start = formFieldBlankStart($from.parent)
+  if (start === null || $from.parentOffset < start) return false
+  view.dispatch(view.state.tr.insertText(text, $from.start() + start, $from.end()))
   return true
 }
 
@@ -75,9 +71,10 @@ function blankDecorations(doc: PmNode) {
   const decorations: Decoration[] = []
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
-    if (isFormFieldBlank(node)) decorations.push(Decoration.inline(pos + 1, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
+    const blank = formFieldBlankStart(node)
+    if (blank !== null) decorations.push(Decoration.inline(pos + 1 + blank, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
     node.forEach((child, offset) => {
-      if (child.text === EMPTY_CONTROL_TEXT) decorations.push(Decoration.inline(pos + 1 + offset, pos + 1 + offset + child.nodeSize, { class: EMPTY_CONTROL_CLASS }))
+      if (isEmptyControlFiller(child)) decorations.push(Decoration.inline(pos + 1 + offset, pos + 1 + offset + child.nodeSize, { class: EMPTY_CONTROL_CLASS }))
     })
     return false
   })
