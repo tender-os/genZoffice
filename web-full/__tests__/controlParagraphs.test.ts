@@ -30,7 +30,7 @@ async function open(bodyXml: string) {
     extensions: editorExtensions,
   })
   editor.commands.setContent(blocksToPmDoc(parsed.blocks) as never)
-  editor.registerPlugin(editScopePlugin(vi.fn()))
+  editor.registerPlugin(editScopePlugin(vi.fn()), (plugin, plugins) => [plugin, ...plugins])
   editors.push(editor)
   return { parsed, editor }
 }
@@ -72,7 +72,7 @@ const savedControls = async (parsed: ParsedDocFull, editor: Editor) =>
 const controlParagraphTexts = (editor: Editor) => {
   const texts: string[] = []
   editor.state.doc.descendants((node) => {
-    if (node.attrs.holdsControl === true || node.attrs.sdtShell) texts.push(node.textContent)
+    if (node.attrs.controlEnter) texts.push(node.textContent)
     return !node.isTextblock
   })
   return texts
@@ -189,6 +189,66 @@ describe('content controls through a review edit', () => {
       expect(await savedControlParagraphs(parsed, editor)).toEqual([
         ['Erste Zeile', 'Zweite Zeile'],
       ])
+    })
+  })
+
+  describe('Enter by control type', () => {
+    const para = (text: string) => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`
+    const PLACEHOLDER = 'Klicken Sie hier, um Text einzugeben.'
+    const blockOf = (sdtPr: string) =>
+      `<w:sdt><w:sdtPr><w:id w:val="5"/>${sdtPr}</w:sdtPr><w:sdtContent>${para(PLACEHOLDER)}</w:sdtContent></w:sdt>`
+    const inlineOf = (sdtPr: string) =>
+      `<w:p><w:sdt><w:sdtPr><w:id w:val="6"/>${sdtPr}</w:sdtPr><w:sdtContent><w:r><w:t>${PLACEHOLDER}</w:t></w:r></w:sdtContent></w:sdt></w:p>`
+    /** the saved controls, each as its paragraphs, a line break written as a newline */
+    async function savedControlLines(parsed: ParsedDocFull, editor: Editor) {
+      const saved = await saveDocx(
+        parsed,
+        pmDocToSavePlan(editor.getJSON() as never, parsed.blocks).saveBlocks,
+      )
+      const xml = await (await JSZip.loadAsync(saved)).file('word/document.xml')!.async('string')
+      const controls = new DOMParser()
+        .parseFromString(xml, 'application/xml')
+        .getElementsByTagName('w:sdt')
+      const lineOf = (paragraph: Element) =>
+        [...paragraph.getElementsByTagName('*')]
+          .flatMap((element) => {
+            if (element.tagName === 'w:t') return [element.textContent]
+            return element.tagName === 'w:br' ? ['\n'] : []
+          })
+          .join('')
+      return [...controls].map((control) => {
+        const paragraphs = [...control.getElementsByTagName('w:p')]
+        return paragraphs.length > 0 ? paragraphs.map(lineOf) : [lineOf(control)]
+      })
+    }
+    async function typeLines(bodyXml: string) {
+      const { parsed, editor } = await open(`${para('Vorher')}${bodyXml}${para('Nachher')}`)
+      editor.commands.setTextSelection(textPos(editor, PLACEHOLDER) + PLACEHOLDER.length)
+      editor.commands.keyboardShortcut('Enter')
+      editor.commands.insertContent('Zweite Zeile')
+      return savedControlLines(parsed, editor)
+    }
+
+    it('a one-paragraph rich-text control takes a new paragraph and stays one control', async () => {
+      expect(await typeLines(blockOf(''))).toEqual([[PLACEHOLDER, 'Zweite Zeile']])
+    })
+
+    it('a plain-text control takes no Enter', async () => {
+      expect(await typeLines(blockOf('<w:text/>'))).toEqual([[`${PLACEHOLDER}Zweite Zeile`]])
+    })
+
+    it.each([
+      ['a block-level', blockOf('<w:text w:multiLine="1"/>')],
+      ['an inline', inlineOf('<w:text w:multiLine="1"/>')],
+    ])(
+      '%s multi-line plain-text control takes a line break in its one paragraph',
+      async (_, body) => {
+        expect(await typeLines(body)).toEqual([[`${PLACEHOLDER}\nZweite Zeile`]])
+      },
+    )
+
+    it('an inline rich-text control filling its paragraph takes a line break', async () => {
+      expect(await typeLines(inlineOf(''))).toEqual([[`${PLACEHOLDER}\nZweite Zeile`]])
     })
   })
 })

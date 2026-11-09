@@ -917,7 +917,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
-          holdsControl: block.holdsControl === true,
+          controlEnter: block.controlEnter ?? null,
           styleId: block.styleId ?? null,
           aiChanged: false,
           level: block.level ?? 1,
@@ -940,7 +940,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
-          holdsControl: block.holdsControl === true,
+          controlEnter: block.controlEnter ?? null,
           styleId: block.styleId ?? null,
           aiChanged: false,
           kind: block.list?.kind ?? 'bullet',
@@ -965,7 +965,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
-          holdsControl: block.holdsControl === true,
+          controlEnter: block.controlEnter ?? null,
           styleId: block.styleId ?? null,
           aiChanged: false,
           bookmarks: block.bookmarks ?? null,
@@ -1338,7 +1338,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
     const styleId = ('styleId' in paragraph ? paragraph.styleId : undefined) ?? null
     const docxPara =
       ('sourceParaIndex' in paragraph ? paragraph.sourceParaIndex : undefined) ?? null
-    const holdsControl = 'holdsControl' in paragraph && paragraph.holdsControl === true
+    const controlEnter = ('controlEnter' in paragraph ? paragraph.controlEnter : undefined) ?? null
     return list
       ? {
           type: 'docListItem',
@@ -1346,7 +1346,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
             ...formatAttrs(paragraph, paragraph.runs),
             styleId,
             docxPara,
-            holdsControl,
+            controlEnter,
             kind: list.kind,
             numId: list.numId,
             ilvl: list.ilvl,
@@ -1355,7 +1355,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
         }
       : {
           type: 'docParagraph',
-          attrs: { ...formatAttrs(paragraph, paragraph.runs), styleId, docxPara, holdsControl },
+          attrs: { ...formatAttrs(paragraph, paragraph.runs), styleId, docxPara, controlEnter },
           content: runsToInline(paragraph.runs),
         }
   })
@@ -2266,6 +2266,14 @@ export function normalizeZoteroFieldParts(doc: PmNode): PmNode {
   return rebuild(doc)
 }
 
+/** Vound fork: the sdt group a block saves in; a one-paragraph rich-text control is a group of one (keyed
+ *  below 0), so a paragraph added in it stays inside */
+function sdtGroupKeyOf(block: Block) {
+  if (block.sdtShell?.group !== undefined) return block.sdtShell.group
+  if (block.controlEnter === 'paragraph' && block.docxIndex !== null) return -1 - block.docxIndex
+  return undefined
+}
+
 export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): SavePlan {
   newPictures.clear()
   newPictureSeq = 0
@@ -2313,12 +2321,13 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
   const sdtGroupLast = new Map<number, number>()
   for (const block of originalBlocks) {
     const shell = block.sdtShell
-    if (block.hidden || block.docxIndex === null || shell?.group === undefined) continue
-    sdtGroupOf.set(block.docxIndex, shell.group)
-    if (!sdtGroupFirst.has(shell.group)) sdtGroupFirst.set(shell.group, block.docxIndex)
-    sdtGroupLast.set(shell.group, block.docxIndex)
-    const agg = sdtGroupShells.get(shell.group)
-    if (!agg) sdtGroupShells.set(shell.group, { ...shell })
+    const group = sdtGroupKeyOf(block)
+    if (block.hidden || block.docxIndex === null || !shell || group === undefined) continue
+    sdtGroupOf.set(block.docxIndex, group)
+    if (!sdtGroupFirst.has(group)) sdtGroupFirst.set(group, block.docxIndex)
+    sdtGroupLast.set(group, block.docxIndex)
+    const agg = sdtGroupShells.get(group)
+    if (!agg) sdtGroupShells.set(group, { ...shell })
     else {
       if (shell.openXml) agg.openXml = shell.openXml
       if (shell.closeXml) agg.closeXml = shell.closeXml
@@ -2795,7 +2804,7 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
         delete generated.commentEnds
         // A grouped shell (partial open/close of a multi-block sdt) must be
         // emitted exactly once, by the anchor.
-        if (generated.sdtShell?.group !== undefined) delete generated.sdtShell
+        if (sdtGroupOf.has(idx!)) delete generated.sdtShell
       }
       pushBlock({
         kind: 'generated',

@@ -109,6 +109,7 @@ import {
   type TextboxListMarker,
   type ParaFrame,
   type TextFlowDirection,
+  type ControlEnter,
 } from '@genoffice/docx-engine'
 import {
   substituteBullet,
@@ -277,9 +278,9 @@ const anchorAttrs = {
   /** Vound fork: the source index of the paragraph this one continues after a split (Enter inside it); the
    *  first half keeps docxPara, so an index names one node (split-source-paragraph.ts) */
   continuesPara: { default: null as number | null },
-  /** Vound fork: the source paragraph holds an inline content control (Block.holdsControl); review mode keeps
-   *  it from being split or joined, which would drop the control on save (web-full/editScope.ts) */
-  holdsControl: { default: false },
+  /** Vound fork: what Enter does in the content control the source paragraph holds or sits in
+   *  (Block.controlEnter); review mode keeps the control whole on save (web-full/editScope.ts) */
+  controlEnter: { default: null as ControlEnter | null },
   /** JSON of the table-style paragraph properties (convert.ts tableStyleParaAttr); display only */
   tblPara: { default: null as string | null },
   styleId: { default: null as string | null },

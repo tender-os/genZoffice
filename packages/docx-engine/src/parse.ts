@@ -28,9 +28,11 @@ import { DEFAULT_THEME_COLORS, THEME_PART_PATH, readThemeColors, readThemeFonts 
 import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { assertZipWithinLimits, loadDocxZip } from './zip-load'
 import { altChunkToDocx, hasAltChunkHtmlConverter } from './alt-chunk'
+import { controlEnterOfXml, inlineControlEnterOf } from './control-enter'
 import type {
   FormulaDisplay,
   Block,
+  ControlEnter,
   ChartDisplay,
   DiagramDisplay,
   DiagramShape,
@@ -532,6 +534,7 @@ export async function parseDocx(
     const sdtParts = el.name === 'w:sdt' ? splitSdtParts(xml) : null
     if (sdtParts) {
       const meta = sdtMeta(xml)
+      const controlEnter = controlEnterOfXml(xml)
       const group = sdtGroupSeq++
       for (const part of sdtParts) {
         const i = elements.length
@@ -547,6 +550,7 @@ export async function parseDocx(
         stampSourceParagraph(block, childEl, childXml, buildCtx)
         if (showsPlaceholderXml(xml)) markPlaceholder(block.runs)
         block.originalXml = xml.slice(part.start, part.end)
+        wrapControlEnter(block, controlEnter)
         block.sdtShell = {
           ...meta,
           openXml: xml.slice(part.start, part.childStart),
@@ -1008,6 +1012,7 @@ async function buildBlock(
       // Attach the sdt shell and preserve the full sdt XML as the original
       innerBlock.originalXml = xml
       innerBlock.sdtShell = shell
+      wrapControlEnter(innerBlock, controlEnterOfXml(xml))
       if (showsPlaceholderXml(xml)) markPlaceholder(innerBlock.runs)
       // Label the block with the alias for UI affordance
       if (!innerBlock.label) {
@@ -2460,7 +2465,7 @@ function buildTextParagraph(
     },
     docOffset,
   )
-  const control = holdsInlineControl(pNode) ? { holdsControl: true as const } : {}
+  const control = holdsInlineControl(pNode) ? { controlEnter: inlineControlEnterOf(pNode) } : {}
   /** extra revision fields shared across all return paths */
   const revExtras = {
     ...(moveRevision ? { moveRevision } : {}),
@@ -5752,6 +5757,11 @@ const TXBX_CONTENT = new Set(['w:txbxContent'])
 const SDT = new Set(['w:sdt'])
 /** Vound fork: a w:p holding an inline content control outside its textboxes */
 const holdsInlineControl = (pNode: XNode) => hasDeepChildOutside(pNode, SDT, TXBX_CONTENT)
+/** Vound fork: a paragraph a block-level control wraps takes the control's Enter, unless it holds a control itself */
+function wrapControlEnter(block: Block, enter: ControlEnter) {
+  if (block.type === 'table') return
+  block.controlEnter = block.controlEnter === undefined ? enter : 'none'
+}
 const WP_INLINE = new Set(['wp:inline'])
 const WP_ANCHOR = new Set(['wp:anchor'])
 /** wp:docPr ids of the anchored drawings in a layout-table row / on a cell-run image (binds HfImage.anchorPara) */
@@ -5962,7 +5972,7 @@ function extractCell(
       ...(markSz ? { markSizeHalfPoints: markSz } : {}),
       ...(list ? { list } : {}),
       ...(sourceParaIndex !== undefined ? { sourceParaIndex } : {}),
-      ...(holdsInlineControl(p) ? { holdsControl: true as const } : {}),
+      ...(holdsInlineControl(p) ? { controlEnter: inlineControlEnterOf(p) } : {}),
       runs,
     })
     if (paraText !== '') textParaJcs.add(attrsOf(findChild(pPr ?? {}, 'w:jc') ?? {})['w:val'] ?? '')
