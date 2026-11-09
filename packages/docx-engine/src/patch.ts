@@ -84,6 +84,7 @@ import type {
 } from './types'
 import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { patchFieldParagraphText, patchParagraphTexts } from './text-patch'
+import { withoutPlaceholderFlag } from './parse-sdt'
 import { balanceFieldChars } from './field-balance'
 import {
   mergeDefaultFontsXml,
@@ -1602,7 +1603,10 @@ export async function saveDocx(
       // If the original paragraph was inside a w:sdt shell, re-wrap it
       const shell = fb.block.sdtShell
       if (shell && !unwrapTags.has(shell.tag)) {
-        xml = shell.openXml + xml + shell.closeXml
+        // a control shows its placeholder only while its text is the placeholder
+        const showsPlaceholder = (fb.block.runs ?? []).some((run) => run.placeholder)
+        const openXml = showsPlaceholder ? shell.openXml : withoutPlaceholderFlag(shell.openXml)
+        xml = openXml + xml + shell.closeXml
       }
     } else if (fb.kind === 'xml') {
       xml = fb.xml

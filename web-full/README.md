@@ -76,18 +76,22 @@ marked node gets one node decoration, also when several slots share it ("Ort: __
 paragraph with two slots): `data-vound-slot` lists all of its ids separated by spaces (select one with
 `[data-vound-slot~="<id>"]`), the class carries the tone that needs attention most (rejected, gap,
 refused, conditional, proposed, accepted, in that order), and the node is current when any of its ids
-is. An index that matches no node or more than one (a split copies the index to both
-halves) is dropped and logged with `console.info('[vound] markers dropped', ids)`; so is a cell marker
-outside a table cell. Paragraphs of nested tables are not editor nodes and cannot be marked.
+is. An index that matches no node or more than one is dropped and logged with
+`console.info('[vound] markers dropped', ids)`; so is a cell marker outside a table cell. A split (Enter inside a
+paragraph) copies the index to both halves; the editor then keeps it on the first half and marks the second as its
+continuation (`continuesPara`, `split-source-paragraph.ts`), and a paragraph-scope marker covers the paragraph and
+its continuations, drawn as one field over several blocks. Halves that still share the index side by side, before
+the editor marked the continuation, count the same way, so a split never drops the marker. Joining the halves gives the one paragraph back. Paragraphs of nested tables are not editor nodes and cannot be marked.
 
 `markersPlugin.ts` keeps the decorations through edits and walks the document again when the block
 count changes (phased loading appends blocks after the first 64, splits, deletions), when an attribute
 change dropped a decoration, or while markers wait for their document. The wait ends at the first
 build that sees nodes with source indices, so markers that all miss a loaded document do not cost a
-walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): Backspace
-in an emptied table cell paragraph (Tiptap's `clearNodes`) and a deleted or typed-over cell selection
-(prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph without one, and an
-emptied field would lose its marker until the next save. The new paragraph takes the index of the paragraph it
+walk per edit. A paragraph the editor replaces by a new one keeps its source index (`sourceIndex.ts`): a cut cell
+selection (prosemirror-tables fills the cell with a default paragraph) would otherwise leave a paragraph without one,
+and an emptied field would lose its marker until the next save. Backspace and Delete in an emptied cell paragraph,
+and Delete, Backspace or typing over selected cells, keep the paragraph itself with its properties, as Word does
+(`extensions.ts`: `isEmptyAtEdge`, `clearSelectedCells`, `typeOverSelectedCells`). The new paragraph takes the index of the paragraph it
 replaced when no other paragraph carries it, in a transaction appended to the edit. Markers sent before the app handed over its editor (`hostEditorHandle` in
 `vite.config.ts`) are applied when it does. `vound:scrollTo` and `vound:focus` add
 `vound-slot-current`, and `vound:scrollTo` finds a shared node by any of its ids; `host.css` holds the
@@ -200,6 +204,20 @@ click ends, a caret moved by keys selects it from inside only, so it can still b
 control whose `w:sdtPr` says `w:showingPlcHdr` (inline, around a paragraph, or around a table cell's paragraph), and
 the result of a legacy text form field (FORMTEXT) that equals its `w:default` text. Text that only looks like a
 hint, a grey character style with no control around it, is the document's own and is never selected.
+A form field outside a table (a field passthrough) whose result is its default text (`fieldDisplay.defaultText`)
+is entered with that text selected on a click, and by `vound:placeCaret`.
+
+Text typed over placeholder text is the field's own at once (`placeholder-typing.ts` in the editor): it carries
+neither the mark nor the placeholder's character style (`isPlaceholderStyleId`: Placeholder Text, Platzhaltertext),
+also when a composition (dead keys) writes it into the placeholder's span; undo brings the placeholder back. The
+save keeps the content control around it, its properties and tag included, and drops only `w:showingPlcHdr` and
+the placeholder style, as Word does: a control around a body paragraph (`patch.ts`) and one around a table cell's
+paragraph (`generate.ts`, `regroupCellParagraphs`). A cell edit writes each paragraph back into the place of the
+original paragraph it continues (the editor passes its `origin`, from the source paragraph index), so a paragraph
+made inside a control by Enter or a paste stays in it, paragraphs removed from a control leave the wrapper around
+the rest, and a control whose paragraphs all went keeps one empty paragraph. Such an edit no longer regenerates the
+whole table, as long as the cell holds paragraphs only, no pictures, and every paragraph keeps a format the cell
+had.
 
 ## View mode
 
@@ -265,7 +283,8 @@ The hovered block gets `vound-slot-hot`, a 1px ring at 45 %, through a decoratio
 ProseMirror. In review mode `host.css` restyles the markers: a soft tint and a 2px leading bar (a
 background layer, so no box changes), no outline. Proposed is violet, a field still needing a value (gap,
 conditional with a dashed bar, refused) amber, accepted cyan with a ✓ after its text (inline with a
-negative margin, so it never adds a line; an accepted field emptied again shows none), rejected white with a rose
+negative margin, so it never adds a line; an accepted field emptied again shows none, and a field over several
+blocks shows it after the last one, `vound-slot-continued` marking the others), rejected white with a rose
 bar and a 1px rose edge. A marked paragraph whose neighbour right above or below is marked for other fields
 (`vound-slot-other-above`, `vound-slot-other-below`, set in `markers.ts`) stops its tint and bar 1px short of that
 edge, so two adjacent fields show a 2px gap and each its own rounded ends; blocks of one field still join. The current
@@ -283,8 +302,8 @@ run. The layer redraws after every editor update, on a resize of the editor root
 ## Field writes
 
 `vound:setFieldValue` (`fieldWrite.ts`) writes exactly or refuses. The block is the paragraph whose source
-index the `BlockRef` names, or the table cell around it; an index that names no node or several (a split
-paragraph) is `noBlock`. The block's visible text is a paragraph's text, a field passthrough paragraph's
+index the `BlockRef` names, or the table cell around it; an index that names no node or several apart is `noBlock`;
+of a split paragraph only the first half carries the index, so a write or caret finds that half. The block's visible text is a paragraph's text, a field passthrough paragraph's
 result text (`fieldDisplay.left`), and for a cell its paragraphs' texts joined with line feeds.
 
 - `previous` occurs exactly once: that occurrence is replaced by `value` (empty allowed). In a paragraph

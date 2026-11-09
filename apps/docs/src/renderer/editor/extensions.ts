@@ -3,12 +3,13 @@ import { MultiSelect } from './multi-select'
 import { Editor, Extension, Node } from '@tiptap/core'
 import { SHAPE_INLINE_WRAP } from './floating-z-order'
 import { StreamingTailGuardExtension } from './streaming-tail-guard'
+import { SplitSourceParagraph } from './split-source-paragraph'
 import { geometryLevelOf } from './list-geometry-level'
 import { wrapGroupCss, type WrapPicture } from './wrap-group'
 import type { ChainedCommands, RawCommands } from '@tiptap/core'
 import { Gapcursor, UndoRedo } from '@tiptap/extensions'
 import { DOMSerializer } from '@tiptap/pm/model'
-import type { DOMOutputSpec, Node as PmNode } from '@tiptap/pm/model'
+import type { DOMOutputSpec, Node as PmNode, ResolvedPos } from '@tiptap/pm/model'
 import {
   AllSelection,
   NodeSelection,
@@ -270,9 +271,12 @@ const anchorAttrs = {
   docxIndex: { default: null as number | null },
   /** source paragraph index (Block.sourceParaIndex) of the paragraph the engine
    *  parsed: its w:p among all paragraphs of the original document.xml. A split
-   *  copies it to the new half (an index two nodes share is never marked);
+   *  keeps it on the first half and marks the second with continuesPara;
    *  paragraphs created from scratch carry null */
   docxPara: { default: null as number | null },
+  /** Vound fork: the source index of the paragraph this one continues after a split (Enter inside it); the
+   *  first half keeps docxPara, so an index names one node (split-source-paragraph.ts) */
+  continuesPara: { default: null as number | null },
   /** JSON of the table-style paragraph properties (convert.ts tableStyleParaAttr); display only */
   tblPara: { default: null as string | null },
   styleId: { default: null as string | null },
@@ -1996,7 +2000,9 @@ export const DocParagraph = Node.create({
         const { $from, empty } = state.selection
         if (!empty || $from.parentOffset !== 0) return false
         const node = $from.parent
-        if (node.type.name !== 'docParagraph' || !(Number(node.attrs.indentLeft) > 0)) return false
+        if (node.type.name !== 'docParagraph') return false
+        if (isEmptyAtEdge($from, 'start')) return true
+        if (!(Number(node.attrs.indentLeft) > 0)) return false
         const styleLeft = styleIndentLeftTw(node.attrs.styleId as string | null, this.editor)
         const firstLine = node.attrs.indentFirstLine as number | null
         return this.editor.commands.command(({ tr }) => {
@@ -2008,9 +2014,22 @@ export const DocParagraph = Node.create({
           return true
         })
       },
+      Delete: () => {
+        const { $from, empty } = this.editor.state.selection
+        return empty && $from.parent.type.name === 'docParagraph' && isEmptyAtEdge($from, 'end')
+      },
     }
   },
 })
+
+/** Vound fork: an empty paragraph with nothing to join on that side in its table cell (or the document).
+ *  Word leaves it and its properties alone; Tiptap's Backspace and Delete would make it a default paragraph. */
+function isEmptyAtEdge($from: ResolvedPos, side: 'start' | 'end') {
+  const index = $from.index(-1)
+  const atEdge = side === 'start' ? index === 0 : index === $from.node(-1).childCount - 1
+  const container = $from.depth === 1 || $from.node(-1).type.spec.isolating === true
+  return $from.parent.content.size === 0 && atEdge && container
+}
 
 function styleIndentLeftTw(styleId: string | null, editor: Editor): number | null {
   if (!styleId) return null
@@ -4530,6 +4549,49 @@ export function deleteSelectedWholeTable(
   return false
 }
 
+/** Vound fork: Delete or Backspace over selected cells clears their text and keeps each cell's first
+ *  paragraph with its properties, as Word does; prosemirror-tables would fill them with default paragraphs. */
+export function clearSelectedCells(
+  state: EditorState,
+  dispatch?: (transaction: Transaction) => void,
+): boolean {
+  const { selection } = state
+  if (!(selection instanceof CellSelection)) return false
+  dispatch?.(clearCells(state.tr, selection))
+  return true
+}
+
+/** the selected cells' text removed, each cell's first paragraph kept */
+function clearCells(tr: Transaction, selection: CellSelection) {
+  selection.forEachCell((cell, pos) => {
+    if (!cell.firstChild?.isTextblock || !cell.lastChild?.isTextblock) return
+    const from = tr.mapping.map(pos + 2)
+    const to = tr.mapping.map(pos + cell.nodeSize - 2)
+    if (to > from) tr.delete(from, to)
+  })
+  return tr
+}
+
+/** Vound fork: text typed over selected cells clears them as clearSelectedCells does and goes into the first
+ *  cell's first paragraph, in the formatting of that paragraph's first text, as in Word; prosemirror-tables
+ *  would put it into a new default paragraph. */
+export function typeOverSelectedCells(view: EditorView, text: string): boolean {
+  const { selection, schema } = view.state
+  if (!(selection instanceof CellSelection)) return false
+  const paragraphs: Array<{ pos: number; node: PmNode }> = []
+  selection.forEachCell((cell, pos) => {
+    if (cell.firstChild?.isTextblock) paragraphs.push({ pos: pos + 1, node: cell.firstChild })
+  })
+  if (paragraphs.length === 0) return false
+  const { pos, node } = paragraphs[0]
+  const marks = (node.firstChild?.marks ?? []).filter((mark) => mark.type.spec.inclusive !== false)
+  const tr = clearCells(view.state.tr, selection)
+  const at = tr.mapping.map(pos + 1)
+  tr.insert(at, schema.text(text, marks))
+  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, at + text.length)).scrollIntoView())
+  return true
+}
+
 /** transaction meta: document load/stream paths that must not get a trailing paragraph appended mid-stream */
 export const TABLE_TRAILING_SKIP = 'tableTrailingSkip'
 
@@ -4543,8 +4605,9 @@ export const NativeTableSupport = Extension.create({
     return {}
   },
   addKeyboardShortcuts() {
-    const deleteWholeTable = () =>
-      deleteSelectedWholeTable(this.editor.state, this.editor.view.dispatch)
+    const deleteTableOrClearCells = () =>
+      deleteSelectedWholeTable(this.editor.state, this.editor.view.dispatch) ||
+      clearSelectedCells(this.editor.state, this.editor.view.dispatch)
     return {
       Tab: () => {
         const { view } = this.editor
@@ -4555,8 +4618,8 @@ export const NativeTableSupport = Extension.create({
         return goToNextCell(1)(this.editor.state, view.dispatch)
       },
       'Shift-Tab': () => goToNextCell(-1)(this.editor.state, this.editor.view.dispatch),
-      Backspace: deleteWholeTable,
-      Delete: deleteWholeTable,
+      Backspace: deleteTableOrClearCells,
+      Delete: deleteTableOrClearCells,
     }
   },
   addProseMirrorPlugins() {
@@ -4588,6 +4651,7 @@ export const NativeTableSupport = Extension.create({
       tableColumnDrag(),
       tableRowDrag(),
       columnResizing({ View: null, cellMinWidth: 40, lastColumnResizable: true }),
+      new Plugin({ props: { handleTextInput: (view, _from, _to, text) => typeOverSelectedCells(view, text) } }),
       tableEditing({ allowTableNodeSelection: true }),
       // Word never ends a body with a table: without a paragraph below it the
       // caret can never leave the table (public issue #266)
@@ -7586,6 +7650,7 @@ export const AutoLinkOnDelimiter = Extension.create({
 
 export const editorExtensions = [
   StreamingTailGuardExtension,
+  SplitSourceParagraph,
   ScriptFonts,
   DocDocument,
   DocText,

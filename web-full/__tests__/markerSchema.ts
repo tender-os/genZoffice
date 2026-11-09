@@ -10,7 +10,7 @@ export const schema = new Schema({
     docParagraph: {
       group: 'block',
       content: 'inline*',
-      attrs: { docxPara: { default: null }, align: { default: null } },
+      attrs: { docxPara: { default: null }, continuesPara: { default: null }, align: { default: null } },
       // only the view tests (scrollToMarker, reviewMode, fieldWrite, fieldReporting) render or parse
       toDOM: () => ['p', 0],
       parseDOM: [{ tag: 'p' }],

@@ -200,6 +200,21 @@ export function placeholderParagraphs(node: XNode): Set<XNode> {
   return found
 }
 
+/** a character style Word gives placeholder text (Placeholder Text, Platzhaltertext); typed text drops it */
+export function isPlaceholderStyleId(styleId: string): boolean {
+  return /Platzhalter|Placeholder/i.test(styleId)
+}
+
+/** a control's XML without its placeholder flag, for a control that holds content of its own again */
+export function withoutPlaceholderFlag(sdtXml: string): string {
+  return sdtXml.replace(/<w:showingPlcHdr\b[^>]*\/>/g, '')
+}
+
+/** a run's properties without a placeholder character style */
+export function withoutPlaceholderStyle(rPrXml: string): string {
+  return rPrXml.replace(/<w:rStyle w:val="([^"]*)"\s*\/>/g, (tag, styleId: string) => (isPlaceholderStyleId(styleId) ? '' : tag))
+}
+
 /** marks runs as placeholder text */
 export function markPlaceholder(runs: { placeholder?: true }[] | undefined): void {
   for (const run of runs ?? []) run.placeholder = true

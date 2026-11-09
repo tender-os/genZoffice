@@ -4,6 +4,8 @@ import { DecorationSet } from '@tiptap/pm/view'
 import type { SlotMarker } from '../embed-protocol'
 import { markersKey, markersPlugin, saveMeta, viewDecorations } from '../markersPlugin'
 import { cell, doc, para, paragraphs, schema, table } from './markerSchema'
+import { splitSourceParagraphPlugin } from '../../apps/docs/src/renderer/editor/split-source-paragraph'
+import { locateBlock } from '../markers'
 
 const marker = (id: string, paragraph: number): SlotMarker => ({ id, paragraph, scope: 'paragraph', tone: 'proposed', label: id, actions: [] })
 const stateWith = (...blocks: Parameters<typeof doc>) => EditorState.create({ schema, doc: doc(...blocks), plugins: [markersPlugin] })
@@ -37,7 +39,7 @@ describe('markersPlugin', () => {
     expect(state.doc.nodeAt(late!.from)?.attrs.docxPara).toBe(190)
   })
 
-  it('maps decorations through a text edit and drops the marker of a split paragraph', () => {
+  it('maps decorations through a text edit, marks both halves of a split paragraph and drops a copied index', () => {
     let state = withMeta(stateWith(...paragraphs(0, 6)), { markers: [marker('s4', 4)] })
     const [before] = decorated(state)
     expect(state.doc.nodeAt(before.from)?.attrs.docxPara).toBe(4)
@@ -46,9 +48,14 @@ describe('markersPlugin', () => {
     state = apply(state, (tr) => tr.insertText('xx', 1))
     expect(decorated(state)).toEqual([{ id: 's4', from: before.from + 2, to: before.to + 2 }])
 
-    // a split copies docxPara 4 to both halves: the index now names two nodes, so the marker goes
+    // a split copies docxPara 4 to both halves, side by side: the second continues the first
     state = apply(state, (tr) => tr.split(decorated(state)[0].from + 4))
     expect(state.doc.childCount).toBe(7)
+    expect(decorated(state).map((d) => [d.id, state.doc.nodeAt(d.from)?.textContent])).toEqual([['s4', 'par'], ['s4', 'agraph 4']])
+    expect(info).not.toHaveBeenCalled()
+
+    // the same index on a paragraph elsewhere names two places: the marker goes
+    state = apply(state, (tr) => tr.insert(tr.doc.content.size, para(4, 'copy')))
     expect(decorated(state)).toEqual([])
     expect(info).toHaveBeenCalledWith('[vound] markers dropped', ['s4'])
   })
@@ -260,7 +267,7 @@ describe('markersPlugin', () => {
       return found!
     }
 
-    it('Backspace in the emptied paragraph turns it into a new default one (Tiptap clearNodes)', () => {
+    it('an edit that turns the emptied paragraph into a new default one', () => {
       let state = cellState()
       const { pos } = valueParagraph(state)
       state = edit(state, (tr) => tr.delete(pos + 1, pos + 1 + 'Muster GmbH'.length))
@@ -269,7 +276,7 @@ describe('markersPlugin', () => {
       expect(decorated(state).map((d) => d.id).sort()).toEqual(['c2', 's2'])
     })
 
-    it('a deleted cell selection fills the cell with a new default paragraph', () => {
+    it('a cut cell selection fills the cell with a new default paragraph', () => {
       let state = cellState()
       const { pos } = valueParagraph(state)
       const cellEnd = pos + state.doc.nodeAt(pos)!.nodeSize
@@ -300,6 +307,35 @@ describe('markersPlugin', () => {
       state = edit(state, (tr) => tr.delete(block.from, block.to))
       expect(decorated(state)).toEqual([])
       expect(info).toHaveBeenCalledWith('[vound] markers dropped', ['s2'])
+    })
+  })
+
+  describe('a split field paragraph keeps its marker on both halves', () => {
+    // the editor's own bookkeeping of a split source paragraph runs with the markers, as in the app
+    const splitState = () =>
+      withMeta(
+        EditorState.create({ schema, doc: doc(para(0, 'Firma'), para(1, 'Muster GmbH'), para(2, 'Ort')), plugins: [splitSourceParagraphPlugin, markersPlugin] }),
+        { markers: [marker('s1', 1)] },
+      )
+    const edit = (state: EditorState, change: (tr: Transaction) => Transaction) => state.applyTransaction(change(state.tr)).state
+    const marked = (state: EditorState) => decorated(state).map((d) => [d.id, state.doc.nodeAt(d.from)!.textContent])
+    const gmbh = (state: EditorState) => state.doc.child(1).content.size - 'GmbH'.length + state.doc.child(0).nodeSize + 1
+
+    it('marks both halves after Enter, and a write or caret still finds the first one alone', () => {
+      let state = edit(splitState(), (tr) => tr.split(gmbh(splitState())))
+      expect(marked(state)).toEqual([['s1', 'Muster '], ['s1', 'GmbH']])
+      expect(info).not.toHaveBeenCalled()
+      expect(locateBlock(state.doc, { paragraph: 1, scope: 'paragraph' })?.node.textContent).toBe('Muster ')
+      state = edit(state, (tr) => tr.insertText('Bau ', state.doc.child(0).nodeSize + 1 + 'Muster '.length))
+      state = edit(state, (tr) => tr.insertText(' & Co. KG', state.doc.child(0).nodeSize + state.doc.child(1).nodeSize + 1 + 'GmbH'.length))
+      expect(marked(state)).toEqual([['s1', 'Muster Bau '], ['s1', 'GmbH & Co. KG']])
+    })
+
+    it('gives the single-paragraph field back when the halves are joined', () => {
+      let state = edit(splitState(), (tr) => tr.split(gmbh(splitState())))
+      state = edit(state, (tr) => tr.join(state.doc.child(0).nodeSize + state.doc.child(1).nodeSize))
+      expect(marked(state)).toEqual([['s1', 'Muster GmbH']])
+      expect(state.doc.child(1).attrs).toMatchObject({ docxPara: 1, continuesPara: null })
     })
   })
 })

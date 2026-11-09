@@ -1081,6 +1081,9 @@ export interface FieldDisplay {
   /** formatted result runs of a text field (italic journal names, a manual
    *  drop-cap letter next to body text); their joined text equals `left` */
   runs?: FieldRun[]
+  /** the paragraph's one legacy text form field's default text (w:ffData/w:textInput/w:default, Vound fork):
+   *  the field shows it, as a placeholder typing replaces, while `left` equals it */
+  defaultText?: string
   /** text field with no visible result (a paragraph holding only a fldChar end, or a blank legacy text
    *  form field): Word shows an empty paragraph, so the renderer keeps its line box */
   emptyLine?: boolean
@@ -1280,6 +1283,9 @@ export interface TableParagraph extends ParaFormat {
   /** document-order index of this paragraph's w:p in the original document.xml
    *  (see source-para-index.ts); read-only, never written back */
   sourceParaIndex?: number
+  /** editor only (Vound fork): the source paragraph this one continues after a split; a cell save keeps it
+   *  where that paragraph was. Never parsed or written */
+  continuesSourceParaIndex?: number
 }
 
 /** One cell border (a w:tcBorders child element) */

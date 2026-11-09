@@ -1,5 +1,6 @@
 import { isOn } from './checkbox-control'
 import { decodeEntities } from './parse-xml-text'
+import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
 import type { Run } from './types'
 import { escapeXmlText } from './xml-utils'
 
@@ -246,9 +247,7 @@ export function patchFieldParagraphText(
   return patched.replace(sdtRe, (sdt) => {
     const prior = before[i++]
     if (prior !== undefined && decodedTextOf(prior) === decodedTextOf(sdt)) return sdt
-    return sdt
-      .replace(/<w:showingPlcHdr\s*\/>/g, '')
-      .replace(/<w:rStyle w:val="(?:[^"]*Platzhalter[^"]*|[^"]*Placeholder[^"]*)"\s*\/>/gi, '')
+    return withoutPlaceholderStyle(withoutPlaceholderFlag(sdt))
   })
 }
 

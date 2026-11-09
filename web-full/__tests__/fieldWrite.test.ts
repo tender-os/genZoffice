@@ -158,7 +158,7 @@ describe('applyFieldValue', () => {
   })
 
   it('refuses an index naming two nodes', () => {
-    const v = viewOf(para(3, 'Muster'), para(3, 'GmbH'))
+    const v = viewOf(para(3, 'Muster'), para(4, 'und'), para(3, 'GmbH'))
     expect(write(v, paragraphBlock(3), 'Muster', 'X')).toEqual({ ok: false, reason: 'noBlock' })
     expect(write(v, paragraphBlock(9), 'Muster', 'X')).toEqual({ ok: false, reason: 'noBlock' })
     // a cell scope outside any table
@@ -374,6 +374,12 @@ describe('placeCaret', () => {
     expect(placeCaret(v, cellBlock(1))).toBe(true)
     const { from, to } = v.state.selection
     expect(v.state.doc.textBetween(from, to)).toBe('Rechtsform eingeben')
+  })
+
+  it("selects a form field's default text so typing replaces it", () => {
+    const v = viewOf(para(0, 'Ort:'), fieldPara(1, 'Ort eingeben', { defaultText: 'Ort eingeben' }))
+    expect(placeCaret(v, paragraphBlock(1))).toBe(true)
+    expect(document.getSelection()!.toString()).toBe('Ort eingeben')
   })
 
   it("selects an empty field's placeholder so typing replaces it", () => {

@@ -53,6 +53,7 @@ export { assertZipInflatesWithinLimits, assertZipWithinLimits, DOCX_ZIP_LIMITS }
 export { LAZY_MEDIA_SCHEME, isLazyMediaPart, lazyMediaUrl, parseLazyMediaUrl } from './lazy-media'
 export { setAltChunkHtmlConverter, type AltChunkHtmlConverter } from './alt-chunk'
 export { tocLevelOf } from './parse-fields'
+export { isPlaceholderStyleId, withoutPlaceholderStyle } from './parse-sdt'
 export { mergeStyleBorders } from './parse-props'
 export {
   APP_PROPERTIES_PATH,
