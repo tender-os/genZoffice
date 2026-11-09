@@ -218,6 +218,30 @@ describe('mountFieldChip', () => {
     expect(shown()).toBe(false)
   })
 
+  it('after a scroll the caret\'s field gets its chip back once the page rests', () => {
+    vi.useFakeTimers()
+    const { left } = twoCellRow()
+    caretIn(left)
+    scroller.dispatchEvent(new Event('scroll'))
+    expect(shown()).toBe(false)
+    vi.advanceTimersByTime(150)
+    scroller.dispatchEvent(new Event('scroll'))
+    vi.advanceTimersByTime(219)
+    expect(shown()).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(owner()).toBe('nummer')
+  })
+
+  it('after a scroll with the caret outside the fields the chip stays hidden', () => {
+    vi.useFakeTimers()
+    const { left } = twoCellRow()
+    hover(left)
+    caretIn(view!.dom.querySelector('p')!)
+    scroller.dispatchEvent(new Event('scroll'))
+    vi.advanceTimersByTime(500)
+    expect(shown()).toBe(false)
+  })
+
   it('the elbow takes the missing tone and hides with the chip', () => {
     const { left } = twoCellRow()
     setMarkers(view!, [{ ...marker('nummer', 1, ['fill', 'ask']), scope: 'cell', tone: 'gap' }])
