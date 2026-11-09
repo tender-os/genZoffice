@@ -19,6 +19,7 @@ import type { EditorToHost } from './embed-protocol'
 import { boxGapDecorations } from './boxGap'
 import { boxTickKey, boxTickPlugin } from './boxTick'
 import { editScopeKey, editScopePlugin } from './editScope'
+import { formTextKey, formTextPlugin, hangingFieldDecorations } from './formTextField'
 import { mountFieldChip } from './fieldChip'
 import { fieldRingKey, fieldRingPlugin } from './fieldRing'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
@@ -75,7 +76,7 @@ function blankDecorations(doc: PmNode) {
   const decorations: Decoration[] = []
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
-    decorations.push(...boxGapDecorations(node, pos))
+    decorations.push(...boxGapDecorations(node, pos), ...hangingFieldDecorations(node, pos))
     const blank = formFieldBlankStart(node)
     if (blank !== null) decorations.push(Decoration.inline(pos + 1 + blank, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
     node.forEach((child, offset) => {
@@ -138,6 +139,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   // the same listener added twice is one listener
   window.addEventListener('keydown', blockShortcut, true)
   if (!reviewModeKey.get(editor.state)) editor.registerPlugin(reviewModePlugin, first)
+  if (!formTextKey.get(editor.state)) editor.registerPlugin(formTextPlugin, first)
   if (!fieldReportingKey.get(editor.state)) editor.registerPlugin(fieldReportingPlugin(post), first)
   if (!boxTickKey.get(editor.state)) editor.registerPlugin(boxTickPlugin, first)
   if (!editScopeKey.get(editor.state)) editor.registerPlugin(editScopePlugin(post), first)
@@ -153,6 +155,7 @@ export function leaveReviewMode(editor: Editor): void {
   document.documentElement.classList.remove('vound-review')
   window.removeEventListener('keydown', blockShortcut, true)
   if (reviewModeKey.get(editor.state)) editor.unregisterPlugin(reviewModeKey)
+  if (formTextKey.get(editor.state)) editor.unregisterPlugin(formTextKey)
   if (fieldReportingKey.get(editor.state)) editor.unregisterPlugin(fieldReportingKey)
   if (boxTickKey.get(editor.state)) editor.unregisterPlugin(boxTickKey)
   if (editScopeKey.get(editor.state)) editor.unregisterPlugin(editScopeKey)

@@ -22,11 +22,10 @@ const fieldResults = (xml: string) =>
     )
 
 describe('a blank legacy text form field (Vound fork)', () => {
-  it('parses as a text field with an empty result on its empty line, so it can be typed into', async () => {
+  it('parses as text the caret can enter, its result known as the field', async () => {
     const doc = await parseDocx(await buildDocx({ bodyXml: BLANK_FORMTEXT }))
-    expect(doc.blocks[0].fieldDisplay).toMatchObject({ kind: 'text', left: '', emptyLine: true })
-    // unlike a lone field end, it has result text to take a value
-    expect(doc.blocks[0].fieldDisplay?.fieldEndOnly).toBeUndefined()
+    expect(doc.blocks[0].type).toBe('paragraph')
+    expect(doc.blocks[0].runs).toMatchObject([{ text: '\u2002'.repeat(3), formText: 0 }])
   })
 
   it('takes a typed result inside the field result and keeps the field machinery', () => {
@@ -58,9 +57,9 @@ describe('a blank legacy text form field (Vound fork)', () => {
     }
   })
 
-  it('parses a line of several blank fields as one empty text field', async () => {
+  it('parses a line of several blank fields as separate fields', async () => {
     const doc = await parseDocx(await buildDocx({ bodyXml: BLANK_NAME_LINE }))
-    expect(doc.blocks[0].fieldDisplay).toMatchObject({ kind: 'text', left: '', emptyLine: true })
+    expect(doc.blocks[0].runs?.map((run) => run.formText)).toEqual([0, 1, 2])
   })
 
   it("writes a line of several fields into the first field's result and leaves the other fields as they were", () => {

@@ -467,6 +467,18 @@ export const CtrlPlaceholderMark = Mark.create({
   },
 })
 
+/** Vound fork: the result of a legacy text form field, by its place among the paragraph's fields */
+export const FormTextFieldMark = Mark.create({
+  name: 'formTextField',
+  excludes: '',
+  addAttributes() {
+    return { index: { default: 0, rendered: false } }
+  },
+  renderHTML() {
+    return ['span', { class: 'doc-form-text' }, 0]
+  },
+})
+
 /**
  * CSS-only system keywords: names that resolve to a face inside a UA, never a
  * real font family. They reach a pasted chain as ordinary-looking entries — a

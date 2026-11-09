@@ -457,11 +457,12 @@ export function fieldInstructions(xml: string): string[] {
   return out
 }
 
-/** Vound fork: a paragraph whose fields are all legacy form fields, a checkbox among them */
-export function formBoxLine(xml: string): boolean {
-  if (xml.includes('<w:fldSimple') || !xml.includes('<w:checkBox') || !fieldCharsBalanced(xml)) return false
+/** Vound fork: a paragraph whose fields are all legacy text form fields, or all legacy form fields with a box */
+export function formFieldLine(xml: string): boolean {
+  if (xml.includes('<w:fldSimple') || !fieldCharsBalanced(xml)) return false
   const codes = fieldInstructions(xml).map((instruction) => instruction.trim().split(/\s+/)[0])
-  return codes.includes('FORMCHECKBOX') && codes.every((code) => code.startsWith('FORM'))
+  if (codes.length > 0 && codes.every((code) => code === 'FORMTEXT')) return true
+  return xml.includes('<w:checkBox') && codes.includes('FORMCHECKBOX') && codes.every((code) => code.startsWith('FORM'))
 }
 
 export function onlyXeFields(xml: string): boolean {
@@ -997,6 +998,7 @@ function sameStyle(a: Run, b: Run): boolean {
   if (a.instrField !== undefined || b.instrField !== undefined) return false
   if (a.sdtCheckboxXml !== undefined || b.sdtCheckboxXml !== undefined) return false
   if (a.placeholder !== b.placeholder) return false
+  if (a.formText !== b.formText) return false
   if (a.math || b.math) return false
   if (a.sym || b.sym) return false
   if (a.ruby || b.ruby) return false

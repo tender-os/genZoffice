@@ -201,14 +201,8 @@ describe('a label and a text field in a body paragraph', () => {
   ])('text added after the label lands in the field showing %s', async (_, result) => {
     const line = paragraph(`${label('Handelsregister: ')}${formText(result)}`)
     const { parsed, editor } = await open(line, 'everything')
-    const field = editor.state.doc.child(0)
-    const left = `${field.attrs.fieldDisplay.left} HRB 42`
-    editor.view.dispatch(
-      editor.state.tr.setNodeMarkup(0, undefined, {
-        ...field.attrs,
-        fieldDisplay: { ...field.attrs.fieldDisplay, left },
-      }),
-    )
+    editor.commands.setTextSelection(editor.state.doc.child(0).nodeSize - 1)
+    type(editor, 'HRB 42')
 
     const dom = await save(parsed, editor)
     expect(fieldResults(dom, 'FORMTEXT')).toEqual(['HRB 42'])

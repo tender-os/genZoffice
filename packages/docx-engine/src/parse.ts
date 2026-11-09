@@ -188,7 +188,7 @@ import {
   mergedBorderLinesOf,
   onlyOleFields,
   onlyXeFields,
-  formBoxLine,
+  formFieldLine,
   paraBorderSidesOf,
   paraBordersOf,
   partXmlSpacePreserve,
@@ -1155,8 +1155,8 @@ async function buildBlock(
     }
     // XE (index entry) fields are invisible markers; a paragraph whose only
     // fields are XE stays editable (extractRuns round-trips the markers).
-    // Vound fork: a line of form fields with a box is text with its box, as in a table cell
-    if (!onlyXeFields(detect) && !formBoxLine(detect)) return fieldPassthrough()
+    // Vound fork: a line of form fields is text one types into, as in a table cell
+    if (!onlyXeFields(detect) && !formFieldLine(detect)) return fieldPassthrough()
   }
   // TOC-styled paragraphs are part of a TOC field result even when they carry
   // no field chars themselves (entries with literal page numbers). Editing
@@ -4221,6 +4221,7 @@ function extractRuns(
   let fieldCached = ''
   let fieldCachedRuns: Run[] = []
   let fieldBeginRun: XNode | null = null
+  let formTextCount = 0
   let fieldDirty = false
   const eqField = (instr: string) => (/^\s*EQ\b/i.test(instr) ? eqFieldToOmml(instr) : null)
   // formatting of the field result: the first cached run, else the field code's rPr
@@ -4389,13 +4390,18 @@ function extractRuns(
           } else if (eqField(fieldInstr)) {
             const eq = eqField(fieldInstr)!
             pushRun({ ...resultFormat(), text: eq.text, math: { omml: eq.omml } }, rev)
-          } else if (
-            /^\s*FORMTEXT\s*$/.test(fieldInstr) &&
-            fieldCached !== '' &&
-            fieldCached === formTextDefaultOf(fieldBeginRun)
-          ) {
+          } else if (/^\s*FORMTEXT\s*$/.test(fieldInstr)) {
+            const formText = formTextCount++
             // a text form field still showing its default text: typing replaces it whole, as in Word
-            for (const cached of fieldCachedRuns) pushRun({ ...cached, placeholder: true }, rev)
+            const shown =
+              fieldCached !== '' && fieldCached === formTextDefaultOf(fieldBeginRun)
+                ? { placeholder: true as const }
+                : {}
+            // an empty result still is a place to type, except after a box: text typed there goes behind it (reviewMode.ts)
+            if (fieldCachedRuns.length === 0 && !runs.some((run) => run.fldBeginXml)) {
+              pushRun({ text: EMPTY_CONTROL_TEXT, placeholder: true, formText }, rev)
+            }
+            for (const cached of fieldCachedRuns) pushRun({ ...cached, ...shown, formText }, rev)
           } else if (fieldCachedRuns.length > 0) {
             // any other field (HYPERLINK with switches, ASK / FILLIN, the
             // mail-merge control fields NEXT / SKIPIF...): the cached result is
