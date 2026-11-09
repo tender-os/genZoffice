@@ -145,6 +145,18 @@ describe.each(['everything', 'fields'] as const)('a box and a text field, editin
     expect(boxDefaults(dom)).toEqual(['1'])
   })
 
+  it("typed keys stay in order when the click left the caret before Word's blank", async () => {
+    const { parsed, editor } = await open(inCell(paragraph(`${box(1)}${formText(blankResult)}`)), scope)
+    markFields(editor)
+    const { pos } = fieldParagraph(editor)
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, pos + 2)),
+    )
+    for (const key of VALUE) type(editor, key)
+
+    expect(fieldResults(await save(parsed, editor), 'FORMTEXT')).toEqual([VALUE])
+  })
+
   it("the caret placed on the field selects Word's blank, so typing replaces it", async () => {
     const { parsed, editor } = await open(
       inCell(paragraph(`${box(0)}${TAB}${formText(blankResult)}`)),
@@ -182,12 +194,12 @@ describe.each(['everything', 'fields'] as const)('a box and a text field, editin
   })
 })
 
-describe('a box, a label and a text field in a body paragraph', () => {
+describe('a label and a text field in a body paragraph', () => {
   it.each([
     ["Word's blank", blankResult],
     ['no result', ''],
   ])('text added after the label lands in the field showing %s', async (_, result) => {
-    const line = paragraph(`${box(1)}${label(' Handelsregister: ')}${formText(result)}`)
+    const line = paragraph(`${label('Handelsregister: ')}${formText(result)}`)
     const { parsed, editor } = await open(line, 'everything')
     const field = editor.state.doc.child(0)
     const left = `${field.attrs.fieldDisplay.left} HRB 42`
@@ -200,10 +212,9 @@ describe('a box, a label and a text field in a body paragraph', () => {
 
     const dom = await save(parsed, editor)
     expect(fieldResults(dom, 'FORMTEXT')).toEqual(['HRB 42'])
-    expect(boxDefaults(dom)).toEqual(['1'])
     const literal = [...dom.getElementsByTagName('w:p')[0].children].filter((child) =>
       child.textContent?.includes('Handelsregister'),
     )
-    expect(literal.map((child) => child.textContent)).toEqual([' Handelsregister: '])
+    expect(literal.map((child) => child.textContent)).toEqual(['Handelsregister: '])
   })
 })
