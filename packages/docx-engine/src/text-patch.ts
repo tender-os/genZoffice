@@ -154,6 +154,8 @@ const LINE_BREAKS: Record<
     outsideChars: RegExp
     outsideElements: RegExp
     patch: (paraXml: string, newText: string) => string | null
+    /** the paragraph XML the patch starts from */
+    anchor: (paraXml: string) => string
   }
 > = {
   outsideText: {
@@ -162,18 +164,45 @@ const LINE_BREAKS: Record<
     outsideChars: /[\t\n]/g,
     outsideElements: /<w:tab\s*\/>|<w:tab>\s*<\/w:tab>|<w:br\s*\/>|<w:cr\s*\/>/g,
     patch: patchParagraphTexts,
+    anchor: (paraXml) => paraXml,
   },
   inText: {
     slices: lineSlices,
+    // an emptied stretch keeps an empty w:t: the next save anchors typed text in it
     write: (text) =>
       text
         .split('\n')
         .map((part) => (part === '' ? '' : wtXml(part)))
-        .join('<w:br/>'),
+        .join('<w:br/>') || wtXml(''),
     outsideChars: /\t/g,
     outsideElements: /<w:tab\s*\/>|<w:tab>\s*<\/w:tab>/g,
     patch: patchParagraphLines,
+    anchor: withControlAnchors,
   },
+}
+
+const CONTENT_OPEN = '<w:sdtContent>'
+const CONTENT_CLOSE = '</w:sdtContent>'
+
+/** Vound fork: an empty w:t in each control that holds none (emptied by an earlier save, or empty from the
+ *  start), so text typed into it has a place inside the control */
+function withControlAnchors(paraXml: string): string {
+  let out = ''
+  let cursor = 0
+  for (let open = paraXml.indexOf(CONTENT_OPEN); open !== -1; open = paraXml.indexOf(CONTENT_OPEN, cursor)) {
+    const start = open + CONTENT_OPEN.length
+    const close = paraXml.indexOf(CONTENT_CLOSE, start)
+    if (close === -1) break
+    const content = paraXml.slice(start, close)
+    const holdsText = content.includes('<w:t>') || content.includes('<w:t ') || content.includes(CONTENT_OPEN)
+    const runEnd = content.indexOf('</w:r>')
+    out += paraXml.slice(cursor, start)
+    if (holdsText) out += content
+    else if (runEnd === -1) out += `<w:r>${wtXml('')}</w:r>${content}`
+    else out += content.slice(0, runEnd) + wtXml('') + content.slice(runEnd)
+    cursor = close
+  }
+  return out + paraXml.slice(cursor)
 }
 
 /** Vound fork: a field's paragraph, or one with typed breaks (column, page), keeps line breaks outside the patch */
@@ -236,8 +265,10 @@ function patchOneParagraph(
     })
     // insertion point outside every w:t (in theory only an empty paragraph): no anchor, give up
     if (touched.length === 0) return null
-    const first = touched[0]
-    const last = touched[touched.length - 1]
+    // Vound fork: an insertion beside an empty w:t goes into it: the anchor of a control emptied before
+    const emptyAnchor = touched.find((i) => changeStart === changeEnd && bounds[i].start === bounds[i].end)
+    const first = emptyAnchor ?? touched[0]
+    const last = emptyAnchor ?? touched[touched.length - 1]
     // first takes its head, the new text and last's tail; the rest are emptied
     const head = texts[first].slice(0, changeStart - bounds[first].start)
     const tail = texts[last].slice(changeEnd - bounds[last].start)
@@ -288,13 +319,15 @@ export function patchFieldParagraphText(
   const originalControls = (originalParaXml.match(mode.outsideElements) ?? []).length
   if (controls !== originalControls && !/<w:ffData\b|<w:sdt\b/.test(originalParaXml)) return null
   const newText = joined.replace(mode.outsideChars, controls > originalControls ? ' ' : '')
-  const patched = mode.patch(originalParaXml, newText)
+  const source = mode.anchor(originalParaXml)
+  const patched = mode.patch(source, newText)
   if (patched === null) return null
-  if (patched === originalParaXml || !patched.includes('<w:showingPlcHdr')) return patched
+  if (patched === source) return originalParaXml
+  if (!patched.includes('<w:showingPlcHdr')) return patched
   // typed text replaced a placeholder: that control loses its placeholder flag and the
   // placeholder character style, as in Word; controls whose text is unchanged keep both
   const sdtRe = /<w:sdt>[\s\S]*?<\/w:sdt>/g
-  const before = originalParaXml.match(sdtRe) ?? []
+  const before = source.match(sdtRe) ?? []
   let i = 0
   return patched.replace(sdtRe, (sdt) => {
     const prior = before[i++]
