@@ -2460,6 +2460,7 @@ function buildTextParagraph(
     },
     docOffset,
   )
+  const control = holdsInlineControl(pNode) ? { holdsControl: true as const } : {}
   /** extra revision fields shared across all return paths */
   const revExtras = {
     ...(moveRevision ? { moveRevision } : {}),
@@ -2482,6 +2483,7 @@ function buildTextParagraph(
       commentStarts,
       commentEnds,
       runs,
+      ...control,
       ...revExtras,
     }
   }
@@ -2502,6 +2504,7 @@ function buildTextParagraph(
       commentStarts,
       commentEnds,
       runs,
+      ...control,
       ...revExtras,
     }
   }
@@ -2517,6 +2520,7 @@ function buildTextParagraph(
     commentStarts,
     commentEnds,
     runs,
+    ...control,
     ...revExtras,
   }
 }
@@ -5745,6 +5749,9 @@ function applyTableStyleDisplay(
 
 const ANCHOR_HOSTS = new Set(['w:drawing', 'w:pict'])
 const TXBX_CONTENT = new Set(['w:txbxContent'])
+const SDT = new Set(['w:sdt'])
+/** Vound fork: a w:p holding an inline content control outside its textboxes */
+const holdsInlineControl = (pNode: XNode) => hasDeepChildOutside(pNode, SDT, TXBX_CONTENT)
 const WP_INLINE = new Set(['wp:inline'])
 const WP_ANCHOR = new Set(['wp:anchor'])
 /** wp:docPr ids of the anchored drawings in a layout-table row / on a cell-run image (binds HfImage.anchorPara) */
@@ -5955,6 +5962,7 @@ function extractCell(
       ...(markSz ? { markSizeHalfPoints: markSz } : {}),
       ...(list ? { list } : {}),
       ...(sourceParaIndex !== undefined ? { sourceParaIndex } : {}),
+      ...(holdsInlineControl(p) ? { holdsControl: true as const } : {}),
       runs,
     })
     if (paraText !== '') textParaJcs.add(attrsOf(findChild(pPr ?? {}, 'w:jc') ?? {})['w:val'] ?? '')

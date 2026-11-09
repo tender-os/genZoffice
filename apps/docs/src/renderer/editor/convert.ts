@@ -917,6 +917,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
+          holdsControl: block.holdsControl === true,
           styleId: block.styleId ?? null,
           aiChanged: false,
           level: block.level ?? 1,
@@ -939,6 +940,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
+          holdsControl: block.holdsControl === true,
           styleId: block.styleId ?? null,
           aiChanged: false,
           kind: block.list?.kind ?? 'bullet',
@@ -963,6 +965,7 @@ function blockToPmNode(
         attrs: {
           docxIndex: block.docxIndex,
           docxPara: block.sourceParaIndex ?? null,
+          holdsControl: block.holdsControl === true,
           styleId: block.styleId ?? null,
           aiChanged: false,
           bookmarks: block.bookmarks ?? null,
@@ -1335,6 +1338,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
     const styleId = ('styleId' in paragraph ? paragraph.styleId : undefined) ?? null
     const docxPara =
       ('sourceParaIndex' in paragraph ? paragraph.sourceParaIndex : undefined) ?? null
+    const holdsControl = 'holdsControl' in paragraph && paragraph.holdsControl === true
     return list
       ? {
           type: 'docListItem',
@@ -1342,6 +1346,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
             ...formatAttrs(paragraph, paragraph.runs),
             styleId,
             docxPara,
+            holdsControl,
             kind: list.kind,
             numId: list.numId,
             ilvl: list.ilvl,
@@ -1350,7 +1355,7 @@ function cellContentNodes(cell: TableCell): PmNode[] {
         }
       : {
           type: 'docParagraph',
-          attrs: { ...formatAttrs(paragraph, paragraph.runs), styleId, docxPara },
+          attrs: { ...formatAttrs(paragraph, paragraph.runs), styleId, docxPara, holdsControl },
           content: runsToInline(paragraph.runs),
         }
   })

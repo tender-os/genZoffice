@@ -2,8 +2,10 @@
 // own text. An edit outside the fields is refused whole and reported, and the host offers the way to unlock
 // the document. In either scope a block the editor shows whole (a field, a nested table, a text box) is never
 // replaced or deleted, only edited in place: a keystroke on the selected block would otherwise swap the
-// form's paragraph for the typed text. Host writes, the app's own refreshes and a document opening are not the reviewer's edits, and
-// a document with no field markers has nothing to protect the fields from, so it stays editable.
+// form's paragraph for the typed text. Nor is a paragraph holding a content control split or joined (Enter, a
+// Backspace or Delete across its edge, a multi-line paste): the save would drop or double the control, so the
+// keystroke does nothing. Host writes, the app's own refreshes and a document opening are not the reviewer's
+// edits, and a document with no field markers has nothing to protect the fields from, so it stays editable.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
 import type { Decoration } from '@tiptap/pm/view'
@@ -76,12 +78,38 @@ const removesWholeBlock = (tr: Transaction) =>
     return removed
   })
 
+/** whether the paragraph at `pos` before the edit is still one paragraph over the same stretch after it */
+const staysOneParagraph = (tr: Transaction, node: PmNode, pos: number) => {
+  const start = tr.mapping.map(pos, 1)
+  const after = tr.doc.nodeAt(start)
+  return (
+    after?.isTextblock === true &&
+    start + after.nodeSize === tr.mapping.map(pos + node.nodeSize, -1)
+  )
+}
+
+/** whether the edit splits or joins a paragraph holding a content control */
+const splitsControlParagraph = (tr: Transaction) =>
+  editedRanges([tr]).before.some((range) => {
+    let split = false
+    tr.before.nodesBetween(
+      Math.max(0, range.from - 1),
+      Math.min(tr.before.content.size, range.to + 1),
+      (node, pos) => {
+        split ||= node.attrs.holdsControl === true && !staysOneParagraph(tr, node, pos)
+        return !split && !node.isTextblock
+      },
+    )
+    return split
+  })
+
 /** the plugin refusing edits outside the fields and edits that remove a whole block, reported through `post`; one per review-mode session */
 export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
   new Plugin({
     key: editScopeKey,
     filterTransaction: (tr, state) => {
       if (!isUserEdit(tr) || tr.getMeta('appendedTransaction')) return true
+      if (splitsControlParagraph(tr)) return false
       const refused =
         removesWholeBlock(tr) || (scope === 'fields' && !keepsToFields(tr, fieldBlocks(state)))
       if (refused) post({ type: 'vound:editRefused' })

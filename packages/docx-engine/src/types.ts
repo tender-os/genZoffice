@@ -1286,6 +1286,8 @@ export interface TableParagraph extends ParaFormat {
   /** editor only (Vound fork): the source paragraph this one continues after a split; a cell save keeps it
    *  where that paragraph was. Never parsed or written */
   continuesSourceParaIndex?: number
+  /** Vound fork: the source w:p holds an inline content control (w:sdt); never written */
+  holdsControl?: true
 }
 
 /** One cell border (a w:tcBorders child element) */
@@ -1593,6 +1595,8 @@ export interface Block {
    *  (see source-para-index.ts); set for every block built from a body paragraph,
    *  whatever its type; read-only, never written back */
   sourceParaIndex?: number
+  /** Vound fork: the source w:p holds an inline content control (w:sdt); never written */
+  holdsControl?: true
   /** expanded from a w:altChunk part: the chunk's own (modern) layout, not the host's compat mode */
   altChunk?: boolean
   /** heading level 1-9 (type === 'heading') */
