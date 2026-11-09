@@ -13,7 +13,6 @@
 // is selected whole when the caret lands in it (placeholderSelect.ts).
 import type { Editor } from '@tiptap/core'
 import { NodeSelection, Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
-import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { EditorToHost } from './embed-protocol'
@@ -23,6 +22,7 @@ import { mountFieldChip } from './fieldChip'
 import { fieldRingKey, fieldRingPlugin } from './fieldRing'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
 import { placeholderSelectKey, placeholderSelectPlugin } from './placeholderSelect'
+import { isEmptyControlFiller } from './placeholderText'
 import { clipboardText } from './pasteText'
 import { blockedInReview, isMacPlatform, keepsNativeAction } from './reviewShortcuts'
 
@@ -77,7 +77,7 @@ function blankDecorations(doc: PmNode) {
     if (!node.isTextblock) return true
     if (isFormFieldBlank(node)) decorations.push(Decoration.inline(pos + 1, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
     node.forEach((child, offset) => {
-      if (child.text === EMPTY_CONTROL_TEXT) decorations.push(Decoration.inline(pos + 1 + offset, pos + 1 + offset + child.nodeSize, { class: EMPTY_CONTROL_CLASS }))
+      if (isEmptyControlFiller(child)) decorations.push(Decoration.inline(pos + 1 + offset, pos + 1 + offset + child.nodeSize, { class: EMPTY_CONTROL_CLASS }))
     })
     return false
   })

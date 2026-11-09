@@ -211,6 +211,8 @@ function lineBreaksOf(paraXml: string): LineBreaks {
   return 'inText'
 }
 
+const withoutFiller = (text: string) => text.replaceAll(EMPTY_CONTROL_TEXT, '')
+
 /** Vound fork: one paragraph's text, line breaks included, patched onto its XML */
 function patchParagraphLines(paraXml: string, newText: string): string | null {
   const patched = patchOneParagraph(paraXml, newText, false, 'inText')
@@ -218,7 +220,7 @@ function patchParagraphLines(paraXml: string, newText: string): string | null {
   const check = lineSlices(patched)
     .map((slice) => slice.text)
     .join('')
-  return check === newText ? patched : null
+  return withoutFiller(check) === withoutFiller(newText) ? patched : null
 }
 
 function decodedTextOf(paraXml: string): string {
@@ -286,7 +288,9 @@ function patchOneParagraph(
       texts[i] = ''
       rewritten.add(i)
     }
-    texts[first] = head + hunk.text + tail
+    // a filler that lost its mark (it can only be that in a w:t that was empty) never reaches the file
+    const intoEmpty = lineBreaks === 'inText' && bounds[first].start === bounds[first].end
+    texts[first] = head + (intoEmpty ? withoutFiller(hunk.text) : hunk.text) + tail
   }
 
   // Replace back-to-front so offsets stay valid; changed w:t all get xml:space="preserve"

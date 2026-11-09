@@ -16,7 +16,7 @@ import { fieldReportingKey } from '../fieldReporting'
 import { fieldRingKey } from '../fieldRing'
 import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import { EMPTY_CONTROL_CLASS, enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
-import { doc, fieldPara, para, schema } from './markerSchema'
+import { doc, fieldPara, para, placeholderPara, schema } from './markerSchema'
 
 // the chip itself is tested in fieldChip.test.ts; here only that review mode mounts and unmounts it
 const unmountChip = vi.hoisted(() => vi.fn())
@@ -273,9 +273,11 @@ describe("typing into Word's empty form field result in review mode", () => {
   })
 
   it('gives an emptied control\'s stand-in a box to click', () => {
-    expect(caretIn(EMPTY_CONTROL_TEXT, 0).dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)?.textContent).toBe(EMPTY_CONTROL_TEXT)
-    view?.destroy()
-    expect(caretIn('Muster', 0).dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)).toBeNull()
+    const state = EditorState.create({ schema, doc: doc(placeholderPara(0, 'Datum: ', EMPTY_CONTROL_TEXT)), plugins: [reviewModePlugin] })
+    view = new EditorView(document.createElement('div'), { state })
+    expect(view.dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)?.textContent).toBe(EMPTY_CONTROL_TEXT)
+    view.destroy()
+    expect(caretIn(EMPTY_CONTROL_TEXT, 0).dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)).toBeNull()
   })
 
   it('gives the blank no width, so the caret starts at the field edge, and keeps its en spaces', () => {

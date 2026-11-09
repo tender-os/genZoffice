@@ -1,10 +1,17 @@
 // Where placeholder text lies: text carrying the editor's ctrlPlaceholder mark (a content control showing its
 // placeholder, a form field's default text in a table cell).
+import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 
 const PLACEHOLDER_MARK = 'ctrlPlaceholder'
 
 type Range = { from: number; to: number }
+
+/** the zero-width filler an emptied inline control shows: a save and the host never see it */
+export const isEmptyControlFiller = (node: PmNode) =>
+  node.isText &&
+  node.text === EMPTY_CONTROL_TEXT &&
+  node.marks.some((mark) => mark.type.name === PLACEHOLDER_MARK)
 
 /** the stretch of placeholder text in the paragraph at `pos` that reaches `pos`, edges included */
 export function placeholderAt(doc: PmNode, pos: number): Range | null {
