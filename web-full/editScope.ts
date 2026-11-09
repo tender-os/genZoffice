@@ -2,9 +2,9 @@
 // own text. An edit outside the fields is refused whole and reported, and the host offers the way to unlock
 // the document. In either scope a block the editor shows whole (a field, a nested table, a text box) is never
 // replaced or deleted, only edited in place: a keystroke on the selected block would otherwise swap the
-// form's paragraph for the typed text. Nor is a paragraph holding a content control split or joined (Enter, a
-// Backspace or Delete across its edge, a multi-line paste): the save would drop or double the control, so the
-// keystroke does nothing. Host writes, the app's own refreshes and a document opening are not the reviewer's
+// form's paragraph for the typed text. Nor is a paragraph holding or wrapped in a content control split or
+// joined (Enter, a Backspace or Delete across its edge, a multi-line paste): the save would drop or double the
+// control, so the keystroke does nothing. Host writes, the app's own refreshes and a document opening are not the reviewer's
 // edits, and a document with no field markers has nothing to protect the fields from, so it stays editable.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
@@ -88,6 +88,10 @@ const staysOneParagraph = (tr: Transaction, node: PmNode, pos: number) => {
   )
 }
 
+/** a paragraph holding an inline content control, or one a block-level control wraps */
+const holdsControl = (node: PmNode) =>
+  node.isTextblock && (node.attrs.holdsControl === true || node.attrs.sdtShell != null)
+
 /** whether the edit splits or joins a paragraph holding a content control */
 const splitsControlParagraph = (tr: Transaction) =>
   editedRanges([tr]).before.some((range) => {
@@ -96,7 +100,7 @@ const splitsControlParagraph = (tr: Transaction) =>
       Math.max(0, range.from - 1),
       Math.min(tr.before.content.size, range.to + 1),
       (node, pos) => {
-        split ||= node.attrs.holdsControl === true && !staysOneParagraph(tr, node, pos)
+        split ||= holdsControl(node) && !staysOneParagraph(tr, node, pos)
         return !split && !node.isTextblock
       },
     )

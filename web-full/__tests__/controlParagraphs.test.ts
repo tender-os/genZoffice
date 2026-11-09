@@ -15,6 +15,9 @@ const STYLE =
 const control = (id: string, text: string) =>
   `<w:p><w:sdt><w:sdtPr><w:id w:val="${id}"/><w:showingPlcHdr/><w:text/></w:sdtPr><w:sdtContent><w:r><w:rPr><w:rStyle w:val="PlaceholderText"/></w:rPr><w:t>${text}</w:t></w:r></w:sdtContent></w:sdt></w:p>`
 const CONTROLS = `${control('1', 'Datum eingeben')}${control('2', 'Ort eintragen')}`
+const blockControl = (id: string, text: string) =>
+  `<w:sdt><w:sdtPr><w:id w:val="${id}"/><w:text/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:sdtContent></w:sdt>`
+const BLOCK_CONTROLS = `${blockControl('3', 'Musterstadt')}${blockControl('4', 'Musterweg 1')}`
 const IN_CELL = `<w:tbl><w:tblGrid><w:gridCol w:w="3000"/></w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="3000" w:type="dxa"/></w:tcPr>${CONTROLS}</w:tc></w:tr></w:tbl>`
 
 const editors: Editor[] = []
@@ -61,7 +64,7 @@ async function savedControls(parsed: ParsedDocFull, editor: Editor) {
 const controlParagraphTexts = (editor: Editor) => {
   const texts: string[] = []
   editor.state.doc.descendants((node) => {
-    if (node.attrs.holdsControl === true) texts.push(node.textContent)
+    if (node.attrs.holdsControl === true || node.attrs.sdtShell) texts.push(node.textContent)
     return !node.isTextblock
   })
   return texts
@@ -102,6 +105,33 @@ describe('content controls through a review edit', () => {
     editor.view.dispatch(editor.state.tr.insertText('Berlin'))
 
     expect(controlParagraphTexts(editor)).toEqual(['Datum eingeben', 'Berlin'])
+    expect(await savedControls(parsed, editor)).toBe(2)
+  })
+
+  it('Enter inside a block-level control does not split it', async () => {
+    const { parsed, editor } = await open(BLOCK_CONTROLS)
+    editor.commands.setTextSelection(textPos(editor, 'Musterstadt') + 6)
+    editor.commands.enter()
+
+    expect(await savedControls(parsed, editor)).toBe(2)
+    expect(controlParagraphTexts(editor)).toEqual(['Musterstadt', 'Musterweg 1'])
+  })
+
+  it('Backspace at the start of a block-level control does not join it', async () => {
+    const { parsed, editor } = await open(BLOCK_CONTROLS)
+    editor.commands.setTextSelection(textPos(editor, 'Musterweg 1'))
+    editor.commands.keyboardShortcut('Backspace')
+
+    expect(await savedControls(parsed, editor)).toBe(2)
+    expect(controlParagraphTexts(editor)).toEqual(['Musterstadt', 'Musterweg 1'])
+  })
+
+  it('typing inside a block-level control keeps it', async () => {
+    const { parsed, editor } = await open(BLOCK_CONTROLS)
+    editor.commands.setTextSelection(textPos(editor, 'Musterweg 1') + 'Musterweg '.length)
+    editor.commands.insertContent('2')
+
+    expect(controlParagraphTexts(editor)).toEqual(['Musterstadt', 'Musterweg 21'])
     expect(await savedControls(parsed, editor)).toBe(2)
   })
 })
