@@ -2,6 +2,7 @@
 // view, so the matching rules are tested on a bare document (markersPlugin.ts applies them).
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration } from '@tiptap/pm/view'
+import { blockControlKey } from './blockControl'
 import type { BlockRef, MarkerTone, SlotMarker } from './embed-protocol'
 
 export const MARKER_CLASS = 'vound-slot'
@@ -133,6 +134,23 @@ function edgeClasses(doc: PmNode, group: Group, byStart: Map<number, Group>, byE
   return `${otherAbove} ${idsOf(below) === ids ? CONTINUED_CLASS : OTHER_BELOW_CLASS}`
 }
 
+/** the paragraphs right before and after `target` in its parent that sit in the same block-level control */
+function controlMates(doc: PmNode, target: Located): Located[] {
+  const control = blockControlKey(target.node)
+  if (control === null) return []
+  const $target = doc.resolve(target.pos)
+  const siblings: Located[] = []
+  $target.parent.forEach((node, offset) => siblings.push({ pos: $target.start() + offset, node }))
+  const inControl = (index: number) =>
+    index >= 0 && index < siblings.length && blockControlKey(siblings[index].node) === control
+  const at = $target.index()
+  let first = at
+  while (inControl(first - 1)) first -= 1
+  let last = at
+  while (inControl(last + 1)) last += 1
+  return siblings.slice(first, last + 1).filter((sibling) => sibling.pos !== target.pos)
+}
+
 /** node decorations for the markers, one per marked node; `dropped` lists ids whose index matches no node
  *  or more than one, or whose cell scope finds no enclosing docTableCell/docTableHeader */
 export function markerDecorations(doc: PmNode, markers: SlotMarker[], currentId: string | null) {
@@ -149,8 +167,11 @@ export function markerDecorations(doc: PmNode, markers: SlotMarker[], currentId:
       continue
     }
     mark(target, marker)
+    if (marker.scope !== 'paragraph') continue
     // a field paragraph split by Enter: the field spans its halves
-    if (marker.scope === 'paragraph') for (const half of continuations.get(marker.paragraph) ?? []) mark(half, marker)
+    for (const half of continuations.get(marker.paragraph) ?? []) mark(half, marker)
+    // the other paragraphs of the block-level control the field's paragraph sits in are the field's too
+    for (const mate of controlMates(doc, target)) mark(mate, marker)
   }
   const groups = [...byNode.values()]
   const byEnd = new Map(groups.map((group) => [group.target.pos + group.target.node.nodeSize, group]))

@@ -8,6 +8,7 @@ import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
 import { editScopePlugin } from '../editScope'
+import { markerDecorations } from '../markers'
 import { placeholderAt } from '../placeholderText'
 
 const STYLE =
@@ -148,6 +149,23 @@ describe('content controls through a review edit', () => {
     const LONG_ANSWER =
       `${para('Vorher')}<w:sdt><w:sdtPr><w:id w:val="9"/><w:richText/></w:sdtPr><w:sdtContent>` +
       `${para('Erste Zeile')}${para('Zweite Zeile')}</w:sdtContent></w:sdt>${para('Nachher')}`
+
+    it('a field marked on its first paragraph covers every paragraph of the control', async () => {
+      const { editor } = await open(LONG_ANSWER)
+      const first = editor.state.doc.resolve(textPos(editor, 'Erste Zeile')).parent.attrs.docxPara
+      const field = {
+        id: 'begruendung',
+        paragraph: first,
+        scope: 'paragraph' as const,
+        tone: 'accepted' as const,
+        label: 'Begründung',
+        actions: [],
+      }
+      const covered = markerDecorations(editor.state.doc, [field], null).decorations.map(
+        (decoration) => editor.state.doc.nodeAt(decoration.from)?.textContent,
+      )
+      expect(covered).toEqual(['Erste Zeile', 'Zweite Zeile'])
+    })
 
     it('Enter at the end of its last paragraph adds a paragraph inside the one control', async () => {
       const { parsed, editor } = await open(LONG_ANSWER)
