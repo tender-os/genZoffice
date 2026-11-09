@@ -54,7 +54,7 @@ function chipView(markers: SlotMarker[]) {
   return { v: view, post }
 }
 const block = (v: EditorView, id: string) => v.dom.querySelector(`[data-vound-slot~="${id}"]`)!
-const hover = (target: Element) => target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+const hover = (target: Element, at: MouseEventInit = {}) => target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, ...at }))
 const chip = () => scroller.querySelector<HTMLElement>('.vound-chip')
 const shown = () => chip() !== null && !chip()!.hidden
 const buttons = () => [...chip()!.querySelectorAll('button')].map((b) => ({ text: b.textContent, title: b.title, label: b.getAttribute('aria-label') }))
@@ -162,6 +162,60 @@ describe('mountFieldChip', () => {
     expect(box(tether())).toEqual({ left: '806px', width: '104px', top: '110px', height: '' })
     expect(right.classList.contains('vound-slot-hot')).toBe(true)
     expect(left.classList.contains('vound-slot-hot')).toBe(false)
+  })
+
+  const owner = () => chip()!.querySelector<HTMLButtonElement>('button')!.dataset.id
+  const caretIn = (element: Element) => {
+    document.getSelection()!.collapse(element, 0)
+    document.dispatchEvent(new Event('selectionchange'))
+  }
+
+  it('crossing the next cell on the way to the chip keeps the chip with the first field', () => {
+    vi.useFakeTimers()
+    const { left, right } = twoCellRow()
+    hover(left)
+    hover(right, { clientX: 600, clientY: 110 })
+    vi.advanceTimersByTime(150)
+    hover(chip()!.querySelector('button')!)
+    vi.advanceTimersByTime(500)
+    expect(shown()).toBe(true)
+    expect(owner()).toBe('nummer')
+    expect(left.classList.contains('vound-slot-hot')).toBe(true)
+  })
+
+  it('resting on the next cell longer than the delay switches the chip to it', () => {
+    vi.useFakeTimers()
+    const { left, right } = twoCellRow()
+    hover(left)
+    hover(right, { clientX: 600, clientY: 110 })
+    // moving on inside the cell does not restart the delay
+    hover(right, { clientX: 650, clientY: 112 })
+    vi.advanceTimersByTime(219)
+    expect(owner()).toBe('nummer')
+    vi.advanceTimersByTime(1)
+    expect(owner()).toBe('wert')
+    expect(right.classList.contains('vound-slot-hot')).toBe(true)
+    expect(left.classList.contains('vound-slot-hot')).toBe(false)
+  })
+
+  it('a field off the way to the chip takes it at once', () => {
+    const { v } = chipView([marker('ort', 1, ['fill']), marker('datum', 2, ['accept'])])
+    hover(block(v, 'ort'))
+    hover(block(v, 'datum'), { clientX: 400, clientY: 110 })
+    expect(owner()).toBe('datum')
+  })
+
+  it('the caret moving into a field shows its chip at once, out of the fields hides it', () => {
+    vi.useFakeTimers()
+    const { left, right } = twoCellRow()
+    hover(left)
+    hover(right, { clientX: 600, clientY: 110 })
+    caretIn(right)
+    expect(owner()).toBe('wert')
+    caretIn(left)
+    expect(owner()).toBe('nummer')
+    caretIn(view!.dom.querySelector('p')!)
+    expect(shown()).toBe(false)
   })
 
   it('the elbow takes the missing tone and hides with the chip', () => {

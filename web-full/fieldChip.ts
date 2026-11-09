@@ -10,10 +10,12 @@
 //
 // The chip and tether live in a zero-height layer inside the page's scroll container, so they scroll with
 // the document; a scroll or a resize hides them anyway. They stay while the pointer moves from the block to
-// the chip and hide 220ms after it left both. The chip never grows past the gutter (reviewGutter.ts, which
-// also keeps that gutter free): labels shrink or wrap above their buttons, and only a gutter narrower than
-// the buttons hides the chip (the host's bar offers the current field's buttons then); the hover outline
-// stays. The hovered block is a decoration (markersPlugin.ts, setHot), which fieldRing.ts rings: a class
+// the chip and hide 220ms after it left both; a field the pointer crosses on its way right to the chip (the
+// next cell of the row) takes the chip over only after resting there 220ms. Moving the caret into a field
+// shows its chip at once, and out of the fields hides it. The chip never grows past the gutter
+// (reviewGutter.ts, which also keeps that gutter free): labels shrink or wrap above their buttons, and only
+// a gutter narrower than the buttons hides the chip (the host's bar offers the current field's buttons
+// then); the hover outline stays. The hovered block is a decoration (markersPlugin.ts, setHot), which fieldRing.ts rings: a class
 // written onto the block's DOM would read as a DOM change to ProseMirror.
 import { embedLang } from './embedLocale'
 import { fillWithAiLabel } from './fillWithAi'
@@ -154,23 +156,31 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
   layer.append(tether, elbow, chip)
 
   let hoveredBlock: Element | null = null
-  let hideTimer: ReturnType<typeof setTimeout> | undefined
+  let pending: ReturnType<typeof setTimeout> | undefined
+  let switchingTo: Element | null = null
+  /** the band right of the shown block (client px) the pointer crosses on its way to the chip */
+  let lane: { left: number; top: number; bottom: number } | null = null
+  let caretBlock: Element | null = null
 
-  const cancelHide = () => clearTimeout(hideTimer)
+  const cancelPending = () => {
+    clearTimeout(pending)
+    switchingTo = null
+  }
   const hideChip = () => {
     chip.hidden = true
     tether.hidden = true
     elbow.hidden = true
+    lane = null
   }
   const hide = () => {
-    cancelHide()
+    cancelPending()
     hideChip()
     hoveredBlock = null
     setHot(view, null)
   }
   const scheduleHide = () => {
-    cancelHide()
-    hideTimer = setTimeout(hide, HIDE_DELAY_MS)
+    cancelPending()
+    pending = setTimeout(hide, HIDE_DELAY_MS)
   }
 
   /** the scroll container, with the layer in it (the app may have re-rendered the container) */
@@ -222,10 +232,11 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     // in a column the next column may lie between the block and the margin: the chip shows, the tether not
     tether.hidden = inColumns(view, block)
     elbow.hidden = tether.hidden || bend === null
+    lane = { left: box.right, top: box.top, bottom: box.bottom }
   }
 
   const show = (block: Element) => {
-    cancelHide()
+    cancelPending()
     if (block === hoveredBlock) return
     hoveredBlock = block
     setHot(view, blockStart(view, block))
@@ -235,12 +246,34 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     showChip(block, fields, ids.length > 1)
   }
 
+  const scheduleSwitch = (block: Element) => {
+    if (block === switchingTo) return
+    cancelPending()
+    switchingTo = block
+    pending = setTimeout(() => show(block), HIDE_DELAY_MS)
+  }
+
+  const inLane = (event: MouseEvent) =>
+    lane !== null && event.clientX >= lane.left && event.clientY >= lane.top && event.clientY <= lane.bottom
+
   const onOver = (event: MouseEvent) => {
     if (!(event.target instanceof Element)) return
-    if (chip.contains(event.target)) return cancelHide()
+    if (chip.contains(event.target)) return cancelPending()
     const block = markedBlock(view, event.target)
-    if (block) show(block)
+    if (block && block !== hoveredBlock && inLane(event)) scheduleSwitch(block)
+    else if (block) show(block)
     else if (hoveredBlock) scheduleHide()
+  }
+  // a caret moved into another block (a click, the keyboard): typing inside one block changes nothing
+  const onSelection = () => {
+    const focus = ownerDocument.getSelection()?.focusNode
+    const element = focus instanceof Element ? focus : focus?.parentElement
+    if (!element || !view.dom.contains(element)) return
+    const block = markedBlock(view, element)
+    if (block === caretBlock) return
+    caretBlock = block
+    if (block) show(block)
+    else if (hoveredBlock) hide()
   }
   // the pointer left the document (relatedTarget null): mouseover fires nowhere else
   const onOut = (event: MouseEvent) => {
@@ -260,6 +293,7 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
 
   ownerDocument.addEventListener('mouseover', onOver)
   ownerDocument.addEventListener('mouseout', onOut)
+  ownerDocument.addEventListener('selectionchange', onSelection)
   // scroll does not bubble; a capture listener on the document hears the scroll container's
   ownerDocument.addEventListener('scroll', hide, true)
   // a resize (or the app's zoom refit that follows it) moves the page under a placed chip
@@ -271,6 +305,7 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     hide()
     ownerDocument.removeEventListener('mouseover', onOver)
     ownerDocument.removeEventListener('mouseout', onOut)
+    ownerDocument.removeEventListener('selectionchange', onSelection)
     ownerDocument.removeEventListener('scroll', hide, true)
     ownerDocument.defaultView?.removeEventListener('resize', hide)
     layer.remove()
