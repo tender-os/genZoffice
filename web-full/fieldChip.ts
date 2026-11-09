@@ -1,8 +1,9 @@
 // The field chip in review mode: hovering a marked block (a paragraph or table cell carrying a slot marker)
 // shows a small pill in the empty gutter right of the page, vertically centred on the block, with the
 // buttons the host sent for each of the block's fields (SlotMarker.actions). A dashed tether runs at the
-// block's height across the page's right margin to the chip, starting where the page-level block around it
-// (the paragraph itself, or the whole table for a cell) ends, so neither covers document text; in a
+// block's height across the page's right margin to the chip, starting at the field's ring; in a cell with
+// another cell after it in its row the tether leaves the ring's bottom right corner, runs along its bottom
+// edge past the table and bends up into the margin, so it covers no text and no neighbour owns it; in a
 // multi-column section the tether is left out, the next column may lie in its way. A block holding several
 // fields gets one labelled row per field, in the order of its data-vound-slot ids. A press posts
 // vound:fieldAction; the host decides what it does.
@@ -20,6 +21,7 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { EditorToHost, FieldAction, MarkerTone, SlotMarker } from './embed-protocol'
 import { MARKER_CLASS } from './markers'
 import { markersKey, setHot } from './markersPlugin'
+import { ringBox, runAround } from './fieldRing'
 import { chipRoom, chipRowWidth, PAGE_GAP_PX } from './reviewGutter'
 
 const HIDE_DELAY_MS = 220
@@ -72,6 +74,20 @@ function inColumns(view: EditorView, block: Element) {
 
 /** the narrowest chip for these fields: the row with the most buttons (labels shrink or wrap) */
 const narrowestChip = (fields: SlotMarker[]) => Math.max(...fields.map((marker) => chipRowWidth(marker.actions.length)))
+
+/** whether the block's cell, or a cell around it, has another cell after it in its row */
+function cellBeside(view: EditorView, block: Element) {
+  for (let cell = block.closest('td, th'); cell && view.dom.contains(cell); cell = cell.parentElement?.closest('td, th') ?? null) {
+    if (cell.nextElementSibling) return true
+  }
+  return false
+}
+
+/** where the tether bends up from the field's ring bottom: halfway across the margin; null with no cell beside */
+function elbowBend(view: EditorView, block: Element, contentRight: number, chipLeft: number) {
+  if (!cellBeside(view, block)) return null
+  return (contentRight + chipLeft) / 2
+}
 
 /** the document position the block's marker decoration starts at */
 const SPARKLES_SVG =
@@ -129,10 +145,13 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
   const tether = ownerDocument.createElement('div')
   tether.className = 'vound-chip-tether'
   tether.hidden = true
+  const elbow = ownerDocument.createElement('div')
+  elbow.className = 'vound-chip-tether vound-chip-tether-elbow'
+  elbow.hidden = true
   const chip = ownerDocument.createElement('div')
   chip.className = 'vound-chip'
   chip.hidden = true
-  layer.append(tether, chip)
+  layer.append(tether, elbow, chip)
 
   let hoveredBlock: Element | null = null
   let hideTimer: ReturnType<typeof setTimeout> | undefined
@@ -141,6 +160,7 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
   const hideChip = () => {
     chip.hidden = true
     tether.hidden = true
+    elbow.hidden = true
   }
   const hide = () => {
     cancelHide()
@@ -180,15 +200,28 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     chip.hidden = false
     const origin = layer.getBoundingClientRect()
     const chipLeft = anchor + PAGE_GAP_PX
-    const middle = `${box.top + box.height / 2 - origin.top}px`
-    chip.style.left = `${chipLeft - origin.left}px`
-    chip.style.top = middle
-    tether.style.left = `${contentRight - origin.left}px`
-    tether.style.width = `${chipLeft - contentRight}px`
-    tether.style.top = middle
-    tether.classList.toggle('vound-chip-tether-missing', MISSING_TONES.some((tone) => block.classList.contains(`${MARKER_CLASS}-${tone}`)))
+    const middle = box.top + box.height / 2 - origin.top
+    const end = chipLeft - origin.left
+    const ring = ringBox(runAround(block), origin)
+    const fieldRight = ring.left + ring.width
+    const start = contentRight - origin.left
+    const bend = elbowBend(view, block, start, end)
+    const tetherLeft = bend ?? Math.max(fieldRight, start)
+    chip.style.left = `${end}px`
+    chip.style.top = `${middle}px`
+    tether.style.left = `${tetherLeft}px`
+    tether.style.width = `${end - tetherLeft}px`
+    tether.style.top = `${middle}px`
+    elbow.style.left = `${fieldRight}px`
+    elbow.style.width = `${tetherLeft - fieldRight}px`
+    elbow.style.top = `${middle}px`
+    elbow.style.height = `${ring.top + ring.height - middle}px`
+    const missing = MISSING_TONES.some((tone) => block.classList.contains(`${MARKER_CLASS}-${tone}`))
+    tether.classList.toggle('vound-chip-tether-missing', missing)
+    elbow.classList.toggle('vound-chip-tether-missing', missing)
     // in a column the next column may lie between the block and the margin: the chip shows, the tether not
     tether.hidden = inColumns(view, block)
+    elbow.hidden = tether.hidden || bend === null
   }
 
   const show = (block: Element) => {

@@ -114,30 +114,63 @@ describe('mountFieldChip', () => {
     expect(shown()).toBe(false)
   })
 
-  it('the tether starts where the table around a marked cell ends, not across the next cell', () => {
+  /** a table row of two marked cells (left 196..500, right 500..806, both 100..120); returns the cells */
+  function twoCellRow() {
     const post = vi.fn<(msg: EditorToHost) => void>()
     const mount = document.createElement('div')
     scroller.append(mount)
-    const start = doc(para(0, 'Formular'), table(cell(para(1, 'Erklärender:')), cell(para(2, '(Bezeichnung des Unternehmens)'))))
+    const start = doc(para(0, 'Formular'), table(cell(para(1, 'Vergabenummer')), cell(para(2, 'dasd'))))
     view = new EditorView(mount, { state: EditorState.create({ schema, doc: start, plugins: [markersPlugin] }) })
-    setMarkers(view, [{ ...marker('erkl', 1, ['fill', 'ask']), scope: 'cell' }])
+    setMarkers(view, [{ ...marker('nummer', 1, ['fill', 'ask']), scope: 'cell' }, { ...marker('wert', 2, ['accept', 'reject']), scope: 'cell' }])
     unmount = mountFieldChip(view, post)
-    const marked = block(view, 'erkl')
+    const left = block(view, 'nummer')
+    const right = block(view, 'wert')
     const tableElement = view.dom.querySelector('table')!
     vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
       if (this === scroller) return rectOf({ left: 0, top: 0, right: 1200, bottom: 800 })
       if (this === view?.dom) return rectOf({ left: 100, top: 0, right: 900, bottom: 2000 })
-      if (this === marked) return rectOf({ left: 196, top: 100, right: 400, bottom: 120 })
-      if (this === tableElement) return rectOf({ left: 196, top: 90, right: 806, bottom: 140 })
+      if (this === left) return rectOf({ left: 196, top: 100, right: 500, bottom: 120 })
+      if (this === right) return rectOf({ left: 500, top: 100, right: 806, bottom: 120 })
+      if (this === tableElement) return rectOf({ left: 196, top: 100, right: 806, bottom: 120 })
       if (this.classList.contains('vound-chip')) return rectOf({ left: 0, top: 0, right: 60, bottom: 30 })
       return rectOf({ left: 0, top: 0, right: 0, bottom: 0 })
     })
-    hover(marked)
-    const tether = scroller.querySelector<HTMLElement>('.vound-chip-tether')!
+    return { left, right }
+  }
+  const tether = () => scroller.querySelector<HTMLElement>('.vound-chip-tether:not(.vound-chip-tether-elbow)')!
+  const elbow = () => scroller.querySelector<HTMLElement>('.vound-chip-tether-elbow')!
+  const box = (element: HTMLElement) => ({ left: element.style.left, width: element.style.width, top: element.style.top, height: element.style.height })
+
+  it('a cell with a neighbour: the tether leaves its ring bottom, runs under the neighbour and bends up in the margin', () => {
+    const { left } = twoCellRow()
+    hover(left)
     expect(shown()).toBe(true)
-    expect(tether.style.left).toBe('806px')
-    expect(tether.style.width).toBe('104px')
-    expect(tether.style.top).toBe('110px')
+    // from the cell's right edge along its bottom to halfway between the table (806) and the chip (910)
+    expect(elbow().hidden).toBe(false)
+    expect(box(elbow())).toEqual({ left: '500px', width: '358px', top: '110px', height: '10px' })
+    expect(box(tether())).toEqual({ left: '858px', width: '52px', top: '110px', height: '' })
+    expect(left.classList.contains('vound-slot-hot')).toBe(true)
+    // on the chip its field stays ringed
+    hover(chip()!.querySelector('button')!)
+    expect(left.classList.contains('vound-slot-hot')).toBe(true)
+  })
+
+  it('the last cell of the row: a straight tether from the table edge, apart from its neighbour\'s', () => {
+    const { left, right } = twoCellRow()
+    hover(right)
+    expect(elbow().hidden).toBe(true)
+    expect(box(tether())).toEqual({ left: '806px', width: '104px', top: '110px', height: '' })
+    expect(right.classList.contains('vound-slot-hot')).toBe(true)
+    expect(left.classList.contains('vound-slot-hot')).toBe(false)
+  })
+
+  it('the elbow takes the missing tone and hides with the chip', () => {
+    const { left } = twoCellRow()
+    setMarkers(view!, [{ ...marker('nummer', 1, ['fill', 'ask']), scope: 'cell', tone: 'gap' }])
+    hover(left)
+    expect(elbow().classList.contains('vound-chip-tether-missing')).toBe(true)
+    scroller.dispatchEvent(new Event('scroll'))
+    expect(elbow().hidden).toBe(true)
   })
 
   it('no chip without actions', () => {

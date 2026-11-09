@@ -255,6 +255,8 @@ html.vound-review :is(td, th).vound-slot-accepted.vound-slot-continued > p:last-
 .vound-chip-layer [hidden] { display: none !important; }
 .vound-chip-tether { position: absolute; height: 0; border-top: 1px dashed var(--vound-tether); pointer-events: none; z-index: 20; }
 .vound-chip-tether.vound-chip-tether-missing { border-top-color: var(--vound-tether-missing); }
+.vound-chip-tether.vound-chip-tether-elbow { border-top: 0; border-right: 1px dashed var(--vound-tether); border-bottom: 1px dashed var(--vound-tether); }
+.vound-chip-tether-elbow.vound-chip-tether-missing { border-right-color: var(--vound-tether-missing); border-bottom-color: var(--vound-tether-missing); }
 .vound-chip {
   position: absolute;
   z-index: 21;
