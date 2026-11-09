@@ -62,6 +62,24 @@ describe('patchFieldParagraphText (Vound fork)', () => {
       'Zweite</w:t><w:br/>',
     )
   })
+  test('emptying a control keeps an empty w:t in it, and typing goes there again', () => {
+    const labelled =
+      '<w:p><w:r><w:t xml:space="preserve">Ort: </w:t></w:r><w:sdt><w:sdtPr><w:id w:val="9"/></w:sdtPr>' +
+      '<w:sdtContent><w:r><w:t>Berlin</w:t></w:r></w:sdtContent></w:sdt></w:p>'
+    const emptied = patchFieldParagraphText(labelled, [{ text: 'Ort: ' }])!
+    expect(emptied).toContain('<w:sdtContent><w:r><w:t xml:space="preserve"></w:t></w:r></w:sdtContent>')
+    expect(patchFieldParagraphText(emptied, [{ text: 'Ort: Hamburg' }])).toContain(
+      '<w:sdtContent><w:r><w:t xml:space="preserve">Hamburg</w:t></w:r></w:sdtContent>',
+    )
+  })
+  test('a control without any w:t gets one for typed text, and an untouched paragraph keeps its bytes', () => {
+    const bare =
+      '<w:p><w:sdt><w:sdtPr><w:id w:val="9"/></w:sdtPr><w:sdtContent><w:r><w:rPr><w:b/></w:rPr></w:r></w:sdtContent></w:sdt></w:p>'
+    expect(patchFieldParagraphText(bare, [{ text: 'Erika' }])).toContain(
+      '<w:sdtContent><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">Erika</w:t></w:r></w:sdtContent>',
+    )
+    expect(patchFieldParagraphText(bare, [{ text: '' }])).toBe(bare)
+  })
   test('a control whose text did not change keeps its placeholder flag', () => {
     // the edit sits inside the first run; an insertion exactly at the control boundary is
     // ambiguous and may be attributed to the control (then the flag goes, as if typed into it)
