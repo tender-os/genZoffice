@@ -2,6 +2,7 @@ import { formTextResults } from './parse-fields'
 import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
 import { patchFieldParagraphText } from './text-patch'
+import { withFormTextStyles } from './form-text-style'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
   sdtCheckboxGlyphs,
@@ -717,7 +718,7 @@ function patchCellXml(tcXml: string, paras: readonly CellParaPatch[]): string | 
     // original bytes around the changed w:t (see patchFieldParagraphText); not for the
     // halves of a split paragraph, which would each get the field
     if (groupSize(i) === 1 && !entry.xml && !entry.format) {
-      const surgical = patchFieldParagraphText(template, entry.runs)
+      const surgical = patchStyledFieldParagraph(template, entry.runs)
       if (surgical !== null) return surgical
     }
     const pPr = entry.format
@@ -3458,6 +3459,13 @@ function modelRPrChildren(run: Run, insideLink: boolean): PPrChild[] {
   const rPrChange = revisionRPrChangeXml(run)
   if (rPrChange) out.push({ name: 'w:rPrChange', xml: rPrChange })
   return out
+}
+
+/** Vound fork: patchFieldParagraphText, with the face and size of restyled legacy text fields */
+export function patchStyledFieldParagraph(xml: string, runs: ReadonlyArray<Run>): string | null {
+  const patched = patchFieldParagraphText(xml, runs)
+  if (patched === null) return null
+  return withFormTextStyles(patched, runs, (run) => mergeRPrModel(run.rawRPr ?? '', run, false))
 }
 
 /**

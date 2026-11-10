@@ -21,6 +21,11 @@ describe('menuShows', () => {
     }
   })
 
+  it('leaves the Font dialog out of review mode only: the host\'s Format control sets face and size', () => {
+    expect(menuShows('appFontMenu', true, true)).toBe(false)
+    expect(menuShows('appFontMenu', true, false)).toBe(true)
+  })
+
   it('leaves the commands that change a form\'s structure out of review mode only', () => {
     for (const key of ['ribbonTableDeleteMenu', 'ribbonMergeCells', 'ribbonAutoFit', 'appRestartNumbering', ...REVIEW_INSERT_KEYS]) {
       expect(menuShows(key, true, true)).toBe(false)
@@ -29,7 +34,7 @@ describe('menuShows', () => {
   })
 
   it('keeps plain paste, formatting, clipboard, hyperlinks and adding rows in review mode', () => {
-    for (const key of ['appPastePlain', 'appCut', 'appCopy', 'appFontMenu', 'appParagraphMenu', 'appHyperlinkMenu', 'ribbonInsert', 'ribbonInsertAbove', 'ribbonInsertBelow']) {
+    for (const key of ['appPastePlain', 'appCut', 'appCopy', 'appParagraphMenu', 'appHyperlinkMenu', 'ribbonInsert', 'ribbonInsertAbove', 'ribbonInsertBelow']) {
       expect(menuShows(key, true, true)).toBe(true)
     }
   })

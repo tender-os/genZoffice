@@ -8,6 +8,7 @@ import {
   splitXmlChildren,
   inlinePictureDrawingXml,
   NEW_PICTURE_TOKEN_PREFIX,
+  patchStyledFieldParagraph,
   patchTableCellTexts,
   type CellParaPatch,
 } from './generate'
@@ -84,7 +85,7 @@ import type {
 } from './types'
 import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { keepsFormFields } from './form-field-guard'
-import { patchFieldParagraphText, patchParagraphTexts } from './text-patch'
+import { patchParagraphTexts } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import { balanceFieldChars } from './field-balance'
 import {
@@ -1598,7 +1599,7 @@ export async function saveDocx(
           : undefined
       const surgical =
         originalPara && /^<w:p[\s>]/.test(originalPara)
-          ? patchFieldParagraphText(originalPara, fb.block.runs)
+          ? patchStyledFieldParagraph(originalPara, fb.block.runs)
           : null
       xml = surgical ?? generateParagraphXml(fb.block, genCtx)
       // Vound fork: a rebuild that would lose a form field or a control keeps the original paragraph

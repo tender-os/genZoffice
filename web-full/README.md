@@ -40,6 +40,7 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:focus', id: string \| null }` make a marker current without scrolling, or none |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, previous, value }` replace a field's value in one block (`BlockRef = { paragraph, scope: 'paragraph' \| 'cell' }`, named like a marker); answered with `vound:fieldValueResult` (see Field writes) |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
+| host → editor | `{ type: 'vound:setFieldStyle', requestId, block: BlockRef, previous, replaces?, style }` or with `replaces: 'gap', gap` instead of `previous`: restyle a field's text (`style = { fontFamily?, fontSize? }`); answered with `vound:fieldStyleResult` (see Field styles) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
 | host → editor | `{ type: 'vound:reveal', requestId, text, pageHint? }` scroll to a cited passage and mark it (see Reveal); answered with `vound:revealResult` |
 | editor → host | `{ type: 'vound:ready' }` after the editor subscribed to open requests |
@@ -53,6 +54,7 @@ or none, means English); the stand-alone page stays English.
 | editor → host | `{ type: 'vound:blockEdited', ids, texts }` a user edit changed the text of a marked block; `ids` are its slot ids, `texts` each id's block text right before and right after the edit (an undo of typing brings `after` back to the text before it). Review mode only; host writes are not reported |
 | editor → host | `{ type: 'vound:caretBlock', ids, leftWith? }` the caret entered a marked block, or left one (`ids: []`, `leftWith: 'Tab' \| 'other'`). Review mode only |
 | editor → host | `{ type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }` the answer to `vound:setFieldValue` (`reason`: `absent`, `ambiguous`, `notEditable`, `noBlock`; `gap`: the written place's anchors) |
+| editor → host | `{ type: 'vound:fieldStyleResult', requestId, ok, reason?, style? }` the answer to `vound:setFieldStyle`: the style the text shows now, or why the field was not found (the reasons of `vound:fieldValueResult`) |
 | editor → host | `{ type: 'vound:revealResult', requestId, found }` the answer to `vound:reveal`, once the opened document is in the editor |
 | editor → host | `{ type: 'vound:opened' }` the document of the last `vound:open` is in the editor; once per open |
 
@@ -150,14 +152,15 @@ offers only Paste as Plain Text.
 The app's context menu opens in review mode, also on a protected form (the `hostDecidesEditability`
 transform lifts its protection gate with the editing lock). The embed leaves entries out (`reviewMenu.ts`,
 the `reviewMenu` transform asks the shim's `menuShows` before each one): the AI entries and hiding text
-from the AI always, and in review mode formatted Paste, the field commands, New Comment and every command
+from the AI always, and in review mode formatted Paste, the field commands, New Comment, the Font dialog and every command
 that changes a form's structure: deleting from or merging, splitting, distributing and resizing a table,
 table properties, inserting columns or cells, and list numbering. Inserting rows stays, since forms such as
 reference lists need more of them.
 
-Formatting shortcuts work, as in Word: bold, italic, underline, alignment, the font, paragraph and
-hyperlink dialogs, line spacing, paragraph styles, font size, super- and subscript, indents, clearing
-formatting and change case. Document-tool shortcuts do nothing (`reviewShortcuts.ts`): fields, track
+Formatting shortcuts work, as in Word: bold, italic, underline, alignment, the paragraph and hyperlink
+dialogs, line spacing, paragraph styles, super- and subscript, indents, clearing formatting and change case.
+The font dialog (⌘D) and the font size keys (⇧⌘. ⇧⌘, ⌘] ⌘[) do nothing, and the context menu has no Font entry:
+the host's Format control (`vound:setFieldStyle`) is the one way to set a field's face and size. Document-tool shortcuts do nothing (`reviewShortcuts.ts`): fields, track
 changes, comments, footnotes and endnotes, AI proofread and File › Open. A window capture listener stops them before the editors' keymaps (main
 editor, header and footer, text boxes) and App.tsx's window handler, which acts without looking at
 `defaultPrevented`. On the Mac, Control+letter is text navigation (⌃E end of line): the app and the
@@ -345,6 +348,24 @@ block, never a selection of the block itself. A blank result (whitespace only, s
 spaces) and an empty result's placeholder are selected instead, in a paragraph as in a field passthrough,
 so typing replaces them. Writing five en spaces (Word's empty result) is an ordinary replace, and the en
 spaces are then the `previous` of the next write.
+
+## Field styles
+
+`vound:setFieldStyle` (`fieldStyle.ts`) sets the face and size of a field's text. It names the field as a write
+does, by its text or its gap, in one block (see Field writes); a selection that lies inside that place is
+restyled alone, else the whole place. The face goes into the Latin slot (`w:rFonts w:ascii`, `w:hAnsi`), the
+size into `w:sz` and `w:szCs`; every other run property stays. The restyle is one transaction with
+`HOST_WRITE_META`, so the editor's undo takes it back and it marks the document dirty. An empty place (a field
+with no text yet) gets the caret there with the style as its stored marks, so the text typed next takes it.
+The answer carries the style the text shows now, read from the rendered text: a face or size the text shows
+in more than one way is left out. An empty `style` changes nothing and only answers. A field the rule does not
+find is refused with the reasons of `vound:fieldValueResult`; a field passthrough paragraph (`fieldDisplay`)
+is refused as `notEditable`.
+
+The save writes the new run properties also where a text edit keeps the original bytes: a legacy text form
+field's result is written as the field's runs, one run per formatting, once the face or size of one of them
+changed (`form-text-style.ts`), and a cell paragraph whose runs changed only in face or size is written by the
+cell text patch like an edited one, which keeps the cell's fields (`cell-face-size.ts`).
 
 ## Develop
 

@@ -76,6 +76,7 @@ import { parseRunBorderAttr } from './run-border'
 import { parseTextOutlineAttr } from './text-outline'
 import { charScaleXAttr, parseGlowAttr, parseTextEffectAttr } from './text-effects'
 import { SHAPE_INLINE_WRAP, shapeWrapOf } from './floating-z-order'
+import { facesChanged } from './cell-face-size'
 
 /** minimal ProseMirror JSON shapes */
 export interface PmMark {
@@ -3151,9 +3152,12 @@ function tableTextsPatchFromModel(
         return null
       }
       const origTexts = parsedCellParaTexts(originalCell)
-      if (cell.paras.join('\n') === origTexts.join('\n')) return null
-      changed = true
       const rich = cell.richParas
+      const restyled = (i: number) =>
+        !!rich && facesChanged(rich[i]?.runs ?? [], originalCell.richParas?.[i]?.runs)
+      if (cell.paras.join('\n') === origTexts.join('\n') && !cell.paras.some((_, i) => restyled(i)))
+        return null
+      changed = true
       // rich paragraph patches keep per-run formatting, hyperlinks and images;
       // untouched paragraphs (per-index text match) keep their original bytes
       if (rich && rich.length === cell.paras.length) {
@@ -3164,7 +3168,9 @@ function tableTextsPatchFromModel(
         const sameParagraphs = origins.every((origin, i) => origin === undefined || origin === i)
         if (rich.length === origTexts.length && sameParagraphs) {
           return rich.map((p, i): CellParaPatch =>
-            p.runs.map((run) => run.text).join('') === origTexts[i] ? null : { runs: p.runs },
+            p.runs.map((run) => run.text).join('') === origTexts[i] && !restyled(i)
+              ? null
+              : { runs: p.runs },
           )
         }
         const untouched = (p: (typeof rich)[number], origin: number | undefined) =>
