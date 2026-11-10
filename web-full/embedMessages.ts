@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import { HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
+import { FIELD_ACTIONS, HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -11,18 +11,28 @@ export const acceptsHostMessage = (
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
 const markerTones: MarkerTone[] = ['proposed', 'gap', 'conditional', 'refused', 'accepted', 'rejected', 'otherParty']
-const fieldActions: FieldAction[] = ['accept', 'reject', 'fill', 'ask', 'restore']
 const openModes: OpenMode[] = ['review', 'view']
 
 const isSourceIndex = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isScope = (value: unknown): value is BlockRef['scope'] => value === 'paragraph' || value === 'cell'
 
-/** A chip's buttons: absent means none; any unknown entry rejects the list. */
+/** A chip's buttons: absent means none; an action this editor does not know is left out, so a newer host
+ *  keeps the buttons it has. */
 function readActions(value: unknown): FieldAction[] | null {
   if (value === undefined) return []
   if (!Array.isArray(value)) return null
-  const actions = value.map((entry) => fieldActions.find((known) => known === entry))
-  return actions.every((action): action is FieldAction => action !== undefined) ? actions : null
+  return value.flatMap((entry) => FIELD_ACTIONS.filter((known) => known === entry))
+}
+
+/** The buttons' titles the host gives as text, for actions this editor knows; undefined without any. */
+function readActionTitles(value: unknown): SlotMarker['actionTitles'] {
+  if (!isRecord(value)) return undefined
+  const titles: Partial<Record<FieldAction, string>> = {}
+  for (const action of FIELD_ACTIONS) {
+    const title = value[action]
+    if (typeof title === 'string') titles[action] = title
+  }
+  return Object.keys(titles).length > 0 ? titles : undefined
 }
 
 /** One marker with exactly the known fields, or null when a field is missing or out of range. A host
@@ -37,7 +47,8 @@ function readMarker(value: unknown): SlotMarker | null {
   if (label !== undefined && typeof label !== 'string') return null
   const actions = readActions(value.actions)
   if (!actions) return null
-  const marker = { id, paragraph, scope, tone: knownTone, label: label ?? id, actions }
+  const actionTitles = readActionTitles(value.actionTitles)
+  const marker = { id, paragraph, scope, tone: knownTone, label: label ?? id, actions, ...(actionTitles ? { actionTitles } : {}) }
   const entry = MARKER_ENTRIES.find((known) => known === value.entry)
   return entry ? { ...marker, entry } : marker
 }

@@ -4,6 +4,7 @@ import { EditorState } from '@tiptap/pm/state'
 import { EditorView } from '@tiptap/pm/view'
 import type { EditorToHost, FieldAction, SlotMarker } from '../embed-protocol'
 import { mountFieldChip } from '../fieldChip'
+import { chipRoom, chipRowWidth, GUTTER_RESERVE_PX } from '../reviewGutter'
 import { markersKey, markersPlugin, setMarkers } from '../markersPlugin'
 import { cell, doc, para, paragraphs, schema, table } from './markerSchema'
 
@@ -91,6 +92,38 @@ describe('mountFieldChip', () => {
     const { v } = chipView([{ ...marker('own', 2, ['ask'], 'Eigener Text'), entry: 'ownText' }])
     hover(block(v, 'own'))
     expect(shown()).toBe(false)
+  })
+
+  it('shows a blank button with the title the host sends, or its German fallback, and posts blank', () => {
+    const { v, post } = chipView([
+      { ...marker('team', 1, ['accept', 'blank']), actionTitles: { blank: 'Mark as intentionally blank' } },
+      marker('ort', 3, ['blank']),
+    ])
+    hover(block(v, 'team'))
+    const blank = chip()!.querySelector<HTMLButtonElement>('.vound-chip-blank')!
+    expect(blank.title).toBe('Mark as intentionally blank')
+    expect(blank.getAttribute('aria-label')).toBe('Mark as intentionally blank')
+    expect(blank.querySelector('svg')).not.toBeNull()
+    blank.click()
+    expect(post).toHaveBeenCalledWith({ type: 'vound:fieldAction', id: 'team', action: 'blank' })
+
+    hover(block(v, 'ort'))
+    expect(chip()!.querySelector<HTMLButtonElement>('.vound-chip-blank')!.title).toBe('Als bewusst leer markieren')
+  })
+
+  it('fits four buttons on one line in the narrowest gutter, with compact buttons', () => {
+    gutterRight = 900 + GUTTER_RESERVE_PX
+    const { v } = chipView([marker('name', 2, ['accept', 'reject', 'ask', 'blank'])])
+    hover(block(v, 'name'))
+    expect(shown()).toBe(true)
+    expect(chip()!.dataset.size).toBe('compact')
+    expect(chipRowWidth(4, 'compact')).toBeLessThanOrEqual(chipRoom(GUTTER_RESERVE_PX))
+  })
+
+  it('keeps four regular buttons in a wide gutter', () => {
+    const { v } = chipView([marker('name', 2, ['accept', 'reject', 'ask', 'blank'])])
+    hover(block(v, 'name'))
+    expect(chip()!.dataset.size).toBe('regular')
   })
 
   it('a two-slot paragraph shows two labelled rows', () => {
