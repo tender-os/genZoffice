@@ -3,7 +3,7 @@
 // field keeps a zero-width filler, and text typed at a field's start or into a blank field takes the field's mark.
 import { combineTransactionSteps, getChangedRanges } from '@tiptap/core'
 import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
-import type { Node as PmNode } from '@tiptap/pm/model'
+import type { Mark, Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { Decoration, type EditorView } from '@tiptap/pm/view'
 import { isHostWrite, isUserEdit } from './fieldReporting'
@@ -163,15 +163,44 @@ function dropFilledFieldHighlight(
   return tr.docChanged ? tr : null
 }
 
-/** Settles every legacy text field in [from, to] on `tr`: marked settled, so the save drops the author's
- *  highlight too, and shown without it. */
-export function settleFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
+/** Each text node of the legacy text fields in [from, to], with its field mark. */
+function fieldTextNodes(doc: PmNode, from: number, to: number) {
+  const nodes: { node: PmNode; from: number; to: number; field: Mark }[] = []
   for (const field of fieldsBetween(doc, from, to)) {
-    const mark = markOf(doc.nodeAt(field.from)!, FIELD_MARK)!
-    if (mark.attrs.settled) continue
-    tr.removeMark(field.from, field.to, mark)
-    tr.addMark(field.from, field.to, mark.type.create({ ...mark.attrs, settled: true }))
-    unhighlightField(doc, field, tr)
+    doc.nodesBetween(field.from, field.to, (node, at) => {
+      const mark = markOf(node, FIELD_MARK)
+      if (node.isText && mark) nodes.push({ node, from: at, to: at + node.nodeSize, field: mark })
+    })
+  }
+  return nodes
+}
+
+/** Settles every legacy text field in [from, to] on `tr`: the field mark keeps the author's highlight it takes
+ *  off, so the save drops it and a reopen brings it back. */
+export function settleFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
+  for (const { node, from: start, to: end, field } of fieldTextNodes(doc, from, to)) {
+    if (field.attrs.settled !== null) continue
+    const style = markOf(node, STYLE_MARK)
+    const highlight = style?.attrs.highlight ?? ''
+    tr.removeMark(start, end, field)
+    tr.addMark(start, end, field.type.create({ ...field.attrs, settled: highlight }))
+    if (style && highlight)
+      tr.addMark(start, end, style.type.create({ ...style.attrs, highlight: null }))
+  }
+  return tr
+}
+
+/** Reopens every settled legacy text field in [from, to] on `tr`: open again, with the author's highlight back. */
+export function reopenFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
+  for (const { node, from: start, to: end, field } of fieldTextNodes(doc, from, to)) {
+    const highlight = field.attrs.settled
+    if (highlight === null) continue
+    tr.removeMark(start, end, field)
+    tr.addMark(start, end, field.type.create({ ...field.attrs, settled: null }))
+    if (!highlight) continue
+    const style = markOf(node, STYLE_MARK)
+    const styleType = doc.type.schema.marks[STYLE_MARK]
+    tr.addMark(start, end, styleType.create({ ...style?.attrs, highlight }))
   }
   return tr
 }

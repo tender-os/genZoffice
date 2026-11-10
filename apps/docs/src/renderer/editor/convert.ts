@@ -1973,7 +1973,7 @@ function runMarks(run: Run): PmMark[] {
     marks.push({ type: 'ctrlCheckbox', attrs: { sdtPr: run.sdtCheckboxXml } })
   if (run.placeholder) marks.push({ type: 'ctrlPlaceholder' })
   if (run.formText !== undefined)
-    marks.push({ type: 'formTextField', attrs: { index: run.formText, settled: run.formTextSettled === true } })
+    marks.push({ type: 'formTextField', attrs: { index: run.formText, settled: run.formTextSettled ? '' : null } })
   if (run.commentIds?.length)
     marks.push({ type: 'comment', attrs: { ids: run.commentIds.join(' ') } })
   if (run.ins) {
@@ -3366,6 +3366,7 @@ function fieldTextPatch(node: PmNode, original: Block): FieldTextPatch | null {
   if (current.kind === 'tocLine' && (current.right ?? '') !== (initial.right ?? '')) {
     patch.right = current.right ?? ''
   }
+  if (current.settled) patch.settled = true
   return Object.keys(patch).length > 0 ? patch : null
 }
 
@@ -3844,7 +3845,7 @@ function runFromMarks(text: string, marks: PmMark[]): Run {
       run.placeholder = true
     } else if (mark.type === 'formTextField') {
       run.formText = Number(mark.attrs?.index ?? 0)
-      if (mark.attrs?.settled) run.formTextSettled = true
+      if (mark.attrs?.settled != null) run.formTextSettled = true
     } else if (mark.type === 'comment') {
       const ids = String(mark.attrs?.ids ?? '')
         .split(' ')

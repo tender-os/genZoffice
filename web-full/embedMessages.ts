@@ -110,9 +110,9 @@ export function readHostMessage(data: unknown): HostToEditor | null {
     const block = readBlock(data.block)
     return block ? { type: 'vound:placeCaret', block } : null
   }
-  if (data.type === 'vound:settleField') {
+  if (data.type === 'vound:settleField' || data.type === 'vound:reopenField') {
     const block = readBlock(data.block)
-    return block ? { type: 'vound:settleField', block } : null
+    return block ? { type: data.type, block } : null
   }
   if (data.type === 'vound:editScope' && (data.scope === 'fields' || data.scope === 'everything')) {
     return { type: 'vound:editScope', scope: data.scope }

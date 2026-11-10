@@ -467,12 +467,13 @@ export const CtrlPlaceholderMark = Mark.create({
   },
 })
 
-/** Vound fork: the result of a legacy text form field, by its place among the paragraph's fields */
+/** Vound fork: the result of a legacy text form field, by its place among the paragraph's fields; `settled`, once the host
+ *  settled it (accepted or left blank), holds the author's highlight it took off ('' for none), else null */
 export const FormTextFieldMark = Mark.create({
   name: 'formTextField',
   excludes: '',
   addAttributes() {
-    return { index: { default: 0, rendered: false }, settled: { default: false, rendered: false } }
+    return { index: { default: 0, rendered: false }, settled: { default: null, rendered: false } }
   },
   renderHTML() {
     return ['span', { class: 'doc-form-text' }, 0]

@@ -41,7 +41,8 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, previous, value }` replace a field's value in one block (`BlockRef = { paragraph, scope: 'paragraph' \| 'cell' }`, named like a marker); answered with `vound:fieldValueResult` (see Field writes) |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
-| host → editor | `{ type: 'vound:settleField', block: BlockRef }` the block's legacy text fields were accepted or left blank: they lose the form author's highlight on screen and in the saved file, as one host write the reviewer can undo |
+| host → editor | `{ type: 'vound:settleField', block: BlockRef }` the block's legacy text fields were accepted or left blank: they lose the form author's highlight on screen and in the saved file, as one host write the reviewer can undo; a field passthrough's fields too |
+| host → editor | `{ type: 'vound:reopenField', block: BlockRef }` the block's settled fields are open again (↺ on a blank field): the author's highlight comes back, as one host write |
 | host → editor | `{ type: 'vound:reveal', requestId, text, pageHint? }` scroll to a cited passage and mark it (see Reveal); answered with `vound:revealResult` |
 | editor → host | `{ type: 'vound:ready' }` after the editor subscribed to open requests |
 | editor → host | `{ type: 'vound:saved', name, bytes: ArrayBuffer }` on every save (⌘S, File › Save, the save command) |

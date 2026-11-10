@@ -1099,6 +1099,9 @@ export interface FieldDisplay {
   /** the paragraph's one legacy text form field's default text (w:ffData/w:textInput/w:default, Vound fork):
    *  the field shows it, as a placeholder typing replaces, while `left` equals it */
   defaultText?: string
+  /** Vound fork: the host settled the paragraph's legacy text form fields (accepted or left blank), so they save
+   *  without the author's highlight */
+  settled?: true
   /** text field with no visible result (a paragraph holding only a fldChar end, or a blank legacy text
    *  form field): Word shows an empty paragraph, so the renderer keeps its line box */
   emptyLine?: boolean

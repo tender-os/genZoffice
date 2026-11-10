@@ -490,6 +490,8 @@ function replaceTextNodes(
 export interface FieldTextPatch {
   left?: string
   right?: string
+  /** Vound fork: the host settled the paragraph's legacy text form fields (FieldDisplay.settled) */
+  settled?: true
 }
 
 /** The w:t of the first result of a line of legacy text form fields whose later results are blank: the line's
@@ -529,7 +531,9 @@ function formTextValueNodes(xml: string, nodes: XmlTextNode[], left: string) {
  * that a filled legacy text field drops its highlight (withoutFilledFieldHighlight).
  */
 export function patchFieldParagraphXml(original: string, patch: FieldTextPatch): string {
-  return withoutFilledFieldHighlight(patchedFieldTexts(original, patch))
+  const texts =
+    patch.left === undefined && patch.right === undefined ? original : patchedFieldTexts(original, patch)
+  return withoutFilledFieldHighlight(texts, () => patch.settled === true)
 }
 
 function patchedFieldTexts(original: string, patch: FieldTextPatch): string {

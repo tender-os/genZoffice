@@ -42,10 +42,10 @@ function formTextFields(paraXml: string): FieldSpan[] {
  *  fill-here w:highlight, begin to end */
 export function withoutFilledFieldHighlight(
   paraXml: string,
-  settled: ReadonlySet<number | undefined> = new Set(),
+  isSettled: (index: number) => boolean = () => false,
 ): string {
   return formTextFields(paraXml)
-    .filter((field, index) => field.holdsValue || settled.has(index))
+    .filter((field, index) => field.holdsValue || isSettled(index))
     .reverse()
     .reduce(
       (xml, field) =>

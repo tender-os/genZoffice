@@ -338,7 +338,7 @@ export function patchFieldParagraphText(
 ): string | null {
   const patched = patchedFieldParagraph(originalParaXml, runs)
   const settled = new Set(runs.flatMap((run) => (run.formTextSettled ? [run.formText] : [])))
-  return patched === null ? null : withoutFilledFieldHighlight(patched, settled)
+  return patched === null ? null : withoutFilledFieldHighlight(patched, (index) => settled.has(index))
 }
 
 function patchedFieldParagraph(
