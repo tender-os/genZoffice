@@ -7,6 +7,11 @@
  *                                                                               'view' read-only (viewMode.ts)
  *                  { type: 'vound:command', command: 'save' }                 save now (same path as ⌘S)
  *                  { type: 'vound:command', command: 'fillWithAi' }           answer with vound:fillWithAi for the caret
+ *                  { type: 'vound:command', command: 'undo' | 'redo' }        undo or redo, and focus the document
+ *                  { type: 'vound:command', command: 'zoomIn' | 'zoomOut' | 'zoomFitWidth' }
+ *                                                                              zoom a step, or to the page width (it then
+ *                                                                              follows resizes until the next zoom)
+ *                  { type: 'vound:setZoom', zoom: number }                     zoom to this percent, clamped to the range
  *                  { type: 'vound:markers', markers: SlotMarker[] }            replace the slot markers (all of them)
  *                  { type: 'vound:scrollTo', id: string }                      scroll a marker into view and make it current
  *                  { type: 'vound:focus', id: string | null }                  make a marker current without scrolling, or none
@@ -39,6 +44,10 @@
  *                                                                              anchors the written place for the next write
  *                  { type: 'vound:fillWithAi', ids, selected, paragraph }      the reviewer asked AI to fill the caret's place
  *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
+ *                  { type: 'vound:history', canUndo: boolean, canRedo: boolean }
+ *                                                                              what there is to undo or redo: once the
+ *                                                                              editor is ready, then on each change
+ *                  { type: 'vound:zoom', zoom: number }                        the zoom in percent, on each change
  *                  { type: 'vound:revealResult', requestId, found: boolean }   the answer to vound:reveal, once the opened
  *                                                                              document is in the editor
  *                  { type: 'vound:opened' }                                    the document of the last vound:open is in the
@@ -82,9 +91,15 @@ export type FieldGap = { before: string; after: string }
 export type EditedText = { id: string; before: string; after: string }
 /** 'review': the host's review of a filled form (reviewMode.ts). 'view': the document shown, never changed (viewMode.ts). */
 export type OpenMode = 'review' | 'view'
+export const HOST_COMMANDS = ['save', 'fillWithAi', 'undo', 'redo', 'zoomIn', 'zoomOut', 'zoomFitWidth'] as const
+/** what the host may ask the editor to do (vound:command) */
+export type HostCommand = (typeof HOST_COMMANDS)[number]
+/** the commands the app's own menu runs (hostCommands.ts) */
+export type MenuHostCommand = Exclude<HostCommand, 'fillWithAi'>
 export type HostToEditor =
   | { type: 'vound:open'; name: string; bytes: ArrayBuffer; mode?: OpenMode }
-  | { type: 'vound:command'; command: 'save' | 'fillWithAi' }
+  | { type: 'vound:command'; command: HostCommand }
+  | { type: 'vound:setZoom'; zoom: number }
   | { type: 'vound:markers'; markers: SlotMarker[] }
   | { type: 'vound:scrollTo'; id: string }
   | { type: 'vound:focus'; id: string | null }
@@ -104,6 +119,8 @@ export type EditorToHost =
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
   | { type: 'vound:editRefused' }
+  | { type: 'vound:history'; canUndo: boolean; canRedo: boolean }
+  | { type: 'vound:zoom'; zoom: number }
   | { type: 'vound:revealResult'; requestId: string; found: boolean }
   | { type: 'vound:opened' }
 export const isEmbedded = (): boolean => window.parent !== window

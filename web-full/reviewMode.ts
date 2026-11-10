@@ -20,6 +20,7 @@ import { boxGapDecorations } from './boxGap'
 import { boxTickKey, boxTickPlugin } from './boxTick'
 import { editScopeKey, editScopePlugin } from './editScope'
 import { formTextKey, formTextPlugin, hangingFieldDecorations } from './formTextField'
+import { undoCaretKey, undoCaretPlugin } from './undoCaret'
 import { mountFieldChip } from './fieldChip'
 import { fieldRingKey, fieldRingPlugin } from './fieldRing'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
@@ -140,6 +141,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   window.addEventListener('keydown', blockShortcut, true)
   if (!reviewModeKey.get(editor.state)) editor.registerPlugin(reviewModePlugin, first)
   if (!formTextKey.get(editor.state)) editor.registerPlugin(formTextPlugin, first)
+  if (!undoCaretKey.get(editor.state)) editor.registerPlugin(undoCaretPlugin)
   if (!fieldReportingKey.get(editor.state)) editor.registerPlugin(fieldReportingPlugin(post), first)
   if (!boxTickKey.get(editor.state)) editor.registerPlugin(boxTickPlugin, first)
   if (!editScopeKey.get(editor.state)) editor.registerPlugin(editScopePlugin(post), first)
@@ -156,6 +158,7 @@ export function leaveReviewMode(editor: Editor): void {
   window.removeEventListener('keydown', blockShortcut, true)
   if (reviewModeKey.get(editor.state)) editor.unregisterPlugin(reviewModeKey)
   if (formTextKey.get(editor.state)) editor.unregisterPlugin(formTextKey)
+  if (undoCaretKey.get(editor.state)) editor.unregisterPlugin(undoCaretKey)
   if (fieldReportingKey.get(editor.state)) editor.unregisterPlugin(fieldReportingKey)
   if (boxTickKey.get(editor.state)) editor.unregisterPlugin(boxTickKey)
   if (editScopeKey.get(editor.state)) editor.unregisterPlugin(editScopeKey)

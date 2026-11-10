@@ -129,7 +129,7 @@ describe('readHostMessage', () => {
     expect(readHostMessage('vound:open')).toBeNull()
     expect(readHostMessage({ type: 'vound:open', name: 'a.docx', bytes: 'not bytes' })).toBeNull()
     expect(readHostMessage({ type: 'vound:open', bytes: new ArrayBuffer(1) })).toBeNull()
-    expect(readHostMessage({ type: 'vound:command', command: 'undo' })).toBeNull()
+    expect(readHostMessage({ type: 'vound:command', command: 'print' })).toBeNull()
     expect(readHostMessage({ type: 'vound:command', command: 'save-as' })).toBeNull()
     expect(readHostMessage({ type: 'other' })).toBeNull()
   })
