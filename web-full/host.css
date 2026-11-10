@@ -68,6 +68,8 @@ html.vound-review :has(.vound-box-gap) + .ProseMirror-trailingBreak { display: n
 html.vound-review .vound-empty-control { display: inline-block; min-width: 3em; background: var(--vound-missing-tint); border-bottom: 1px solid var(--vound-missing-bar); cursor: text; }
 /* inside a field the field's tint and bar already mark the place: the box only keeps a small target for the caret */
 html.vound-review .vound-slot .vound-empty-control { min-width: 1em; background: none; border-bottom: none; }
+/* a field marked blank is settled: no author's fill-here highlight around its empty control */
+html.vound-review .vound-slot-accepted :has(> .vound-empty-control) { background-color: transparent !important; }
 @media print { html.vound-review .vound-empty-control { display: inline; min-width: 0; background: none; border: 0; } }
 /* View mode (viewMode.ts sets html.vound-view on a vound:open with mode 'view'): the document alone. No ribbon,
    no ribbon tab row, no status bar; the pages take no pointer input, the canvas behind them still scrolls.

@@ -6,10 +6,11 @@ import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { Decoration, type EditorView } from '@tiptap/pm/view'
-import { isUserEdit } from './fieldReporting'
+import { isHostWrite, isUserEdit } from './fieldReporting'
 
 const FIELD_MARK = 'formTextField'
 const PLACEHOLDER_MARK = 'ctrlPlaceholder'
+const STYLE_MARK = 'docTextStyle'
 const EN_SPACE = ' '
 
 const markOf = (node: PmNode, name: string) => node.marks.find((mark) => mark.type.name === name)
@@ -122,5 +123,44 @@ export const formTextPlugin = new Plugin({
   appendTransaction: (transactions, oldState, state) =>
     transactions.some(isUserEdit)
       ? keepEmptiedFields(transactions, oldState.doc, state.doc, state.tr)
+      : null,
+})
+
+/** The transaction that takes the author's fill-here highlight off every field the changes left holding a value.
+ *  Appended to the edit, it shares its undo step, so undoing the value brings the highlight back. */
+function dropFilledFieldHighlight(
+  transactions: readonly Transaction[],
+  before: PmNode,
+  doc: PmNode,
+  tr: Transaction,
+) {
+  for (const { newRange } of getChangedRanges(combineTransactionSteps(before, [...transactions]))) {
+    doc.nodesBetween(newRange.from, newRange.to, (block, pos) => {
+      if (!block.isTextblock) return true
+      for (const field of fieldsOf(block, pos + 1).filter((each) => !isReplacedWhole(doc, each))) {
+        doc.nodesBetween(field.from, field.to, (node, at) => {
+          const style = markOf(node, STYLE_MARK)
+          if (!node.isText || !style?.attrs.highlight) return
+          const unhighlighted = style.type.create({ ...style.attrs, highlight: null })
+          tr.addMark(
+            Math.max(at, field.from),
+            Math.min(at + node.nodeSize, field.to),
+            unhighlighted,
+          )
+        })
+      }
+      return false
+    })
+  }
+  return tr.docChanged ? tr : null
+}
+
+export const filledFieldHighlightKey = new PluginKey('voundFilledFieldHighlight')
+
+export const filledFieldHighlightPlugin = new Plugin({
+  key: filledFieldHighlightKey,
+  appendTransaction: (transactions, oldState, state) =>
+    transactions.some((tr) => isUserEdit(tr) || (tr.docChanged && isHostWrite(tr)))
+      ? dropFilledFieldHighlight(transactions, oldState.doc, state.doc, state.tr)
       : null,
 })

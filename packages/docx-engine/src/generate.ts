@@ -1,6 +1,7 @@
 import { formTextResults } from './parse-fields'
 import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
+import { withoutFilledFieldHighlight } from './form-text-highlight'
 import { patchFieldParagraphText } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
@@ -524,9 +525,14 @@ function formTextValueNodes(xml: string, nodes: XmlTextNode[], left: string) {
 
 /**
  * Patch only cached visible w:t text in a field paragraph. Field instructions,
- * hyperlinks, tabs, run styling, and field boundaries remain byte-identical.
+ * hyperlinks, tabs, run styling, and field boundaries remain byte-identical, except
+ * that a filled legacy text field drops its highlight (withoutFilledFieldHighlight).
  */
 export function patchFieldParagraphXml(original: string, patch: FieldTextPatch): string {
+  return withoutFilledFieldHighlight(patchedFieldTexts(original, patch))
+}
+
+function patchedFieldTexts(original: string, patch: FieldTextPatch): string {
   const xml = withFormTextAnchors(original)
   const nodes = textNodes(xml, 'w:t')
   if (nodes.length === 0) return original

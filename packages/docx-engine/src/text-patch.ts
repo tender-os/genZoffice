@@ -3,6 +3,7 @@ import { withoutPlaceholderFlag, withoutPlaceholderStyle } from './parse-sdt'
 import { EMPTY_CONTROL_TEXT, type Run } from './types'
 import { checkboxControlRanges, showsEveryBox, withBoxStates } from './box-state'
 import { formTextResultSpans, withFormTextAnchors } from './form-text-anchor'
+import { withoutFilledFieldHighlight } from './form-text-highlight'
 import { joinedWithinStretches, textHunks } from './text-hunks'
 import { escapeXmlText } from './xml-utils'
 
@@ -322,7 +323,8 @@ function patchOneParagraph(
  * from the run model, because the model only holds the visible result text and
  * the rebuild drops the field machinery. When the edit only changed text, patch
  * the w:t inside the original paragraph XML instead: fields, controls, run
- * properties and the paragraph properties stay byte for byte. A placeholder
+ * properties and the paragraph properties stay byte for byte, except that a filled
+ * legacy text field drops its highlight (withoutFilledFieldHighlight). A placeholder
  * control that received real text loses its placeholder flag and style, as in
  * Word. Returns null when the paragraph has no field or control, or when the
  * text cannot be mapped (added or removed tabs and breaks around a plain field,
@@ -331,6 +333,14 @@ function patchOneParagraph(
  * lose it: an added tab or break becomes a space, and a removed one stays.
  */
 export function patchFieldParagraphText(
+  originalParaXml: string,
+  runs: ReadonlyArray<WtMappedRun>,
+): string | null {
+  const patched = patchedFieldParagraph(originalParaXml, runs)
+  return patched === null ? null : withoutFilledFieldHighlight(patched)
+}
+
+function patchedFieldParagraph(
   originalParaXml: string,
   runs: ReadonlyArray<WtMappedRun>,
 ): string | null {

@@ -28,7 +28,7 @@ const COMMIT_EDITS_EVENT = 'ai-docs-commit-tables'
 type Range = { from: number; to: number }
 
 /** a host write, or a transaction another plugin appended to one */
-const isHostWrite = (tr: Transaction) =>
+export const isHostWrite = (tr: Transaction) =>
   !!tr.getMeta(HOST_WRITE_META) || !!tr.getMeta('appendedTransaction')?.getMeta(HOST_WRITE_META)
 
 /** A change the reviewer made. Not: a host write, a document opening (whole-document replace), or a change
