@@ -163,44 +163,86 @@ function dropFilledFieldHighlight(
   return tr.docChanged ? tr : null
 }
 
-/** Each text node of the legacy text fields in [from, to], with its field mark. */
-function fieldTextNodes(doc: PmNode, from: number, to: number) {
-  const nodes: { node: PmNode; from: number; to: number; field: Mark }[] = []
-  for (const field of fieldsBetween(doc, from, to)) {
-    doc.nodesBetween(field.from, field.to, (node, at) => {
-      const mark = markOf(node, FIELD_MARK)
-      if (node.isText && mark) nodes.push({ node, from: at, to: at + node.nodeSize, field: mark })
-    })
-  }
+type FieldText = { node: PmNode; from: number; to: number; field: Mark }
+
+/** each text node of one legacy text field, with its field mark */
+function fieldTexts(doc: PmNode, field: { from: number; to: number }) {
+  const nodes: FieldText[] = []
+  doc.nodesBetween(field.from, field.to, (node, at) => {
+    const mark = markOf(node, FIELD_MARK)
+    if (node.isText && mark) nodes.push({ node, from: at, to: at + node.nodeSize, field: mark })
+  })
   return nodes
 }
 
-/** Settles every legacy text field in [from, to] on `tr`: the field mark keeps the author's highlight it takes
- *  off, so the save drops it and a reopen brings it back. */
+/** the legacy text fields of the textblocks in [from, to] by their text nodes, last first so a replaced field
+ *  keeps the earlier positions */
+const fieldsFromEnd = (doc: PmNode, from: number, to: number) =>
+  fieldsBetween(doc, from, to)
+    .reverse()
+    .map((field) => fieldTexts(doc, field))
+
+const showsDefaultText = (texts: FieldText[]) =>
+  texts.every(({ node }) => !!markOf(node, PLACEHOLDER_MARK) && node.text !== EMPTY_CONTROL_TEXT)
+
+const withAttrs = (mark: Mark, attrs: Record<string, unknown>) =>
+  mark.type.create({ ...mark.attrs, ...attrs })
+
+/** a node's marks with its field mark changed by `fieldAttrs` and its highlight set (null takes it off) */
+function marksWith(node: PmNode, fieldAttrs: Record<string, unknown>, highlight: string | null) {
+  const style = markOf(node, STYLE_MARK)
+  const kept = node.marks.flatMap((mark) => {
+    if (mark.type.name === FIELD_MARK) return [withAttrs(mark, fieldAttrs)]
+    return mark === style ? [] : [mark]
+  })
+  if (!style && !highlight) return kept
+  return node.type.schema.marks[STYLE_MARK].create({ ...style?.attrs, highlight }).addToSet(kept)
+}
+
+const highlightOf = (node: PmNode): string => markOf(node, STYLE_MARK)?.attrs.highlight ?? ''
+
+/** Settles every legacy text field in [from, to] on `tr`. The field mark keeps the author's highlight it takes off,
+ *  so the save drops it and a reopen brings it back; a field still showing its default text is emptied, the
+ *  default kept the same way. */
 export function settleFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
-  for (const { node, from: start, to: end, field } of fieldTextNodes(doc, from, to)) {
-    if (field.attrs.settled !== null) continue
-    const style = markOf(node, STYLE_MARK)
-    const highlight = style?.attrs.highlight ?? ''
-    tr.removeMark(start, end, field)
-    tr.addMark(start, end, field.type.create({ ...field.attrs, settled: highlight }))
-    if (style && highlight)
-      tr.addMark(start, end, style.type.create({ ...style.attrs, highlight: null }))
+  for (const texts of fieldsFromEnd(doc, from, to)) {
+    if (texts.length === 0 || texts.some(({ field }) => field.attrs.settled !== null)) continue
+    if (showsDefaultText(texts)) {
+      const [first] = texts
+      const emptiedDefault = texts.map(({ node }) => node.text).join('')
+      const fieldAttrs = { settled: highlightOf(first.node), emptiedDefault }
+      const filler = doc.type.schema.text(
+        EMPTY_CONTROL_TEXT,
+        marksWith(first.node, fieldAttrs, null),
+      )
+      tr.replaceWith(first.from, texts[texts.length - 1].to, filler)
+      continue
+    }
+    for (const { node, from: start, to: end, field } of texts) {
+      const style = markOf(node, STYLE_MARK)
+      tr.removeMark(start, end, field)
+      tr.addMark(start, end, withAttrs(field, { settled: highlightOf(node) }))
+      if (style?.attrs.highlight) tr.addMark(start, end, withAttrs(style, { highlight: null }))
+    }
   }
   return tr
 }
 
-/** Reopens every settled legacy text field in [from, to] on `tr`: open again, with the author's highlight back. */
+/** Reopens every settled legacy text field in [from, to] on `tr`: open again, with the author's highlight and
+ *  an emptied default text back. */
 export function reopenFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
-  for (const { node, from: start, to: end, field } of fieldTextNodes(doc, from, to)) {
-    const highlight = field.attrs.settled
-    if (highlight === null) continue
-    tr.removeMark(start, end, field)
-    tr.addMark(start, end, field.type.create({ ...field.attrs, settled: null }))
-    if (!highlight) continue
-    const style = markOf(node, STYLE_MARK)
-    const styleType = doc.type.schema.marks[STYLE_MARK]
-    tr.addMark(start, end, styleType.create({ ...style?.attrs, highlight }))
+  for (const texts of fieldsFromEnd(doc, from, to)) {
+    for (const { node, from: start, to: end, field } of [...texts].reverse()) {
+      const { settled: highlight, emptiedDefault } = field.attrs
+      if (highlight === null) continue
+      const marks = marksWith(node, { settled: null, emptiedDefault: null }, highlight || null)
+      if (emptiedDefault !== null) {
+        tr.replaceWith(start, end, doc.type.schema.text(emptiedDefault, marks))
+        continue
+      }
+      tr.removeMark(start, end, field)
+      for (const mark of marks) tr.addMark(start, end, mark)
+    }
   }
   return tr
 }

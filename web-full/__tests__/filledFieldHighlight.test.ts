@@ -170,6 +170,29 @@ describe('a highlighted field the host settles (accepted, or marked blank)', () 
     },
   )
 
+  it('empties a field still showing its default text, which undo and a reopen bring back', async () => {
+    const { parsed, editor } = await open()
+    const resultOf = (xml: string) =>
+      [...xml.split('w:fldCharType="separate"')[1].matchAll(/<w:t(?: [^>]*)?>([^<]*)/g)]
+        .map((match) => match[1])
+        .join('')
+    settle(editor, 0)
+    expect(editor.state.doc.child(0).textContent).not.toContain(DEFAULT_TEXT)
+    const settled = (await savedParagraphs(parsed, editor))[0]
+    expect([resultOf(settled), highlightCount(settled)]).toEqual(['', 0])
+    editor.commands.undo()
+    const undone = (await savedParagraphs(parsed, editor))[0]
+    expect([resultOf(undone), highlightCount(undone)]).toEqual([DEFAULT_TEXT, 5])
+    settle(editor, 0)
+    reopenField(editor.view, {
+      paragraph: editor.state.doc.child(0).attrs.docxPara,
+      scope: 'paragraph',
+    })
+    expect(highlightsOf(editor, 0)).toEqual({ 'Mitglied ': null, [DEFAULT_TEXT]: 'yellow' })
+    const reopened = (await savedParagraphs(parsed, editor))[0]
+    expect([resultOf(reopened), highlightCount(reopened)]).toEqual([DEFAULT_TEXT, 5])
+  })
+
   it('tells the host of no edit when the reviewer undoes the settling, which changes no text', async () => {
     const { editor } = await open()
     const post = vi.fn()

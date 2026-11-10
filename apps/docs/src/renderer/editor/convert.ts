@@ -1973,7 +1973,10 @@ function runMarks(run: Run): PmMark[] {
     marks.push({ type: 'ctrlCheckbox', attrs: { sdtPr: run.sdtCheckboxXml } })
   if (run.placeholder) marks.push({ type: 'ctrlPlaceholder' })
   if (run.formText !== undefined)
-    marks.push({ type: 'formTextField', attrs: { index: run.formText, settled: run.formTextSettled ? '' : null } })
+    marks.push({
+      type: 'formTextField',
+      attrs: { index: run.formText, settled: run.formTextSettled ? '' : null, emptiedDefault: null },
+    })
   if (run.commentIds?.length)
     marks.push({ type: 'comment', attrs: { ids: run.commentIds.join(' ') } })
   if (run.ins) {

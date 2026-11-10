@@ -4,6 +4,7 @@
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import type { BlockRef } from './embed-protocol'
+import { KEEPS_PLACEHOLDERS_META } from '../apps/docs/src/renderer/editor/placeholder-typing'
 import { HOST_WRITE_META } from './fieldWrite'
 import { reopenFormTextFields, settleFormTextFields } from './formTextField'
 import { locateBlock } from './markers'
@@ -37,7 +38,8 @@ function changeFields(view: EditorView, block: BlockRef, change: FieldChange) {
     if (display.settled !== node.attrs.fieldDisplay.settled)
       tr.setNodeMarkup(pos, undefined, { ...node.attrs, fieldDisplay: display })
   }
-  if (tr.docChanged) view.dispatch(tr.setMeta(HOST_WRITE_META, true))
+  if (tr.docChanged)
+    view.dispatch(tr.setMeta(HOST_WRITE_META, true).setMeta(KEEPS_PLACEHOLDERS_META, true))
 }
 
 /** settles the legacy text fields of one marked block; nothing when the block is gone or they already are */
