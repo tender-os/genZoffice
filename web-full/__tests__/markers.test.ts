@@ -31,6 +31,15 @@ describe('markerDecorations', () => {
     ])
   })
 
+  it("takes edits in the reviewer's own text and shows it as theirs, whatever its tone", () => {
+    const own: SlotMarker = { ...marker('own', 0, 'paragraph', 'conditional'), entry: 'ownText' }
+    const [decoration] = markerDecorations(sample, [own], null).decorations
+    expect(decoration.spec.isField).toBe(true)
+    expect(attrsOf(decoration).class).toBe(
+      'vound-slot vound-slot-conditional vound-slot-field vound-slot-own-text',
+    )
+  })
+
   it('drops an index matching no node or two nodes apart, and marks both halves of a split', () => {
     const twice = doc(para(0, 'a'), para(5, 'one place'), para(6, 'b'), para(5, 'other place'))
     const { decorations, dropped } = markerDecorations(twice, [marker('copied', 5), marker('missing', 9), marker('kept', 0)], null)

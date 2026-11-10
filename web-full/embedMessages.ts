@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import { HOST_COMMANDS, type BlockRef, type FieldAction, type FieldGap, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
+import { HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -38,7 +38,8 @@ function readMarker(value: unknown): SlotMarker | null {
   const actions = readActions(value.actions)
   if (!actions) return null
   const marker = { id, paragraph, scope, tone: knownTone, label: label ?? id, actions }
-  return value.entry === 'toggle' ? { ...marker, entry: 'toggle' } : marker
+  const entry = MARKER_ENTRIES.find((known) => known === value.entry)
+  return entry ? { ...marker, entry } : marker
 }
 
 /** The block a field write or caret placement names, with exactly the known fields. */

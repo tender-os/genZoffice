@@ -87,6 +87,12 @@ describe('mountFieldChip', () => {
     expect(block(v, 'name').classList.contains('vound-slot-hot')).toBe(true)
   })
 
+  it("shows no chip on the reviewer's own text", () => {
+    const { v } = chipView([{ ...marker('own', 2, ['ask'], 'Eigener Text'), entry: 'ownText' }])
+    hover(block(v, 'own'))
+    expect(shown()).toBe(false)
+  })
+
   it('a two-slot paragraph shows two labelled rows', () => {
     const { v } = chipView([marker('ort', 1, ['fill', 'ask'], 'Ort'), marker('datum', 1, ['restore', 'fill'], 'Datum')])
     hover(block(v, 'ort'))

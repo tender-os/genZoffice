@@ -118,7 +118,7 @@ describe('a click on locked text while the caret is in a field', () => {
     type(editor, 'Z')
     expect(editor.state.doc.child(0).textContent).toBe('Vertretung: Prokurist')
     expect(editor.state.doc.child(1).textContent).toBe('Fester Text des Formulars')
-    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused' })
+    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused', where: 'outsideFields' })
   })
 })
 
@@ -131,7 +131,7 @@ describe('text the browser writes into locked text (a dead key, an input method,
     await settle()
     expect(editor.state.doc.child(1).textContent).toBe('Fester Text des Formulars')
     expect(editor.view.dom.textContent).not.toContain('´')
-    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused' })
+    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused', where: 'outsideFields' })
   })
 })
 
