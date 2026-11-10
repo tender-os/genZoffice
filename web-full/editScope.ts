@@ -17,7 +17,7 @@ import {
   type Transaction,
 } from '@tiptap/pm/state'
 import type { Decoration, EditorView } from '@tiptap/pm/view'
-import type { EditScope, EditorToHost } from './embed-protocol'
+import type { EditScope, EditorToHost, RefusalPlace } from './embed-protocol'
 import { blockControlKey } from './blockControl'
 import { opensWithBox } from './boxGap'
 import { formTextFieldAt, labelsOf } from './formTextField'
@@ -66,13 +66,27 @@ const keepsFormLabels = (tr: Transaction, range: { from: number }) => {
   return wordsOf(labelsOf(before)) === wordsOf(labelsOf(after))
 }
 
-const staysInFields = (tr: Transaction, blocks: Decoration[]) =>
-  editedRanges([tr]).before.every(
-    (range) =>
-      formTextFieldAt(tr.before, range.from, range.to) !== null ||
-      (blocks.some((block) => isWithin(block, range) && keepsItsWords(tr, block)) &&
-        keepsFormLabels(tr, range)),
-  )
+/** why an edited range stays out of the fields, or null when it lies in one */
+function rangeRefusal(
+  tr: Transaction,
+  blocks: Decoration[],
+  range: { from: number; to: number },
+): RefusalPlace | null {
+  if (formTextFieldAt(tr.before, range.from, range.to) !== null) return null
+  const around = blocks.filter((block) => isWithin(block, range))
+  if (around.length === 0) return 'outsideFields'
+  if (!around.some((block) => keepsItsWords(tr, block))) return 'boxLine'
+  return keepsFormLabels(tr, range) ? null : 'outsideFields'
+}
+
+/** why the edit stays out of the fields, or null when it keeps to them; a document with no field markers has
+ *  nothing to protect the fields from */
+const fieldRefusal = (tr: Transaction, blocks: Decoration[]) =>
+  blocks.length === 0
+    ? null
+    : (editedRanges([tr])
+        .before.map((range) => rangeRefusal(tr, blocks, range))
+        .find((place) => place !== null) ?? null)
 
 /** a block the editor shows whole and edits in place through its own view; a picture may be removed */
 const isWholeBlock = (node: PmNode) =>
@@ -218,6 +232,12 @@ const breaksControl = (tr: Transaction) =>
     return broken
   })
 
+/** why the reviewer's edit is refused: it removes a whole block, or leaves the fields while locked to them */
+function refusalOf(tr: Transaction, state: EditorState): RefusalPlace | null {
+  if (removesWholeBlock(tr)) return 'outsideFields'
+  return scope === 'fields' ? fieldRefusal(tr, fieldBlocks(state)) : null
+}
+
 /** the plugin refusing edits outside the fields and edits that remove a whole block, reported through `post`; one per review-mode session */
 export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
   new Plugin({
@@ -228,18 +248,13 @@ export const editScopePlugin = (post: (msg: EditorToHost) => void) =>
     filterTransaction: (tr, state) => {
       if (tr.getMeta('appendedTransaction')) return true
       if (scope === 'fields' && fieldBlocks(state).length > 0 && replacesDocumentByHand(tr)) {
-        post({ type: 'vound:editRefused' })
+        post({ type: 'vound:editRefused', where: 'outsideFields' })
         return false
       }
       if (!isUserEdit(tr)) return true
       if (breaksControl(tr)) return false
-      const refused =
-        removesWholeBlock(tr) || (scope === 'fields' && !keepsToFields(tr, fieldBlocks(state)))
-      if (refused) post({ type: 'vound:editRefused' })
-      return !refused
+      const where = refusalOf(tr, state)
+      if (where) post({ type: 'vound:editRefused', where })
+      return where === null
     },
   })
-
-/** a document with no field markers has nothing to protect the fields from */
-const keepsToFields = (tr: Transaction, blocks: Decoration[]) =>
-  blocks.length === 0 || staysInFields(tr, blocks)

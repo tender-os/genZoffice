@@ -61,7 +61,7 @@ describe('editScopePlugin', () => {
     const before = v.state.doc
     typeAt(v, 1)
     expect(v.state.doc.eq(before)).toBe(true)
-    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused' })
+    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused', where: 'boxLine' })
 
     v.dispatch(v.state.tr.insertText('☒', start(v, 1) + 1, start(v, 1) + 2))
     expect(textOf(v, 1)).toContain('☒')
@@ -83,12 +83,19 @@ describe('editScopePlugin', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
+  it("takes edits in the reviewer's own text, which offers no action", () => {
+    const { v, post } = lockedView([field(2), { ...changeMarker(1), entry: 'ownText' }])
+    typeAt(v, 1)
+    expect(textOf(v, 1)).toContain('x')
+    expect(post).not.toHaveBeenCalled()
+  })
+
   it('refuses an edit outside the fields and reports it', () => {
     const { v, post } = lockedView([field(1)])
     const before = v.state.doc
     typeAt(v, 0)
     expect(v.state.doc.eq(before)).toBe(true)
-    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused' })
+    expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused', where: 'outsideFields' })
   })
 
   it('refuses a deletion that starts in a field and runs past it', () => {
@@ -179,7 +186,7 @@ describe('editScopePlugin', () => {
         v.dispatch(v.state.tr.replaceSelection(new Slice(doc(para(null, 'Limonka')).content, 0, 0)))
         v.dispatch(v.state.tr.deleteSelection())
         expect(v.state.doc.eq(before)).toBe(true)
-        expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused' })
+        expect(post).toHaveBeenCalledWith({ type: 'vound:editRefused', where: 'outsideFields' })
       })
     }
 

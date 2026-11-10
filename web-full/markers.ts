@@ -12,6 +12,8 @@ export const HOT_CLASS = 'vound-slot-hot'
 /** a block the reviewer can still type in while the document is locked to the fields (host.css) */
 export const FIELD_CLASS = 'vound-slot-field'
 const TOGGLE_CLASS = 'vound-slot-toggle'
+/** text the reviewer added or changed outside a field (host.css draws it as theirs) */
+const OWN_TEXT_CLASS = 'vound-slot-own-text'
 /** another field's block sits right above or below this one (host.css keeps their tints apart) */
 const OTHER_ABOVE_CLASS = 'vound-slot-other-above'
 const OTHER_BELOW_CLASS = 'vound-slot-other-below'
@@ -91,14 +93,15 @@ function nodeDecoration(target: Located, markers: SlotMarker[], currentId: strin
   const slotIds = markers.map((marker) => marker.id)
   const shown = markers.reduce((top, marker) => (attentionRank(marker) < attentionRank(top) ? marker : top))
   const current = currentId !== null && slotIds.includes(currentId) ? ` ${CURRENT_CLASS}` : ''
-  const isField = markers.some((marker) => marker.actions.length > 0)
+  const isField = markers.some((marker) => marker.actions.length > 0 || marker.entry === 'ownText')
   const field = isField ? ` ${FIELD_CLASS}` : ''
   const togglesOnly = isField && markers.every((marker) => marker.entry === 'toggle')
   const toggle = togglesOnly ? ` ${TOGGLE_CLASS}` : ''
+  const ownText = markers.every((marker) => marker.entry === 'ownText') ? ` ${OWN_TEXT_CLASS}` : ''
   return Decoration.node(
     target.pos,
     target.pos + target.node.nodeSize,
-    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${toggle}${current}${edges}`, 'data-vound-slot': slotIds.join(' ') },
+    { class: `${MARKER_CLASS} ${MARKER_CLASS}-${shown.tone}${field}${toggle}${ownText}${current}${edges}`, 'data-vound-slot': slotIds.join(' ') },
     togglesOnly ? { slotIds, isField, togglesOnly } : { slotIds, isField },
   )
 }

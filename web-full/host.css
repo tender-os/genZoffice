@@ -107,6 +107,10 @@ html.vound-review {
   --vound-other-party-bar: hsl(18 100% 48%);
   --vound-other-party-halo: hsla(18 100% 48% / .14);
   --vound-other-party-hover: hsla(18 100% 48% / .45);
+  --vound-own-text-tint: var(--vound-chip-hover);
+  --vound-own-text-bar: var(--vound-chip-muted);
+  --vound-own-text-halo: hsla(220 8% 44% / .14);
+  --vound-own-text-hover: hsla(220 8% 44% / .45);
   --vound-accepted-tint: hsl(152 55% 95%);
   --vound-accepted-bar: hsl(152 55% 38%);
   --vound-rejected-tint: #fff;
@@ -168,6 +172,17 @@ html.vound-review .vound-slot-rejected {
   --vs-bar: var(--vound-rejected-bar);
   --vs-edge: inset 0 0 0 1px var(--vound-rejected-edge);
 }
+/* text the reviewer added or changed outside a field is theirs: a quiet neutral tint and a solid bar, whatever the
+   tone, never the dashes and hatch of an optional field */
+html.vound-review .vound-slot.vound-slot-own-text {
+  --vs-tint: var(--vound-own-text-tint);
+  --vs-bar: var(--vound-own-text-bar);
+  --vs-ring: var(--vound-own-text-bar);
+  --vs-halo: var(--vound-own-text-halo);
+  --vs-hover: var(--vound-own-text-hover);
+  --vs-bar-image: linear-gradient(var(--vs-bar), var(--vs-bar));
+}
+html.vound-review :is(td, th).vound-slot.vound-slot-own-text { background: var(--vs-bar-image) left top / 2px 100% no-repeat, var(--vs-tint); }
 /* A paragraph's tint reaches 3px past its text inline and 1px above and below, with the bar outside it: padding
    would move the text. --vs-l, --vs-r and --vs-y say how far the drawing reaches past the box, for the edge and
    rings. A cell's own padding already holds its text off the bar. */
@@ -251,6 +266,7 @@ html.vound-review .vound-slot-accepted:not(td, th):has(> .ProseMirror-trailingBr
 html.vound-review :is(td, th).vound-slot-accepted > p:last-child:has(> .ProseMirror-trailingBreak:only-child)::after,
 html.vound-review .vound-slot-accepted.vound-slot-continued:not(td, th)::after,
 html.vound-review :is(td, th).vound-slot-accepted.vound-slot-continued > p:last-child::after { content: none; }
+html.vound-review .vound-slot.vound-slot-own-text:not(td, th) { --vs-plate: var(--vs-frame), var(--vs-bar-end); }
 /* the selected and the hover ring (fieldRing.ts): one box around the run of blocks a field spans, in a layer
    above the page, so the tint of the next marked block cannot cover it */
 .vound-ring-layer { position: relative; width: 0; height: 0; }

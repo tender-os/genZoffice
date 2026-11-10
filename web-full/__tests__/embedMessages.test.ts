@@ -124,6 +124,20 @@ describe('readHostMessage', () => {
     expect(msg).toEqual({ type: 'vound:markers', markers: [{ id: 'a', paragraph: 0, scope: 'paragraph', tone: 'gap', label: 'A', actions: [] }] })
   })
 
+  it("keeps a marker's entry: a box line, or text the reviewer wrote outside a field; drops an unknown one", () => {
+    const base = { id: 'o', paragraph: 3, scope: 'paragraph', tone: 'conditional', label: 'o', actions: [] }
+    for (const entry of ['toggle', 'ownText'] as const) {
+      expect(readHostMessage({ type: 'vound:markers', markers: [{ ...base, entry }] })).toEqual({
+        type: 'vound:markers',
+        markers: [{ ...base, entry }],
+      })
+    }
+    expect(readHostMessage({ type: 'vound:markers', markers: [{ ...base, entry: 'mine' }] })).toEqual({
+      type: 'vound:markers',
+      markers: [base],
+    })
+  })
+
   it('ignores anything else', () => {
     expect(readHostMessage(null)).toBeNull()
     expect(readHostMessage('vound:open')).toBeNull()

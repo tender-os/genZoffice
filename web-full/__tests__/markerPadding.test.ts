@@ -153,6 +153,15 @@ describe('review field markers', () => {
     )
   })
 
+  it("give the reviewer's own text a quiet tint and a solid bar, never the conditional dashes or hatch", () => {
+    const paragraph = block('p', 'vound-slot vound-slot-conditional vound-slot-field vound-slot-own-text')
+    expect(variable(paragraph, '--vs-tint')).toBe('var(--vound-own-text-tint)')
+    expect(variable(paragraph, '--vs-bar')).toBe('var(--vound-own-text-bar)')
+    expect(variable(paragraph, '--vs-plate')).toBe('var(--vs-frame), var(--vs-bar-end)')
+    const cell = block('td', 'vound-slot vound-slot-conditional vound-slot-field vound-slot-own-text')
+    expect(getComputedStyle(cell).getPropertyValue('background')).not.toContain('--vs-hatch')
+  })
+
   it('keep a table cell marker inside the cell, where the cell padding already keeps text off the bar', () => {
     const cell = block('td', 'vound-slot vound-slot-gap')
     expect([variable(cell, '--vs-l'), variable(cell, '--vs-r'), variable(cell, '--vs-y')]).toEqual([

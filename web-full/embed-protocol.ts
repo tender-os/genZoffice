@@ -43,7 +43,8 @@
  *                                                                              the answer to vound:setFieldValue; gap
  *                                                                              anchors the written place for the next write
  *                  { type: 'vound:fillWithAi', ids, selected, paragraph }      the reviewer asked AI to fill the caret's place
- *                  { type: 'vound:editRefused' }                               an edit outside the fields was refused (scope 'fields')
+ *                  { type: 'vound:editRefused', where }                         an edit was refused; where: 'boxLine' (the words
+ *                                                                              on a box's line) or 'outsideFields'
  *                  { type: 'vound:history', canUndo: boolean, canRedo: boolean }
  *                                                                              what there is to undo or redo: once the
  *                                                                              editor is ready, then on each change
@@ -73,8 +74,9 @@ export type SlotMarker = {
   tone: MarkerTone
   label: string
   actions: FieldAction[]
-  /** 'toggle': the field is a box, so locked to the fields the words on its line stay as they are */
-  entry?: 'toggle'
+  /** 'toggle': the field is a box, so locked to the fields the words on its line stay as they are. 'ownText':
+   *  text the reviewer added or changed outside a field, theirs to type in; it offers no chip */
+  entry?: MarkerEntry
 }
 /** The block a field write or caret placement targets, named like a marker: the source paragraph
  *  index, and whether the block is that paragraph or the table cell around it. */
@@ -91,6 +93,11 @@ export type FieldGap = { before: string; after: string }
 export type EditedText = { id: string; before: string; after: string }
 /** 'review': the host's review of a filled form (reviewMode.ts). 'view': the document shown, never changed (viewMode.ts). */
 export type OpenMode = 'review' | 'view'
+export const MARKER_ENTRIES = ['toggle', 'ownText'] as const
+export type MarkerEntry = (typeof MARKER_ENTRIES)[number]
+/** why an edit was refused: it changed the words on a box's line, or text outside every field */
+export const REFUSAL_PLACES = ['boxLine', 'outsideFields'] as const
+export type RefusalPlace = (typeof REFUSAL_PLACES)[number]
 export const HOST_COMMANDS = ['save', 'fillWithAi', 'undo', 'redo', 'zoomIn', 'zoomOut', 'zoomFitWidth'] as const
 /** what the host may ask the editor to do (vound:command) */
 export type HostCommand = (typeof HOST_COMMANDS)[number]
@@ -118,7 +125,7 @@ export type EditorToHost =
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
-  | { type: 'vound:editRefused' }
+  | { type: 'vound:editRefused'; where: RefusalPlace }
   | { type: 'vound:history'; canUndo: boolean; canRedo: boolean }
   | { type: 'vound:zoom'; zoom: number }
   | { type: 'vound:revealResult'; requestId: string; found: boolean }

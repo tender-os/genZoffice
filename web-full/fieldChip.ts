@@ -54,12 +54,15 @@ const slotIdsOf = (block: Element) => (block.getAttribute('data-vound-slot') ?? 
 
 const markersOf = (view: EditorView) => markersKey.getState(view.state)?.markers ?? []
 
-/** the markers of a block's fields that offer at least one button, in the block's id order */
+/** the markers of a block's fields that offer at least one button, in the block's id order; the reviewer's own text has none */
 function fieldsWithButtons(view: EditorView, ids: string[]) {
   const markers = markersOf(view)
   return ids
     .map((id) => markers.find((marker) => marker.id === id))
-    .filter((marker): marker is SlotMarker => marker !== undefined && marker.actions.length > 0)
+    .filter(
+      (marker): marker is SlotMarker =>
+        marker !== undefined && marker.actions.length > 0 && marker.entry !== 'ownText',
+    )
 }
 
 /** the editor root's child holding the block: the paragraph itself, or the table around a cell */
