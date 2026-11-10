@@ -9,10 +9,13 @@ import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
 import { editScopePlugin, setEditScope } from '../editScope'
+import { fieldReportingPlugin } from '../fieldReporting'
+import { applyFieldValue } from '../fieldWrite'
 import { readHostMessage } from '../embedMessages'
 import { formTextPlugin } from '../formTextField'
 import { historyReportPlugin, MENU_COMMANDS, refocusOnReturn } from '../hostCommands'
 import { markersPlugin, setCurrent, setMarkers } from '../markersPlugin'
+import { undoCaretPlugin } from '../undoCaret'
 import { EMPTY_CONTROL_CLASS, reviewModePlugin } from '../reviewMode'
 
 const plain = (text: string) => `<w:r><w:t xml:space="preserve">${text}</w:t></w:r>`
@@ -49,6 +52,7 @@ async function open(post = vi.fn(), scope: 'fields' | 'everything' = 'fields') {
   editor.registerPlugin(markersPlugin)
   editor.registerPlugin(reviewModePlugin, first)
   editor.registerPlugin(formTextPlugin, first)
+  editor.registerPlugin(undoCaretPlugin)
   editor.registerPlugin(editScopePlugin(post), first)
   document.body.append(editor.view.dom)
   setMarkers(
@@ -157,6 +161,35 @@ describe('undo after a field was emptied', () => {
     editor.commands.undo()
     expect(editor.state.doc.child(2).textContent).toBe('Ort: Leipzig')
     expect(editor.view.dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)).toBeNull()
+  })
+})
+
+describe('undo of a host write', () => {
+  it('puts the caret in the field the write changed, not where the caret was before it', async () => {
+    const post = vi.fn()
+    const editor = await open(vi.fn(), 'everything')
+    editor.registerPlugin(fieldReportingPlugin(post))
+    const lastCaret = () =>
+      post.mock.calls
+        .map(([message]) => message)
+        .filter((message) => message.type === 'vound:caretBlock')
+        .at(-1)
+    const inSix = posOf(editor, 'Prokurist') + 2
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, inSix)),
+    )
+    expect(lastCaret()).toEqual({ type: 'vound:caretBlock', ids: ['m0'] })
+    const block = {
+      paragraph: editor.state.doc.child(2).attrs.docxPara,
+      scope: 'paragraph' as const,
+    }
+    expect(applyFieldValue(editor.view, { block, previous: 'Leipzig', value: '' }).ok).toBe(true)
+
+    editor.commands.undo()
+    expect(editor.state.doc.child(2).textContent).toBe('Ort: Leipzig')
+    expect(lastCaret()).toEqual({ type: 'vound:caretBlock', ids: ['m2'] })
+    editor.commands.redo()
+    expect(lastCaret()).toEqual({ type: 'vound:caretBlock', ids: ['m2'] })
   })
 })
 

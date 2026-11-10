@@ -38,7 +38,8 @@ export const setEditScope = (next: EditScope) => {
 
 export const isLockedToFields = () => scope === 'fields'
 
-const fieldBlocks = (state: EditorState) =>
+/** the marked blocks that take the reviewer's edits */
+export const fieldBlocks = (state: EditorState) =>
   markersKey
     .getState(state)
     ?.set.find()
