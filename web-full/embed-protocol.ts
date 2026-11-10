@@ -20,7 +20,7 @@
  *                  { type: 'vound:setFieldValue', requestId, block, value, replaces: 'gap', gap }
  *                                                                              replace what lies between gap.before
  *                                                                              and gap.after in one block
- *                  { type: 'vound:setFieldStyle', requestId, block, previous, replaces?, style }
+ *                  { type: 'vound:setFieldStyle', requestId, block, previous, replaces?, formText?, style }
  *                  { type: 'vound:setFieldStyle', requestId, block, replaces: 'gap', gap, style }
  *                                                                              restyle a field's text: the selection inside
  *                                                                              it, else all of it (fieldStyle.ts)
@@ -124,7 +124,7 @@ export type HostToEditor =
   | { type: 'vound:focus'; id: string | null }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
-  | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; previous: string; replaces?: 'wholeField'; style: FieldTextStyle }
+  | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; previous: string; replaces?: 'wholeField'; formText?: number; style: FieldTextStyle }
   | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; replaces: 'gap'; gap: FieldGap; style: FieldTextStyle }
   | { type: 'vound:placeCaret'; block: BlockRef }
   | { type: 'vound:editScope'; scope: EditScope }

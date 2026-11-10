@@ -217,15 +217,21 @@ function planTarget(doc: PmNode, target: FieldTarget): { units: TextUnit[]; plan
   return { units, planned: target.replaces === 'gap' ? planGap(units, target.gap) : planText(units, target) }
 }
 
-/** the document positions of the paragraph text a target names, or why it names none */
-export function fieldTextRange(doc: PmNode, target: FieldTarget): { from: number; to: number } | { refused: FieldValueRefusal } {
+/** Where a target's text lies: document positions in a paragraph, or offsets in a field passthrough's result
+ *  text (at `pos`). */
+export type FieldTextPlace = { kind: 'text'; from: number; to: number } | { kind: 'field'; pos: number; from: number; to: number }
+
+/** the place of the text a target names, or why it names none */
+export function fieldTextPlace(doc: PmNode, target: FieldTarget): FieldTextPlace | { refused: FieldValueRefusal } {
   const located = planTarget(doc, target)
   if (!located) return { refused: 'noBlock' }
   const { planned } = located
   if ('refused' in planned) return planned
-  if (planned.unit.kind !== 'text') return { refused: 'notEditable' }
-  const { fromPos, toPos } = textRange(planned.unit, planned.from, planned.to)
-  return { from: fromPos, to: planned.from === planned.to ? fromPos : toPos }
+  const { unit, from, to } = planned
+  if (unit.kind === 'fixed') return { refused: 'notEditable' }
+  if (unit.kind === 'field') return { kind: 'field', pos: unit.pos, from, to }
+  const { fromPos, toPos } = textRange(unit, from, to)
+  return { kind: 'text', from: fromPos, to: from === to ? fromPos : toPos }
 }
 
 /** the gap of the value once written in place of from..to of the unit */

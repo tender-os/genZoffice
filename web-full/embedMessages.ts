@@ -97,7 +97,7 @@ function readSetFieldStyle(data: Record<string, unknown>): HostToEditor | null {
     return gap ? { type: 'vound:setFieldStyle', requestId, block, replaces: 'gap', gap, style } : null
   }
   if (typeof previous !== 'string') return null
-  const restyle = { type: 'vound:setFieldStyle', requestId, block, previous, style } as const
+  const restyle = { type: 'vound:setFieldStyle', requestId, block, previous, style, ...(isSourceIndex(data.formText) ? { formText: data.formText } : {}) } as const
   return data.replaces === 'wholeField' ? { ...restyle, replaces: 'wholeField' } : restyle
 }
 

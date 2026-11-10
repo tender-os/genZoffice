@@ -77,6 +77,7 @@ import { parseTextOutlineAttr } from './text-outline'
 import { charScaleXAttr, parseGlowAttr, parseTextEffectAttr } from './text-effects'
 import { SHAPE_INLINE_WRAP, shapeWrapOf } from './floating-z-order'
 import { facesChanged } from './cell-face-size'
+import { passthroughFaceAndSize } from './passthrough-face-size'
 
 /** minimal ProseMirror JSON shapes */
 export interface PmMark {
@@ -2488,6 +2489,7 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
           (textboxOffsetX !== original.imageOffsetXEmu ||
             textboxOffsetY !== original.imageOffsetYEmu)
         const fieldText = fieldTextPatch(node, original)
+        const restyledField = passthroughFaceAndSize(node, original)
         const formulaTokens = formulaTokensPatch(node, original)
         // chart data edits live in the chart's own part; the body block stays original
         const chartPatch = chartPatchOf(node, original)
@@ -2622,9 +2624,12 @@ export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): Save
             )
           }
           pushBlock({ kind: 'xml', xml })
-        } else if (fieldText && original.originalXml) {
+        } else if ((fieldText || restyledField) && original.originalXml) {
           changedCount++
-          pushBlock({ kind: 'xml', xml: patchFieldParagraphXml(original.originalXml, fieldText) })
+          const patched = fieldText
+            ? patchFieldParagraphXml(original.originalXml, fieldText)
+            : original.originalXml
+          pushBlock({ kind: 'xml', xml: restyledField ? restyledField(patched) : patched })
         } else if (formulaTokens && original.originalXml) {
           changedCount++
           pushBlock({ kind: 'xml', xml: patchMathTokens(original.originalXml, formulaTokens) })

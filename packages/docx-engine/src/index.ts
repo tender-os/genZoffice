@@ -135,6 +135,7 @@ export {
   type TableGenOptions,
   type TocEntry,
 } from './generate'
+export { withRestyledRuns, withResultFaceAndSize } from './restyled-runs'
 export {
   buildChartPartXml,
   buildChartWorkbookXlsxBase64,

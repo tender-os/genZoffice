@@ -40,7 +40,7 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:focus', id: string \| null }` make a marker current without scrolling, or none |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, previous, value }` replace a field's value in one block (`BlockRef = { paragraph, scope: 'paragraph' \| 'cell' }`, named like a marker); answered with `vound:fieldValueResult` (see Field writes) |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
-| host → editor | `{ type: 'vound:setFieldStyle', requestId, block: BlockRef, previous, replaces?, style }` or with `replaces: 'gap', gap` instead of `previous`: restyle a field's text (`style = { fontFamily?, fontSize? }`); answered with `vound:fieldStyleResult` (see Field styles) |
+| host → editor | `{ type: 'vound:setFieldStyle', requestId, block: BlockRef, previous, replaces?, formText?, style }` or with `replaces: 'gap', gap` instead of `previous`: restyle a field's text (`style = { fontFamily?, fontSize? }`); answered with `vound:fieldStyleResult` (see Field styles) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
 | host → editor | `{ type: 'vound:reveal', requestId, text, pageHint? }` scroll to a cited passage and mark it (see Reveal); answered with `vound:revealResult` |
 | editor → host | `{ type: 'vound:ready' }` after the editor subscribed to open requests |
@@ -355,17 +355,25 @@ spaces are then the `previous` of the next write.
 does, by its text or its gap, in one block (see Field writes); a selection that lies inside that place is
 restyled alone, else the whole place. The face goes into the Latin slot (`w:rFonts w:ascii`, `w:hAnsi`), the
 size into `w:sz` and `w:szCs`; every other run property stays. The restyle is one transaction with
-`HOST_WRITE_META`, so the editor's undo takes it back and it marks the document dirty. An empty place (a field
-with no text yet) gets the caret there with the style as its stored marks, so the text typed next takes it.
-The answer carries the style the text shows now, read from the rendered text: a face or size the text shows
-in more than one way is left out. An empty `style` changes nothing and only answers. A field the rule does not
-find is refused with the reasons of `vound:fieldValueResult`; a field passthrough paragraph (`fieldDisplay`)
-is refused as `notEditable`.
+`HOST_WRITE_META`, so the editor's undo takes it back and it marks the document dirty. The answer carries the
+style the text shows now, read from the rendered text: a face or size the text shows in more than one way is
+left out. An empty `style` changes nothing and only answers.
 
-The save writes the new run properties also where a text edit keeps the original bytes: a legacy text form
-field's result is written as the field's runs, one run per formatting, once the face or size of one of them
-changed (`form-text-style.ts`), and a cell paragraph whose runs changed only in face or size is written by the
-cell text patch like an edited one, which keeps the cell's fields (`cell-face-size.ts`).
+A field the text does not name once is found as an empty field (`fieldStylePlace.ts`): `formText`, the index of
+the legacy text form field in its paragraph, names that field's text; a field with no text (`previous: ''`) is
+the block's one emptied field or blank form field, else the end of the block's text. An empty place, an emptied
+field's filler included, gets the caret with the style as its stored marks, and the text typed there next takes
+it, typing into a form field too. A field passthrough paragraph (`fieldDisplay`, a line of form fields the
+editor shows as one block) is restyled in its display (`fieldStyleBlock.ts`): the runs of the field's part, and
+the display's own face and size when the part is all of its text or empty, so text typed into it later keeps
+them. Any other place is refused with the reasons of `vound:fieldValueResult`.
+
+The save writes the new run properties also where a text edit keeps the original bytes (`restyled-runs.ts`):
+each `w:r` of a paragraph with a field or a content control takes the face and size of its text's runs in the
+editor, split into one run per formatting when it holds only its text. A cell paragraph whose runs changed only
+in face or size is written by the cell text patch like an edited one (`cell-face-size.ts`), and a restyled
+passthrough's runs and the face and size of its form field results are written into its paragraph
+(`passthrough-face-size.ts`).
 
 ## Develop
 

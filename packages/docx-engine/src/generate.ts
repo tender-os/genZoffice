@@ -2,7 +2,7 @@ import { formTextResults } from './parse-fields'
 import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
 import { patchFieldParagraphText } from './text-patch'
-import { withFormTextStyles } from './form-text-style'
+import { withRestyledRuns } from './restyled-runs'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
   sdtCheckboxGlyphs,
@@ -3461,11 +3461,11 @@ function modelRPrChildren(run: Run, insideLink: boolean): PPrChild[] {
   return out
 }
 
-/** Vound fork: patchFieldParagraphText, with the face and size of restyled legacy text fields */
+/** Vound fork: patchFieldParagraphText, with the face and size of restyled runs */
 export function patchStyledFieldParagraph(xml: string, runs: ReadonlyArray<Run>): string | null {
   const patched = patchFieldParagraphText(xml, runs)
   if (patched === null) return null
-  return withFormTextStyles(patched, runs, (run) => mergeRPrModel(run.rawRPr ?? '', run, false))
+  return withRestyledRuns(patched, runs)
 }
 
 /**

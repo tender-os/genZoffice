@@ -64,6 +64,8 @@ describe('readHostMessage', () => {
     const byText = { type: 'vound:setFieldStyle', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'Berlin', style: { fontFamily: 'Arial', fontSize: 10.5 } }
     expect(readHostMessage(byText)).toEqual(byText)
     expect(readHostMessage({ ...byText, replaces: 'wholeField' })).toEqual({ ...byText, replaces: 'wholeField' })
+    expect(readHostMessage({ ...byText, formText: 2 })).toEqual({ ...byText, formText: 2 })
+    expect(readHostMessage({ ...byText, formText: -1 })).toEqual(byText)
     const byGap = { type: 'vound:setFieldStyle', requestId: 'r2', block: { paragraph: 0, scope: 'cell' }, replaces: 'gap', gap: { before: '', after: '' }, style: {} }
     expect(readHostMessage(byGap)).toEqual(byGap)
     expect(readHostMessage({ ...byText, style: { fontSize: 12, bold: true } })).toEqual({ ...byText, style: { fontSize: 12 } })
