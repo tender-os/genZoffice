@@ -29,7 +29,8 @@ export function withFormTextAnchors(paraXml: string): string {
   return out + paraXml.slice(cursor)
 }
 
-/** Vound fork: where each legacy text field's result lies, for XML that went through withFormTextAnchors */
+/** Vound fork: where each legacy text field's result lies, for XML that went through withFormTextAnchors; a field
+ *  that runs on into the next paragraph has its result up to the paragraph's end */
 export function formTextResultSpans(paraXml: string): { from: number; to: number }[] {
   const spans: { from: number; to: number }[] = []
   for (
@@ -38,9 +39,9 @@ export function formTextResultSpans(paraXml: string): { from: number; to: number
     field = paraXml.indexOf(FORM_TEXT, field + 1)
   ) {
     const from = paraXml.indexOf(FIELD_SEPARATE, field)
-    const to = from === -1 ? -1 : paraXml.indexOf(FIELD_END, from)
-    if (to === -1) return []
-    spans.push({ from, to })
+    if (from === -1) return []
+    const end = paraXml.indexOf(FIELD_END, from)
+    spans.push({ from, to: end === -1 ? paraXml.length : end })
   }
   return spans
 }

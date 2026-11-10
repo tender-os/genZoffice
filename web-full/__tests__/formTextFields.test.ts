@@ -8,7 +8,7 @@ import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
 import { editScopePlugin, setEditScope } from '../editScope'
-import { formTextPlugin } from '../formTextField'
+import { formTextFieldAt, formTextPlugin } from '../formTextField'
 import { markersPlugin, setMarkers } from '../markersPlugin'
 import { reviewModePlugin } from '../reviewMode'
 
@@ -264,5 +264,76 @@ describe('a body line of legacy text form fields in a form protected for filling
     const { xml } = await saved(parsed, editor)
     expect(xml).toContain(LABELLED)
     expect(xml).toContain(THREE)
+  })
+})
+
+describe('the shapes of legacy text fields a form puts in a body paragraph', () => {
+  const BREAK = '<w:r><w:br/></w:r>'
+  const ORPHAN_END = FIELD_END
+  const AMOUNT = '5 % von der Vergabesumme'
+  const SHAPES: Array<[string, string, (editor: Editor) => number, string[][]]> = [
+    ['a blank field alone', para(BLANK), (editor) => blankOf(editor, 0, 0).from, [['A']]],
+    [
+      'a blank field before a line break',
+      para(`${BLANK}${BREAK}`),
+      (editor) => blankOf(editor, 0, 0).from,
+      [['A']],
+    ],
+    [
+      'two fields on two lines of one paragraph',
+      para(`${BLANK}${BREAK}${withValue('Musterstraße 1')}`),
+      (editor) => posOf(editor, 'straße'),
+      [[EN_SPACE.repeat(5), 'MusterAstraße 1']],
+    ],
+    [
+      'a field running on into the next paragraph, which then holds another',
+      `${para(`${fieldOpen('')}${plain(AMOUNT)}${TAB}`)}${para(`${ORPHAN_END}${TAB.repeat(3)}${BLANK}`)}`,
+      (editor) => posOf(editor, 'Vergabesumme'),
+      [[`5 % von der AVergabesumme`], [EN_SPACE.repeat(5)]],
+    ],
+    [
+      'a field after a label, running on into the next paragraph',
+      `${para(`${plain('Betrag: ')}${fieldOpen('')}${plain(AMOUNT)}${TAB}`)}${para(`${ORPHAN_END}${TAB}${BLANK}`)}`,
+      (editor) => posOf(editor, '5 %'),
+      [[`A${AMOUNT}`], [EN_SPACE.repeat(5)]],
+    ],
+    [
+      'two fields with a character between them',
+      para(`${BLANK}${plain('/')}${BLANK}`),
+      (editor) => blankOf(editor, 0, 1).from,
+      [[EN_SPACE.repeat(5), 'A']],
+    ],
+  ]
+  const count = (xml: string, element: string) => xml.split(element).length - 1
+
+  it.each(SHAPES)(
+    '%s: typing goes into its field, and the save keeps every field, break and tab',
+    async (_, body, at, results) => {
+      const { editor, parsed } = await open(body, [0])
+      const types: string[] = []
+      editor.state.doc.forEach((node) => types.push(node.type.name))
+      expect(types).not.toContain('docProtected')
+      const pos = at(editor)
+      expect(formTextFieldAt(editor.state.doc, pos, pos)).not.toBeNull()
+      typeAt(editor, pos, pos, 'A')
+      const { xml } = await saved(parsed, editor)
+      const paragraphs = paragraphsOf(xml).filter((paragraph) => paragraph.includes('fldChar'))
+      expect(paragraphs.map(resultsOf)).toEqual(results)
+      expect(xml).not.toMatch(/<w:t[^>]*>[^<]*\n/)
+      for (const element of ['FORMTEXT', '<w:br/>', '<w:tab/>', 'w:fldCharType="end"']) {
+        expect(count(xml, element)).toBe(count(body, element))
+      }
+    },
+  )
+
+  it('locks the tabs after a field that runs on into the next paragraph', async () => {
+    const { editor } = await open(
+      `${para(`${fieldOpen('')}${plain(AMOUNT)}${TAB}`)}${para(`${ORPHAN_END}${TAB.repeat(3)}${BLANK}`)}`,
+      [0, 1],
+    )
+    const tabs = editor.state.doc.child(1).textContent.indexOf('\t')
+    const at = editor.state.doc.resolve(0).posAtIndex(1) + 1 + tabs + 1
+    typeAt(editor, at, at, 'X')
+    expect(editor.state.doc.child(1).textContent).not.toContain('X')
   })
 })
