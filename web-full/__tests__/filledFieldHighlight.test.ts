@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 import { Editor } from '@tiptap/core'
 import JSZip from 'jszip'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseDocx, saveDocx } from '@genoffice/docx-engine'
 import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
 import { settleField } from '../fieldSettle'
+import { fieldReportingPlugin } from '../fieldReporting'
+import { markersPlugin, setMarkers } from '../markersPlugin'
 import { applyFieldValue } from '../fieldWrite'
 import { filledFieldHighlightPlugin, formTextPlugin } from '../formTextField'
 
@@ -137,6 +139,21 @@ describe('a highlighted field the host settles (accepted, or marked blank)', () 
     expect(highlightCount((await savedParagraphs(parsed, editor))[paragraph])).toBe(0)
     editor.commands.undo()
     expect(highlightCount((await savedParagraphs(parsed, editor))[paragraph])).toBe(5)
+  })
+
+  it('tells the host of no edit when the reviewer undoes the settling, which changes no text', async () => {
+    const { editor } = await open()
+    const post = vi.fn()
+    editor.registerPlugin(markersPlugin)
+    editor.registerPlugin(fieldReportingPlugin(post))
+    const paragraph = editor.state.doc.child(4).attrs.docxPara
+    setMarkers(editor.view, [
+      { id: 'm', paragraph, scope: 'paragraph', tone: 'accepted', label: 'F', actions: [] },
+    ])
+    settle(editor, 4)
+    editor.commands.undo()
+    expect(highlightsOf(editor, 4)).toEqual({ 'Mitglied ': null, 'Erika Muster': 'yellow' })
+    expect(post.mock.calls.filter(([message]) => message.type === 'vound:blockEdited')).toEqual([])
   })
 
   it('leaves the other fields and the text outside fields as they were', async () => {
