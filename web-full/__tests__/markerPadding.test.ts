@@ -162,6 +162,21 @@ describe('review field markers', () => {
     expect(getComputedStyle(cell).getPropertyValue('background')).not.toContain('--vs-hatch')
   })
 
+  it("draw an emptied control's box in its field's tone, and amber outside any field", () => {
+    const accepted = block('p', 'vound-slot vound-slot-accepted vound-slot-field')
+    const box = accepted.appendChild(document.createElement('span'))
+    box.className = 'vound-empty-control'
+    expect(getComputedStyle(box).getPropertyValue('background')).toBe('var(--vs-tint)')
+    expect(getComputedStyle(box).getPropertyValue('border-bottom-color')).toBe('var(--vs-bar)')
+    // the slot sets them, the box inherits them
+    expect(variable(accepted, '--vs-tint')).toBe('var(--vound-accepted-tint)')
+    expect(variable(accepted, '--vs-bar')).toBe('var(--vound-accepted-bar)')
+
+    const loose = block('p').appendChild(document.createElement('span'))
+    loose.className = 'vound-empty-control'
+    expect(getComputedStyle(loose).getPropertyValue('background')).toBe('var(--vound-missing-tint)')
+  })
+
   it('keep a table cell marker inside the cell, where the cell padding already keeps text off the bar', () => {
     const cell = block('td', 'vound-slot vound-slot-gap')
     expect([variable(cell, '--vs-l'), variable(cell, '--vs-r'), variable(cell, '--vs-y')]).toEqual([
