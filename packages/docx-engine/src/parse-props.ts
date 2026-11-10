@@ -457,12 +457,28 @@ export function fieldInstructions(xml: string): string[] {
   return out
 }
 
-/** Vound fork: a paragraph whose fields are all legacy text form fields, or all legacy form fields with a box */
+/** Vound fork: a paragraph whose fields are all legacy text form fields, or all legacy form fields with a box. A text
+ *  field may begin in the paragraph before (its end comes first) or run on into the next (it has no end here). */
 export function formFieldLine(xml: string): boolean {
-  if (xml.includes('<w:fldSimple') || !fieldCharsBalanced(xml)) return false
+  if (xml.includes('<w:fldSimple')) return false
   const codes = fieldInstructions(xml).map((instruction) => instruction.trim().split(/\s+/)[0])
-  if (codes.length > 0 && codes.every((code) => code === 'FORMTEXT')) return true
+  if (codes.length > 0 && codes.every((code) => code === 'FORMTEXT')) return openAtMostAtTheEdges(xml)
+  if (!fieldCharsBalanced(xml)) return false
   return xml.includes('<w:checkBox') && codes.includes('FORMCHECKBOX') && codes.every((code) => code.startsWith('FORM'))
+}
+
+/** fldChar begins and ends nest, but for ends of a field begun in an earlier paragraph and one field still open at
+ *  the end, whose result starts here (a field whose result is in the next paragraph folds into that one) */
+function openAtMostAtTheEdges(xml: string): boolean {
+  let depth = 0
+  let openSeparated = false
+  for (const match of xml.matchAll(/<w:fldChar\b[^>]*\bw:fldCharType=["'](begin|separate|end)["']/g)) {
+    if (match[1] === 'begin') depth++
+    else if (match[1] === 'end' && depth > 0) depth--
+    if (match[1] !== 'separate') openSeparated = false
+    else if (depth === 1) openSeparated = true
+  }
+  return depth === 0 || (depth === 1 && openSeparated)
 }
 
 export function onlyXeFields(xml: string): boolean {

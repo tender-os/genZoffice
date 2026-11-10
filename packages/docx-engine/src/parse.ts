@@ -4682,7 +4682,9 @@ function extractRuns(
   } else if (fieldDepth > 0 && fieldSeparated) {
     // a field whose result runs on into the next paragraph (BIBLIOGRAPHY) has no
     // fldChar end here; Word still shows the cached result of this paragraph
-    for (const cached of fieldCachedRuns) pushRun(cached)
+    // (Vound fork: a legacy text field's is that field's text to type in)
+    const formText = /^\s*FORMTEXT\s*$/.test(fieldInstr) ? { formText: formTextCount++ } : {}
+    for (const cached of fieldCachedRuns) pushRun({ ...cached, ...formText })
   }
   return mergeRuns(runs)
 }

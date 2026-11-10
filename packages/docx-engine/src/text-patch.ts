@@ -350,7 +350,7 @@ export function patchFieldParagraphText(
   const newText = joined.replace(mode.outsideChars, controls > originalControls ? ' ' : '')
   const boxed = withBoxStates(originalParaXml, runs)
   const source = withClosingAnchor(mode.anchor(boxed), lineBreaks)
-  const byField = withFormTextValues(source, runs, mode.outsideChars)
+  const byField = withFormTextValues(source, runs)
   if (byField !== null) return byField
   const patched = mode.patch(source, newText)
   if (patched === null) return null
@@ -375,21 +375,25 @@ type WtMappedRun = Pick<
 
 /** Vound fork: each legacy text field's text in its own result; null when the text around the fields changed,
  *  which the mapping over the whole paragraph takes */
-function withFormTextValues(
-  xml: string,
-  runs: ReadonlyArray<WtMappedRun>,
-  outsideChars: RegExp,
-): string | null {
+function withFormTextValues(xml: string, runs: ReadonlyArray<WtMappedRun>): string | null {
   const results = formTextResultSpans(xml)
   if (!runs.some((run) => run.formText !== undefined)) return null
   if (runs.some((run) => (run.formText ?? 0) >= results.length)) return null
-  const textOf = (matching: ReadonlyArray<WtMappedRun>) => withoutFiller(matching.map(wtTextOf).join(''))
+  // tabs and line breaks are elements between the w:t, never their text
+  const textOf = (matching: ReadonlyArray<WtMappedRun>) =>
+    withoutFiller(matching.map(wtTextOf).join('')).replace(/[\t\n]/g, '')
   const slices = tSlices(xml)
   const insideResult = (slice: TSlice, result: { from: number; to: number }) =>
     slice.tagStart > result.from && slice.tagStart < result.to
   const around = slices.filter((slice) => !results.some((result) => insideResult(slice, result)))
-  const typedAround = textOf(runs.filter((run) => run.formText === undefined)).replace(outsideChars, '')
+  const typedAround = textOf(runs.filter((run) => run.formText === undefined))
   if (around.map((slice) => slice.text).join('') !== typedAround) return null
+  const unplaced = results.some(
+    (result, index) =>
+      !slices.some((slice) => insideResult(slice, result)) &&
+      textOf(runs.filter((run) => run.formText === index)) !== '',
+  )
+  if (unplaced) return null
   let out = xml
   results.forEach((_, index) => {
     const last = results.length - 1 - index
