@@ -72,6 +72,12 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ ...valid, requestId: 7 })).toBeNull()
   })
 
+  it('reads settleField', () => {
+    expect(readHostMessage({ type: 'vound:settleField', block: { paragraph: 2, scope: 'paragraph' } })).toEqual({ type: 'vound:settleField', block: { paragraph: 2, scope: 'paragraph' } })
+    expect(readHostMessage({ type: 'vound:settleField', block: { paragraph: 2 } })).toBeNull()
+    expect(readHostMessage({ type: 'vound:reopenField', block: { paragraph: 2, scope: 'cell' } })).toEqual({ type: 'vound:reopenField', block: { paragraph: 2, scope: 'cell' } })
+  })
+
   it('reads placeCaret', () => {
     expect(readHostMessage({ type: 'vound:placeCaret', block: { paragraph: 2, scope: 'cell' } })).toEqual({ type: 'vound:placeCaret', block: { paragraph: 2, scope: 'cell' } })
     expect(readHostMessage({ type: 'vound:placeCaret', block: { paragraph: '2', scope: 'cell' } })).toBeNull()

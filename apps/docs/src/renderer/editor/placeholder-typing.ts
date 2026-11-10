@@ -7,6 +7,7 @@
 import { combineTransactionSteps, getChangedRanges } from '@tiptap/core'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
+import { AddMarkStep, RemoveMarkStep } from '@tiptap/pm/transform'
 import {
   EMPTY_CONTROL_TEXT,
   isPlaceholderStyleId,
@@ -88,12 +89,20 @@ function fillersReplaced(transactions: readonly Transaction[], before: PmNode, s
     .sort((a, b) => b - a)
 }
 
+/** transaction meta: the change places placeholder text and fillers itself (Vound fork: the host settling or
+ *  reopening a field), so they keep their marks */
+export const KEEPS_PLACEHOLDERS_META = 'keepsPlaceholders'
+
+const formattingOnly = (tr: Transaction) =>
+  tr.steps.every((step) => step instanceof AddMarkStep || step instanceof RemoveMarkStep)
+
 export const placeholderTypingPlugin = new Plugin({
   key: new PluginKey('placeholderTyping'),
   appendTransaction(transactions, oldState, state) {
-    if (!transactions.some((tr) => tr.docChanged)) return null
+    // a change of formatting alone brings no text (Vound fork: a host settling a field restyles its filler)
+    if (!transactions.some((tr) => tr.docChanged && !formattingOnly(tr))) return null
     // the editor taking over a saved file's parse is no typing: a filler or placeholder it brings keeps its mark
-    if (transactions.some((tr) => tr.getMeta('addToHistory') === false)) return null
+    if (transactions.some((tr) => tr.getMeta('addToHistory') === false || tr.getMeta(KEEPS_PLACEHOLDERS_META))) return null
     // an undo or redo brings text back as it was; only a filler beside it goes, which a redo puts back (Vound fork)
     const undone = transactions.some((tr) => tr.getMeta('history$'))
     const ranges = undone ? [] : typedOver(transactions, oldState.doc, state)

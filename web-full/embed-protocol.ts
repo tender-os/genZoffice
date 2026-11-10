@@ -21,6 +21,11 @@
  *                                                                              replace what lies between gap.before
  *                                                                              and gap.after in one block
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
+ *                  { type: 'vound:settleField', block: BlockRef }              the block's legacy text fields are accepted or
+ *                                                                              left blank: they lose the author's highlight
+ *                                                                              (fieldSettle.ts), an undoable host write
+ *                  { type: 'vound:reopenField', block: BlockRef }              the block's settled fields are open again: the
+ *                                                                              author's highlight comes back
  *                  { type: 'vound:editScope', scope: EditScope }               review mode: what the reviewer may type in (editScope.ts)
  *                  { type: 'vound:reveal', requestId, text, pageHint? }        scroll to a cited passage and mark it (reveal.ts);
  *                                                                              pageHint (1-based) picks among several matches
@@ -116,6 +121,8 @@ export type HostToEditor =
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
   | { type: 'vound:placeCaret'; block: BlockRef }
+  | { type: 'vound:settleField'; block: BlockRef }
+  | { type: 'vound:reopenField'; block: BlockRef }
   | { type: 'vound:editScope'; scope: EditScope }
   | { type: 'vound:reveal'; requestId: string; text: string; pageHint?: number }
 export type EditorToHost =

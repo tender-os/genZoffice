@@ -1,6 +1,7 @@
 import { formTextResults } from './parse-fields'
 import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
+import { withoutDefaultResults, withoutFilledFieldHighlight } from './form-text-highlight'
 import { patchFieldParagraphText } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
@@ -489,6 +490,9 @@ function replaceTextNodes(
 export interface FieldTextPatch {
   left?: string
   right?: string
+  /** Vound fork: the host settled the paragraph's legacy text form fields (FieldDisplay.settled): they lose the
+   *  author's highlight, and a result still showing its default text is emptied */
+  settled?: true
 }
 
 /** The w:t of the first result of a line of legacy text form fields whose later results are blank: the line's
@@ -524,9 +528,17 @@ function formTextValueNodes(xml: string, nodes: XmlTextNode[], left: string) {
 
 /**
  * Patch only cached visible w:t text in a field paragraph. Field instructions,
- * hyperlinks, tabs, run styling, and field boundaries remain byte-identical.
+ * hyperlinks, tabs, run styling, and field boundaries remain byte-identical, except
+ * that a filled legacy text field drops its highlight (withoutFilledFieldHighlight).
  */
 export function patchFieldParagraphXml(original: string, patch: FieldTextPatch): string {
+  const texts =
+    patch.left === undefined && patch.right === undefined ? original : patchedFieldTexts(original, patch)
+  if (!patch.settled) return withoutFilledFieldHighlight(texts)
+  return withoutFilledFieldHighlight(withoutDefaultResults(texts), () => true)
+}
+
+function patchedFieldTexts(original: string, patch: FieldTextPatch): string {
   const xml = withFormTextAnchors(original)
   const nodes = textNodes(xml, 'w:t')
   if (nodes.length === 0) return original

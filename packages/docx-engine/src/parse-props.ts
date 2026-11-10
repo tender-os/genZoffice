@@ -1015,6 +1015,7 @@ function sameStyle(a: Run, b: Run): boolean {
   if (a.sdtCheckboxXml !== undefined || b.sdtCheckboxXml !== undefined) return false
   if (a.placeholder !== b.placeholder) return false
   if (a.formText !== b.formText) return false
+  if (a.formTextSettled !== b.formTextSettled) return false
   if (a.math || b.math) return false
   if (a.sym || b.sym) return false
   if (a.ruby || b.ruby) return false
