@@ -77,3 +77,22 @@ describe('a legacy text field the author marked with highlight (Vound fork)', ()
     expect(highlights(out)).toBe(0)
   })
 })
+
+describe('a settled field passthrough (Vound fork)', () => {
+  it('empties each result still showing its default text and keeps values and blanks', () => {
+    const xml = para(
+      `${field(DEFAULT_TEXT)}${label(' / ')}${field('Erika Muster')}${field(EN_SPACES)}`,
+    )
+    const out = patchFieldParagraphXml(xml, { settled: true })
+    const results = out
+      .split('w:fldCharType="separate"/>')
+      .slice(1)
+      .map((part) => part.split('<w:fldChar w:fldCharType="end"')[0].replace(/<[^>]+>/g, ''))
+    expect(results).toEqual(['', 'Erika Muster', EN_SPACES])
+    expect(highlights(out)).toBe(1)
+  })
+
+  it('keeps the default text of a passthrough the host did not settle', () => {
+    expect(patchFieldParagraphXml(para(field(DEFAULT_TEXT)), {})).toContain(`>${DEFAULT_TEXT}<`)
+  })
+})

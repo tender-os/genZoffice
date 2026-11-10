@@ -84,6 +84,16 @@ const savedParagraphs = async (parsed: Awaited<ReturnType<typeof parseDocx>>, ed
   const xml = await (await JSZip.loadAsync(bytes)).file('word/document.xml')!.async('string')
   return xml.match(/<w:p[ >][\s\S]*?<\/w:p>/g) ?? []
 }
+/** the result text of a paragraph's first field */
+const formTextResultOf = (xml: string) =>
+  [
+    ...xml
+      .split('w:fldCharType="separate"')[1]
+      .split('w:fldCharType="end"')[0]
+      .matchAll(/<w:t(?: [^>]*)?>([^<]*)/g),
+  ]
+    .map((match) => match[1])
+    .join('')
 const highlightCount = (xml: string) => xml.split('<w:highlight').length - 1
 
 describe("a legacy text field the form's author marked with highlight", () => {
@@ -149,7 +159,15 @@ describe('a highlighted field the host settles (accepted, or marked blank)', () 
     const { parsed, editor } = await open()
     expect(editor.state.doc.child(5).attrs.fieldDisplay?.kind).toBe('text')
     settle(editor, 5)
-    expect(highlightCount((await savedParagraphs(parsed, editor))[5])).toBe(0)
+    const saved = (await savedParagraphs(parsed, editor))[5]
+    expect([formTextResultOf(saved), highlightCount(saved)]).toEqual(['', 0])
+    expect(saved).toContain('>1<')
+    reopenField(editor.view, {
+      paragraph: editor.state.doc.child(5).attrs.docxPara,
+      scope: 'paragraph',
+    })
+    const reopened = (await savedParagraphs(parsed, editor))[5]
+    expect([formTextResultOf(reopened), highlightCount(reopened)]).toEqual([DEFAULT_TEXT, 5])
   })
 
   it.each([

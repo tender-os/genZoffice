@@ -1,7 +1,7 @@
 import { formTextResults } from './parse-fields'
 import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
-import { withoutFilledFieldHighlight } from './form-text-highlight'
+import { withoutDefaultResults, withoutFilledFieldHighlight } from './form-text-highlight'
 import { patchFieldParagraphText } from './text-patch'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
@@ -490,7 +490,8 @@ function replaceTextNodes(
 export interface FieldTextPatch {
   left?: string
   right?: string
-  /** Vound fork: the host settled the paragraph's legacy text form fields (FieldDisplay.settled) */
+  /** Vound fork: the host settled the paragraph's legacy text form fields (FieldDisplay.settled): they lose the
+   *  author's highlight, and a result still showing its default text is emptied */
   settled?: true
 }
 
@@ -533,7 +534,8 @@ function formTextValueNodes(xml: string, nodes: XmlTextNode[], left: string) {
 export function patchFieldParagraphXml(original: string, patch: FieldTextPatch): string {
   const texts =
     patch.left === undefined && patch.right === undefined ? original : patchedFieldTexts(original, patch)
-  return withoutFilledFieldHighlight(texts, () => patch.settled === true)
+  if (!patch.settled) return withoutFilledFieldHighlight(texts)
+  return withoutFilledFieldHighlight(withoutDefaultResults(texts), () => true)
 }
 
 function patchedFieldTexts(original: string, patch: FieldTextPatch): string {
