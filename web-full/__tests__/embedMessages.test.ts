@@ -90,9 +90,29 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ type: 'vound:markers', markers: [marker] })).toEqual({ type: 'vound:markers', markers: [marker] })
   })
 
-  it('rejects a marker with an unknown action', () => {
+  it('drops only the actions it does not know, so a newer host keeps the buttons this editor has', () => {
     const marker = { id: 'slot:s1', paragraph: 3, scope: 'cell', tone: 'proposed', label: 'Ort', actions: ['accept'] }
-    expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, actions: ['accept', 'delete'] }] })).toBeNull()
+    expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, actions: ['accept', 'delete', 7, 'blank'] }] })).toEqual({
+      type: 'vound:markers',
+      markers: [{ ...marker, actions: ['accept', 'blank'] }],
+    })
+  })
+
+  it('reads the titles the host gives the buttons, and keeps only text titles of known actions', () => {
+    const marker = { id: 'slot:s1', paragraph: 3, scope: 'cell', tone: 'proposed', label: 'Ort', actions: ['accept', 'blank'] }
+    const actionTitles = { blank: 'Mark as intentionally blank', accept: 'Accept', delete: 'Delete', reject: 4 }
+    expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, actionTitles }] })).toEqual({
+      type: 'vound:markers',
+      markers: [{ ...marker, actionTitles: { blank: 'Mark as intentionally blank', accept: 'Accept' } }],
+    })
+    expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, actionTitles: 'Accept' }] })).toEqual({
+      type: 'vound:markers',
+      markers: [marker],
+    })
+  })
+
+  it('rejects a marker whose actions or label are not what they must be', () => {
+    const marker = { id: 'slot:s1', paragraph: 3, scope: 'cell', tone: 'proposed', label: 'Ort', actions: ['accept'] }
     expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, actions: 'accept' }] })).toBeNull()
     expect(readHostMessage({ type: 'vound:markers', markers: [{ ...marker, label: 4 }] })).toBeNull()
   })

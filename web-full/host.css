@@ -354,5 +354,12 @@ html.vound-review .vound-slot.vound-slot-own-text:not(td, th) { --vs-plate: var(
 html.vound-review .ctx-item .copilot-badge-menu { background: var(--vound-proposed-bar); color: var(--vound-chip-on-fill); }
 .vound-chip-ask:hover { background: var(--vound-proposed-bar); color: var(--vound-chip-on-fill); }
 .vound-chip-restore:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
+.vound-chip-blank svg { display: block; width: 14px; height: 14px; }
+.vound-chip-blank:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
+/* a gutter too narrow for a row of regular buttons: compact ones, so the row stays one line (reviewGutter.ts CHIP_SIZES) */
+.vound-chip[data-size="compact"] { padding: 2px; }
+.vound-chip[data-size="compact"] .vound-chip-btn { width: 18px; height: 18px; }
+.vound-chip[data-size="compact"] .vound-chip-ask::before { height: 18px; line-height: 18px; padding-right: 22px; clip-path: inset(0 0 0 calc(100% - 18px) round 999px); }
+.vound-chip[data-size="compact"] .vound-chip-ask:is(:hover, :focus-visible)::before { clip-path: inset(0 round 999px); }
 @media (prefers-reduced-motion: reduce) { .vound-chip-btn, html.vound-review .vound-slot { transition: none; } }
 @media print { .vound-chip-layer { display: none !important; } }

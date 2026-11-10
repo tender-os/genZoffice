@@ -9,13 +9,21 @@
 export const PAGE_GAP_PX = 10
 /** the room the gutter keeps beyond the chip */
 export const GUTTER_SLACK_PX = 16
-/** host.css .vound-chip: 24px buttons 2px apart, 3px padding and a 1px border on each side */
-const BUTTON_PX = 24
+/** host.css .vound-chip: buttons 2px apart and a 1px border; regular 24px buttons in 3px padding, compact 18px ones
+ *  in 2px for a gutter too narrow for a row of regular ones */
+const CHIP_SIZES = {
+  regular: { button: 24, padding: 3 },
+  compact: { button: 18, padding: 2 },
+} as const
+export type ChipSize = keyof typeof CHIP_SIZES
+/** the sizes a chip tries, largest first */
+export const CHIP_SIZE_ORDER: ChipSize[] = ['regular', 'compact']
 const BUTTON_GAP_PX = 2
-const CHIP_FRAME_PX = 2 * 3 + 2 * 1
+const BORDER_PX = 1
 
 /** the narrowest a chip row with this many buttons can be (its label shrinks or wraps above them) */
-export const chipRowWidth = (buttons: number) => buttons * BUTTON_PX + (buttons - 1) * BUTTON_GAP_PX + CHIP_FRAME_PX
+export const chipRowWidth = (buttons: number, size: ChipSize = 'regular') =>
+  buttons * CHIP_SIZES[size].button + (buttons - 1) * BUTTON_GAP_PX + 2 * (CHIP_SIZES[size].padding + BORDER_PX)
 
 /** the most buttons the host gives one field's chip (accept, reject, ask) */
 export const MAX_CHIP_BUTTONS = 3

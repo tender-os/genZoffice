@@ -26,16 +26,28 @@ import type { EditorToHost, FieldAction, MarkerTone, SlotMarker } from './embed-
 import { MARKER_CLASS } from './markers'
 import { markersKey, setHot } from './markersPlugin'
 import { ringBox, runAround } from './fieldRing'
-import { chipRoom, chipRowWidth, PAGE_GAP_PX } from './reviewGutter'
+import { CHIP_SIZE_ORDER, chipRoom, chipRowWidth, MAX_CHIP_BUTTONS, PAGE_GAP_PX } from './reviewGutter'
 
 const HIDE_DELAY_MS = 220
 
-const BUTTONS: Record<FieldAction, { icon: string; title: string }> = {
-  accept: { icon: '✓', title: 'Übernehmen' },
-  reject: { icon: '✕', title: 'Ablehnen' },
-  fill: { icon: '✎', title: 'Wert eintragen' },
-  ask: { icon: '✦', title: 'Agent fragen' },
-  restore: { icon: '↺', title: 'KI-Wert wiederherstellen' },
+const SPARKLES_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>' +
+  '<path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></svg>'
+/** lucide circle-slash, the host's icon for marking a field intentionally blank */
+const CIRCLE_SLASH_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/></svg>'
+
+type ButtonIcon = { text: string } | { svg: string }
+/** each button's icon and its German title, which a title from the host replaces */
+const BUTTONS: Record<FieldAction, { icon: ButtonIcon; title: string }> = {
+  accept: { icon: { text: '✓' }, title: 'Übernehmen' },
+  reject: { icon: { text: '✕' }, title: 'Ablehnen' },
+  fill: { icon: { text: '✎' }, title: 'Wert eintragen' },
+  ask: { icon: { svg: SPARKLES_SVG }, title: 'Agent fragen' },
+  restore: { icon: { text: '↺' }, title: 'KI-Wert wiederherstellen' },
+  blank: { icon: { svg: CIRCLE_SLASH_SVG }, title: 'Als bewusst leer markieren' },
 }
 
 /** tones of a field with no value yet: their tether is amber */
@@ -79,8 +91,13 @@ function inColumns(view: EditorView, block: Element) {
   return columns > 1
 }
 
-/** the narrowest chip for these fields: the row with the most buttons (labels shrink or wrap) */
-const narrowestChip = (fields: SlotMarker[]) => Math.max(...fields.map((marker) => chipRowWidth(marker.actions.length)))
+/** the largest chip size whose row with the most buttons fits the room on one line (labels shrink or wrap); null
+ *  when none does. The gutter always holds a regular row of MAX_CHIP_BUTTONS, so only a longer row goes compact. */
+function chipSizeFor(fields: SlotMarker[], room: number) {
+  const most = Math.max(...fields.map((marker) => marker.actions.length))
+  const sizes = most > MAX_CHIP_BUTTONS ? CHIP_SIZE_ORDER : CHIP_SIZE_ORDER.slice(0, 1)
+  return sizes.find((size) => chipRowWidth(most, size) <= room) ?? null
+}
 
 /** whether the block's cell, or a cell around it, has another cell after it in its row */
 function cellBeside(view: EditorView, block: Element) {
@@ -97,30 +114,28 @@ function elbowBend(view: EditorView, block: Element, contentRight: number, chipL
 }
 
 /** the document position the block's marker decoration starts at */
-const SPARKLES_SVG =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-  '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>' +
-  '<path d="M20 3v4M22 5h-4M4 17v2M5 18H3"/></svg>'
 
 function blockStart(view: EditorView, block: Element) {
   const decorations = markersKey.getState(view.state)?.set.find() ?? []
   return decorations.find((decoration) => view.nodeDOM(decoration.from) === block)?.from ?? null
 }
 
+/** the editor's own title of a button; Fill with AI names itself in the editor's language */
+const ownTitle = (action: FieldAction) =>
+  action === 'ask' ? fillWithAiLabel(embedLang(location.search, true)) : BUTTONS[action].title
+
 function chipButton(marker: SlotMarker, action: FieldAction) {
   const button = document.createElement('button')
   button.type = 'button'
   button.className = `vound-chip-btn vound-chip-${action}`
-  if (action === 'ask') {
-    const label = fillWithAiLabel(embedLang(location.search, true))
-    button.innerHTML = SPARKLES_SVG
-    button.dataset.label = label
-    button.setAttribute('aria-label', label)
-  } else {
-    button.textContent = BUTTONS[action].icon
-    button.title = BUTTONS[action].title
-    button.setAttribute('aria-label', BUTTONS[action].title)
-  }
+  const { icon } = BUTTONS[action]
+  if ('svg' in icon) button.innerHTML = icon.svg
+  else button.textContent = icon.text
+  const title = marker.actionTitles?.[action] ?? ownTitle(action)
+  button.setAttribute('aria-label', title)
+  // Fill with AI shows its title in the pill it grows into on hover, the others as a tooltip
+  if (action === 'ask') button.dataset.label = title
+  else button.title = title
   button.dataset.id = marker.id
   button.dataset.action = action
   return button
@@ -208,7 +223,9 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     const anchor = Math.max(page.right, contentRight)
     const scrollbar = container instanceof HTMLElement ? container.offsetWidth - container.clientWidth : 0
     const room = chipRoom(bounds.right - scrollbar - anchor)
-    if (room < narrowestChip(fields)) return hideChip()
+    const size = chipSizeFor(fields, room)
+    if (!size) return hideChip()
+    chip.dataset.size = size
     chip.replaceChildren(...fields.map((marker) => chipRow(marker, labelled)))
     chip.classList.toggle('vound-chip-rows', fields.length > 1)
     chip.style.maxWidth = `${room}px`

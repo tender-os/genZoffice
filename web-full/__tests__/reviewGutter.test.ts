@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -35,6 +36,21 @@ describe('review gutter', () => {
     expect(GUTTER_RESERVE_PX).toBe(PAGE_GAP_PX + 84 + 16)
     expect(chipRoom(GUTTER_RESERVE_PX)).toBe(chipRowWidth(3))
     expect(hostCss).toContain(`--vound-gutter: ${GUTTER_RESERVE_PX}px;`)
+  })
+
+  it("draws a compact chip as narrow as reviewGutter.ts counts it", () => {
+    document.head.innerHTML = `<style>${hostCss}</style>`
+    const chip = document.body.appendChild(document.createElement('div'))
+    chip.className = 'vound-chip'
+    chip.dataset.size = 'compact'
+    const button = chip.appendChild(document.createElement('button'))
+    button.className = 'vound-chip-btn'
+    const width = parseFloat(getComputedStyle(button).width)
+    const padding = parseFloat(getComputedStyle(chip).padding)
+    // buttons 2px apart, a 1px border
+    expect(4 * width + 3 * 2 + 2 * (padding + 1)).toBe(chipRowWidth(4, 'compact'))
+    document.head.innerHTML = ''
+    chip.remove()
   })
 
   it.each([860, 900, 1000, 1200, 1600, 2000, 2400])('a %ipx canvas leaves a three-button chip room right of the page', (width) => {

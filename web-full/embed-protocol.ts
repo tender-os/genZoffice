@@ -61,7 +61,8 @@
  */
 export type MarkerTone = 'proposed' | 'gap' | 'conditional' | 'refused' | 'accepted' | 'rejected' | 'otherParty'
 /** What a field's chip offers; the host sends the set per field. */
-export type FieldAction = 'accept' | 'reject' | 'fill' | 'ask' | 'restore'
+export const FIELD_ACTIONS = ['accept', 'reject', 'fill', 'ask', 'restore', 'blank'] as const
+export type FieldAction = (typeof FIELD_ACTIONS)[number]
 /** A highlight on one paragraph of the opened document, named by its source paragraph index: the
  *  paragraph's w:p among all w:p of the original document.xml. `cell` highlights the table cell
  *  around that paragraph instead. `label` names the field on its chip and `actions` are the chip's
@@ -74,6 +75,8 @@ export type SlotMarker = {
   tone: MarkerTone
   label: string
   actions: FieldAction[]
+  /** the buttons' titles in the host's language; a button without one keeps the editor's own, German, title */
+  actionTitles?: Partial<Record<FieldAction, string>>
   /** 'toggle': the field is a box, so locked to the fields the words on its line stay as they are. 'ownText':
    *  text the reviewer added or changed outside a field, theirs to type in; it offers no chip */
   entry?: MarkerEntry
