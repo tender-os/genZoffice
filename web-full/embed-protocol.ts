@@ -32,11 +32,13 @@
  *                  { type: 'vound:saved', name: string, bytes: ArrayBuffer }   every save (⌘S, File › Save, 'save' command)
  *                  { type: 'vound:dirty', dirty: boolean }                     unsaved changes appeared or were saved; sent on change
  *                  { type: 'vound:error', message: string }                    open or save failed
- *                  { type: 'vound:fieldAction', id, action: FieldAction }      a chip button was pressed (id = slot id); in
+ *                  { type: 'vound:fieldAction', id, action: FieldAction, anchor? }
+ *                                                                              a chip button was pressed (id = slot id); in
  *                                                                              review mode also Mod-Enter (accept) and
  *                                                                              Mod-Shift-Backspace (reject) with the caret
  *                                                                              in a field offering that action (Mod = ⌘
- *                                                                              on the Mac, Ctrl elsewhere)
+ *                                                                              on the Mac, Ctrl elsewhere); anchor: where
+ *                                                                              the Format button is (action 'format')
  *                  { type: 'vound:blockEdited', ids: string[], texts: EditedText[] }
  *                                                                              a user edit changed the text of a marked
  *                                                                              block; texts: each id's block text before
@@ -68,7 +70,7 @@
  */
 export type MarkerTone = 'proposed' | 'gap' | 'conditional' | 'refused' | 'accepted' | 'rejected' | 'otherParty'
 /** What a field's chip offers; the host sends the set per field. */
-export const FIELD_ACTIONS = ['accept', 'reject', 'fill', 'ask', 'restore', 'blank'] as const
+export const FIELD_ACTIONS = ['accept', 'reject', 'fill', 'ask', 'restore', 'blank', 'format'] as const
 export type FieldAction = (typeof FIELD_ACTIONS)[number]
 /** A highlight on one paragraph of the opened document, named by its source paragraph index: the
  *  paragraph's w:p among all w:p of the original document.xml. `cell` highlights the table cell
@@ -94,6 +96,8 @@ export type BlockRef = { paragraph: number; scope: 'paragraph' | 'cell' }
 /** 'fields': only the blocks of markers offering actions take edits. 'everything': the whole document does. */
 export type EditScope = 'fields' | 'everything'
 export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBlock'
+/** Where a chip button sits in the editor's viewport, in CSS pixels: the host opens its Format menu beside it. */
+export type FieldAnchor = { left: number; top: number; width: number; height: number }
 /** A field's text style: the Latin face (w:rFonts w:ascii, w:hAnsi) and the size in points (w:sz, w:szCs). */
 export type FieldTextStyle = { fontFamily?: string; fontSize?: number }
 /** The visible text of a block right before and right after a field's place, as much as makes the place
@@ -134,7 +138,7 @@ export type EditorToHost =
   | { type: 'vound:saved'; name: string; bytes: ArrayBuffer }
   | { type: 'vound:dirty'; dirty: boolean }
   | { type: 'vound:error'; message: string }
-  | { type: 'vound:fieldAction'; id: string; action: FieldAction }
+  | { type: 'vound:fieldAction'; id: string; action: FieldAction; anchor?: FieldAnchor }
   | { type: 'vound:blockEdited'; ids: string[]; texts: EditedText[] }
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }

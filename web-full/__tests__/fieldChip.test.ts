@@ -139,6 +139,21 @@ describe('mountFieldChip', () => {
     expect(buttons().map((b) => b.text)).toEqual(['✎', '', '↺', '✎'])
   })
 
+  it('shows a Format button that posts format with where the button is, for the host\'s menu beside it', () => {
+    const { v, post } = chipView([{ ...marker('team', 1, ['accept', 'format']), actionTitles: { format: 'Format' } }])
+    hover(block(v, 'team'))
+    const format = chip()!.querySelector<HTMLButtonElement>('.vound-chip-format')!
+    expect(format.title).toBe('Format')
+    expect(format.querySelector('svg')).not.toBeNull()
+    format.click()
+    expect(post).toHaveBeenCalledWith({
+      type: 'vound:fieldAction',
+      id: 'team',
+      action: 'format',
+      anchor: { left: expect.any(Number), top: expect.any(Number), width: expect.any(Number), height: expect.any(Number) },
+    })
+  })
+
   it('clicking ✕ posts fieldAction reject with the slot id', () => {
     const { v, post } = chipView([marker('ort', 1, ['accept', 'reject'], 'Ort'), marker('datum', 1, ['accept', 'reject'], 'Datum')])
     hover(block(v, 'datum'))

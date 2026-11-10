@@ -113,7 +113,7 @@ function styleAt(view: EditorView, place: FieldTextPlace, attrs: Restyled | null
 function placeOf(view: EditorView, request: FieldStyleRequest) {
   const place = fieldTextPlace(view.state.doc, request)
   if (!('refused' in place)) return place
-  return emptyFieldPlace(view.state.doc, request) ?? place
+  return emptyFieldPlace(view.state.doc, request, view.state.selection.head) ?? place
 }
 
 /** vound:setFieldStyle: restyle the field's text, or refuse and leave the document as it is */

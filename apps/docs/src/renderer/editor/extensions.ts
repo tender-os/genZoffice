@@ -1,4 +1,5 @@
 import { ScriptFonts } from './script-fonts'
+import { runsAfterEdit } from './field-run-edit'
 import { MultiSelect } from './multi-select'
 import { Editor, Extension, Node } from '@tiptap/core'
 import { SHAPE_INLINE_WRAP } from './floating-z-order'
@@ -6359,9 +6360,14 @@ function wireFieldEditing(
     } else {
       const text = dom.querySelector<HTMLElement>('.doc-field-text')
       if (text) next.left = protectedText(text)
-      // the formatted runs describe the pre-edit text: an edited result renders
-      // as the plain string (a rebuild would otherwise redraw the stale runs)
-      if (next.left !== currentField.left) delete next.runs
+      // the formatted runs describe the pre-edit text: they follow the edit (Vound fork, field-run-edit.ts),
+      // else an edited result renders as the plain string (a rebuild would otherwise redraw the stale runs)
+      const editedRuns =
+        next.left !== currentField.left && currentField.runs
+          ? runsAfterEdit(currentField.runs, currentField.left ?? '', next.left ?? '')
+          : undefined
+      if (editedRuns) next.runs = editedRuns
+      else if (next.left !== currentField.left) delete next.runs
       // an empty result shows a placeholder: one NBSP on its empty line, or
       // Word's blank (en spaces). Typed text replaces all of it, wherever the
       // caret sat in it, and the line draws the text again (an empty line

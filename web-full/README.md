@@ -256,8 +256,9 @@ whole page number, is dropped unanswered. Text of legacy form fields (passthroug
 In review mode (`fieldChip.ts`, mounted by `reviewMode.ts`) hovering a marked block shows a chip with the
 buttons the host sent for its fields (`SlotMarker.actions`): ✓ „Übernehmen" (`accept`), ✕ „Ablehnen"
 (`reject`), ✎ „Wert eintragen" (`fill`), ✦ „Agent fragen" (`ask`), ↺ „KI-Wert wiederherstellen"
-(`restore`), each a 24px button with that `title` and `aria-label`. A press posts `vound:fieldAction
-{ id, action }` and hides the chip; a button whose action the field no longer offers (the markers changed
+(`restore`), T „Format" (`format`), each a 24px button with that `title` and `aria-label`. A press posts `vound:fieldAction
+{ id, action }` and hides the chip (Format adds `anchor`, the button's rect in the editor's viewport, so the host
+opens its font and size menu beside it, then restyles with `vound:setFieldStyle`); a button whose action the field no longer offers (the markers changed
 under the open chip) posts nothing. A block holding several fields gets one row per field, labelled with
 `SlotMarker.label`, in the order of its `data-vound-slot` ids; a single field's row has no label. Fields
 without actions get no row, and a block whose fields have none gets no chip. A press does not take the
@@ -361,12 +362,15 @@ left out. An empty `style` changes nothing and only answers.
 
 A field the text does not name once is found as an empty field (`fieldStylePlace.ts`): `formText`, the index of
 the legacy text form field in its paragraph, names that field's text; a field with no text (`previous: ''`) is
-the block's one emptied field or blank form field, else the end of the block's text. An empty place, an emptied
+the block's one emptied field or blank form field (of several, the one at the caret), else the end of the block's
+text. An empty place, an emptied
 field's filler included, gets the caret with the style as its stored marks, and the text typed there next takes
 it, typing into a form field too. A field passthrough paragraph (`fieldDisplay`, a line of form fields the
 editor shows as one block) is restyled in its display (`fieldStyleBlock.ts`): the runs of the field's part, and
 the display's own face and size when the part is all of its text or empty, so text typed into it later keeps
-them. Any other place is refused with the reasons of `vound:fieldValueResult`.
+them. Typing into it later keeps them on the part they cover: the editor's field commit carries the runs over the
+edit (`field-run-edit.ts`), and the save puts the typed text into the `w:t` it was typed after
+(`edited-node-texts.ts`). Any other place is refused with the reasons of `vound:fieldValueResult`.
 
 The save writes the new run properties also where a text edit keeps the original bytes (`restyled-runs.ts`):
 each `w:r` of a paragraph with a field or a content control takes the face and size of its text's runs in the

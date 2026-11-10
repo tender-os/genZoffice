@@ -10,7 +10,7 @@ import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/edi
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
 import type { BlockRef } from '../embed-protocol'
 import { applyFieldStyle } from '../fieldStyle'
-import { HOST_WRITE_META } from '../fieldWrite'
+import { FIELD_TEXT_SELECTOR, HOST_WRITE_META, placeCaret } from '../fieldWrite'
 import { formTextPlugin } from '../formTextField'
 
 const run = (text: string, rPr = '') => `<w:r>${rPr}<w:t xml:space="preserve">${text}</w:t></w:r>`
@@ -181,6 +181,25 @@ describe('applyFieldStyle', () => {
     expect(applyFieldStyle(again.editor.view, { block: firm, previous: 'Muster GmbH', style: {} })).toEqual({ ok: true, style: { fontFamily: 'Arial', fontSize: 12 } })
   })
 
+  it('keeps the face set on part of a form field block when the reviewer types into it', async () => {
+    const dropDown = '<w:r><w:fldChar w:fldCharType="begin"><w:ffData><w:name w:val="D"/><w:ddList><w:listEntry w:val="ja"/></w:ddList></w:ffData></w:fldChar></w:r><w:r><w:instrText xml:space="preserve"> FORMDROPDOWN </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>' + run('ja') + FIELD_END
+    const { parsed, editor } = await open(`<w:p>${run('Firma: ', CALIBRI_11)}${fieldOpen}${run('Muster GmbH', CALIBRI_11)}${FIELD_END}${run(' ')}${dropDown}</w:p>`)
+    applyFieldStyle(editor.view, { block: firm, previous: 'Muster GmbH', style: { fontFamily: 'Arial' } })
+    expect(placeCaret(editor.view, firm)).toBe(true)
+    const text = (editor.view.nodeDOM(0) as HTMLElement).querySelector(FIELD_TEXT_SELECTOR) as HTMLElement
+    const result = [...text.childNodes].find((child) => child.textContent === 'Muster GmbH')!
+    result.textContent = 'Muster GmbH & Co.'
+    text.dispatchEvent(new Event('input', { bubbles: true }))
+    window.dispatchEvent(new Event('ai-docs-commit-tables'))
+    const display = editor.state.doc.child(0).attrs.fieldDisplay
+    expect(display.left).toContain('Muster GmbH & Co.')
+    expect(display.runs.find((r: { text: string }) => r.text.includes('Muster'))).toMatchObject({ text: 'Muster GmbH & Co.', fontAscii: 'Arial' })
+    expect(display.runs.find((r: { text: string }) => r.text.includes('Firma'))?.fontAscii).toBe('Calibri')
+    const { xml } = await reopened(parsed, editor)
+    expect(runOf(xml, 'Muster GmbH &amp; Co.')).toContain('w:ascii="Arial"')
+    expect(runOf(xml, 'Firma: ')).toContain('w:ascii="Calibri"')
+  })
+
   it('restyles an empty form field the field index names, and the text typed into it takes the style', async () => {
     const blank = `${fieldOpen}${run('\u2002'.repeat(5))}${FIELD_END}`
     const { parsed, editor } = await open(`<w:p>${run('Ort: ')}${blank}${run(' Datum: ')}${blank}</w:p>`)
@@ -205,6 +224,20 @@ describe('applyFieldStyle', () => {
     const { xml } = await reopened(parsed, editor)
     expect(runOf(xml, 'Köln')).toContain('<w:sz w:val="28"/>')
     expect(xml).toContain('FORMTEXT')
+  })
+
+  it('picks the empty field the caret is in when a line has several', async () => {
+    const control = `<w:sdt><w:sdtPr><w:id w:val="3"/><w:text/></w:sdtPr><w:sdtContent>${run('')}</w:sdtContent></w:sdt>`
+    const { editor } = await open(`<w:p>${run('Von: ')}${control}${run(' bis: ')}${control}</w:p>`)
+    const fillers: number[] = []
+    editor.state.doc.descendants((node, pos) => { if (node.isText && node.text === '\u200b') fillers.push(pos) })
+    expect(fillers).toHaveLength(2)
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 1)))
+    expect(applyFieldStyle(editor.view, { block: firm, previous: '', style: { fontSize: 9 } }).ok).toBe(false)
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, fillers[1])))
+    expect(applyFieldStyle(editor.view, { block: firm, previous: '', style: { fontSize: 9 } }).ok).toBe(true)
+    expect(editor.state.selection.from).toBe(fillers[1])
+    expect(editor.state.storedMarks?.find((mark) => mark.type.name === 'docTextStyle')?.attrs.sizeHalfPoints).toBe(18)
   })
 
   it('stores the style at the end of a label line whose field has no text yet, for the text typed next', async () => {

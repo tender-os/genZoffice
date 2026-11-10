@@ -1,6 +1,6 @@
 // Where a restyle goes when the field's text names no single place (fieldStyle.ts): the legacy text form field
 // the host's index names, or, for a field with no text yet, the block's one empty field, else the end of its
-// text, so the style is stored for the text typed there next. An emptied field's filler takes no mark (the editor
+// text, so the style is stored for the text typed there next; of several empty fields, the one at the caret. An emptied field's filler takes no mark (the editor
 // drops a filler an edit touched), so its place is the caret at its start.
 import type { Node as PmNode } from '@tiptap/pm/model'
 import type { FieldTextStyle } from './embed-protocol'
@@ -55,20 +55,27 @@ function formFieldRange(paragraphs: Paragraph[], index: number): Range | null {
 const isEmptyField = (node: PmNode) =>
   isEmptyControlFiller(node) || (fieldIndexOf(node) !== undefined && node.text === EN_SPACE.repeat(node.text?.length ?? 0))
 
-function emptyFieldRange(paragraphs: Paragraph[]): Range | null {
+function emptyFieldRange(paragraphs: Paragraph[], caret: number): Range | null {
   const empties = textsOf(paragraphs).filter((text) => isEmptyField(text.node))
+  const atCaret = empties.filter((text) => text.from <= caret && caret <= text.to)
   if (empties.length === 1) return placeOfTexts(empties)
+  if (atCaret.length === 1) return placeOfTexts(atCaret)
   const last = paragraphs.at(-1)
   if (empties.length > 1 || !last) return null
   const end = last.pos + last.node.nodeSize - 1
   return { kind: 'text', from: end, to: end }
 }
 
-export function emptyFieldPlace(doc: PmNode, request: FieldTarget & { formText?: number; style: FieldTextStyle }): Range | null {
+/** `caret` picks among several empty fields: the one the reviewer is typing in */
+export function emptyFieldPlace(
+  doc: PmNode,
+  request: FieldTarget & { formText?: number; style: FieldTextStyle },
+  caret: number,
+): Range | null {
   if (request.replaces === 'gap') return null
   const block = locateBlock(doc, request.block)
   if (!block) return null
   const paragraphs = paragraphsOf(block)
   if (request.formText !== undefined) return formFieldRange(paragraphs, request.formText)
-  return request.previous === '' ? emptyFieldRange(paragraphs) : null
+  return request.previous === '' ? emptyFieldRange(paragraphs, caret) : null
 }

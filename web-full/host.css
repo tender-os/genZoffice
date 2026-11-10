@@ -360,6 +360,8 @@ html.vound-review .ctx-item .copilot-badge-menu { background: var(--vound-propos
 .vound-chip-restore:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
 .vound-chip-blank svg { display: block; width: 14px; height: 14px; }
 .vound-chip-blank:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
+.vound-chip-format svg { display: block; width: 14px; height: 14px; }
+.vound-chip-format:hover { background: var(--vound-chip-hover); color: var(--vound-chip-ink); }
 /* a gutter too narrow for a row of regular buttons: compact ones, so the row stays one line (reviewGutter.ts CHIP_SIZES) */
 .vound-chip[data-size="compact"] { padding: 2px; }
 .vound-chip[data-size="compact"] .vound-chip-btn { width: 18px; height: 18px; }

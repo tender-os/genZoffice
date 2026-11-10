@@ -3,6 +3,7 @@ import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
 import { patchFieldParagraphText } from './text-patch'
 import { withRestyledRuns } from './restyled-runs'
+import { editedNodeTexts } from './edited-node-texts'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
   sdtCheckboxGlyphs,
@@ -565,7 +566,11 @@ export function patchFieldParagraphXml(original: string, patch: FieldTextPatch):
 
   const replacements: Array<{ node: XmlTextNode; text: string }> = []
   if (patch.left !== undefined) {
-    distributeText(patch.left, leftNodes).forEach((text, i) => {
+    // a field line's edit stays in the run it was typed in (Vound fork); a TOC title keeps its layout
+    const nodeTexts = leftNodes.map((node) => node.text)
+    const edited = lastTab === -1 ? editedNodeTexts(patch.left, nodeTexts) : null
+    const texts = edited ?? distributeText(patch.left, leftNodes)
+    texts.forEach((text, i) => {
       replacements.push({ node: leftNodes[i], text })
     })
   }
