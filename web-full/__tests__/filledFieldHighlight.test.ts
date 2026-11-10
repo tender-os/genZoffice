@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { Editor } from '@tiptap/core'
 import JSZip from 'jszip'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -8,6 +6,7 @@ import { parseDocx, saveDocx } from '@genoffice/docx-engine'
 import { buildDocx } from '../../packages/docx-engine/tests/helpers/build-docx'
 import { blocksToPmDoc, pmDocToSavePlan } from '../../apps/docs/src/renderer/editor/convert'
 import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions'
+import { settleField } from '../fieldSettle'
 import { applyFieldValue } from '../fieldWrite'
 import { filledFieldHighlightPlugin, formTextPlugin } from '../formTextField'
 
@@ -23,6 +22,9 @@ const FIELD =
   marked(`<w:t>${DEFAULT_TEXT}</w:t>`) +
   marked('<w:fldChar w:fldCharType="end"/>')
 const LINE = `<w:p><w:r><w:t xml:space="preserve">Mitglied </w:t></w:r>${FIELD}</w:p>`
+const fieldWith = (result: string) => FIELD.replace(`<w:t>${DEFAULT_TEXT}</w:t>`, result)
+const BLANK_LINE = `<w:p><w:r><w:t xml:space="preserve">Mitglied </w:t></w:r>${fieldWith('<w:t xml:space="preserve"></w:t>')}</w:p>`
+const AI_VALUE_LINE = `<w:p><w:r><w:t xml:space="preserve">Mitglied </w:t></w:r>${fieldWith('<w:t>Erika Muster</w:t>')}</w:p>`
 const NOTE = `<w:p>${marked('<w:t>Hinweis</w:t>')}</w:p>`
 
 const editors: Editor[] = []
@@ -33,7 +35,9 @@ afterEach(() => {
 })
 
 async function open() {
-  const parsed = await parseDocx(await buildDocx({ bodyXml: LINE + LINE + NOTE }))
+  const parsed = await parseDocx(
+    await buildDocx({ bodyXml: LINE + LINE + NOTE + BLANK_LINE + AI_VALUE_LINE }),
+  )
   const editor = new Editor({
     element: document.createElement('div'),
     extensions: editorExtensions,
@@ -116,22 +120,29 @@ describe("a legacy text field the form's author marked with highlight", () => {
   })
 })
 
-describe('an empty control in a field marked blank', () => {
-  const hostCss = readFileSync(resolve(__dirname, '../host.css'), 'utf8')
+describe('a highlighted field the host settles (accepted, or marked blank)', () => {
+  const settle = (editor: Editor, paragraph: number) =>
+    settleField(editor.view, {
+      paragraph: editor.state.doc.child(paragraph).attrs.docxPara,
+      scope: 'paragraph',
+    })
 
   it.each([
-    ['accepted', 'rgba(0, 0, 0, 0)'],
-    ['gap', 'rgb(255, 255, 0)'],
-  ])('shows the highlight around it in a %s field as %s', (tone, background) => {
-    const style = document.createElement('style')
-    style.textContent = hostCss
-    document.head.append(style)
-    document.documentElement.classList.add('vound-review')
-    const field = document.body.appendChild(document.createElement('p'))
-    field.className = `vound-slot vound-slot-${tone}`
-    const highlight = field.appendChild(document.createElement('span'))
-    highlight.style.backgroundColor = 'rgb(255, 255, 0)'
-    highlight.appendChild(document.createElement('span')).className = 'vound-empty-control'
-    expect(getComputedStyle(highlight).backgroundColor).toBe(background)
+    ['marked blank', 3],
+    ['an AI value accepted without an edit', 4],
+  ])('saves without it when %s, and gets it back with an undo', async (_case, paragraph) => {
+    const { parsed, editor } = await open()
+    settle(editor, paragraph)
+    expect(Object.values(highlightsOf(editor, paragraph))).not.toContain('yellow')
+    expect(highlightCount((await savedParagraphs(parsed, editor))[paragraph])).toBe(0)
+    editor.commands.undo()
+    expect(highlightCount((await savedParagraphs(parsed, editor))[paragraph])).toBe(5)
+  })
+
+  it('leaves the other fields and the text outside fields as they were', async () => {
+    const { parsed, editor } = await open()
+    settle(editor, 3)
+    const saved = await savedParagraphs(parsed, editor)
+    expect(saved.map(highlightCount)).toEqual([5, 5, 1, 0, 5])
   })
 })

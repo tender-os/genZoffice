@@ -126,6 +126,27 @@ export const formTextPlugin = new Plugin({
       : null,
 })
 
+/** the author's fill-here highlight off the text of one field */
+function unhighlightField(doc: PmNode, field: { from: number; to: number }, tr: Transaction) {
+  doc.nodesBetween(field.from, field.to, (node, at) => {
+    const style = markOf(node, STYLE_MARK)
+    if (!node.isText || !style?.attrs.highlight) return
+    const unhighlighted = style.type.create({ ...style.attrs, highlight: null })
+    tr.addMark(Math.max(at, field.from), Math.min(at + node.nodeSize, field.to), unhighlighted)
+  })
+}
+
+/** each legacy text field of the textblocks in [from, to] */
+function fieldsBetween(doc: PmNode, from: number, to: number) {
+  const fields: ReturnType<typeof fieldsOf> = []
+  doc.nodesBetween(from, to, (block, pos) => {
+    if (!block.isTextblock) return true
+    fields.push(...fieldsOf(block, pos + 1))
+    return false
+  })
+  return fields
+}
+
 /** The transaction that takes the author's fill-here highlight off every field the changes left holding a value.
  *  Appended to the edit, it shares its undo step, so undoing the value brings the highlight back. */
 function dropFilledFieldHighlight(
@@ -135,24 +156,24 @@ function dropFilledFieldHighlight(
   tr: Transaction,
 ) {
   for (const { newRange } of getChangedRanges(combineTransactionSteps(before, [...transactions]))) {
-    doc.nodesBetween(newRange.from, newRange.to, (block, pos) => {
-      if (!block.isTextblock) return true
-      for (const field of fieldsOf(block, pos + 1).filter((each) => !isReplacedWhole(doc, each))) {
-        doc.nodesBetween(field.from, field.to, (node, at) => {
-          const style = markOf(node, STYLE_MARK)
-          if (!node.isText || !style?.attrs.highlight) return
-          const unhighlighted = style.type.create({ ...style.attrs, highlight: null })
-          tr.addMark(
-            Math.max(at, field.from),
-            Math.min(at + node.nodeSize, field.to),
-            unhighlighted,
-          )
-        })
-      }
-      return false
-    })
+    for (const field of fieldsBetween(doc, newRange.from, newRange.to)) {
+      if (!isReplacedWhole(doc, field)) unhighlightField(doc, field, tr)
+    }
   }
   return tr.docChanged ? tr : null
+}
+
+/** Settles every legacy text field in [from, to] on `tr`: marked settled, so the save drops the author's
+ *  highlight too, and shown without it. */
+export function settleFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
+  for (const field of fieldsBetween(doc, from, to)) {
+    const mark = markOf(doc.nodeAt(field.from)!, FIELD_MARK)!
+    if (mark.attrs.settled) continue
+    tr.removeMark(field.from, field.to, mark)
+    tr.addMark(field.from, field.to, mark.type.create({ ...mark.attrs, settled: true }))
+    unhighlightField(doc, field, tr)
+  }
+  return tr
 }
 
 export const filledFieldHighlightKey = new PluginKey('voundFilledFieldHighlight')
@@ -160,7 +181,9 @@ export const filledFieldHighlightKey = new PluginKey('voundFilledFieldHighlight'
 export const filledFieldHighlightPlugin = new Plugin({
   key: filledFieldHighlightKey,
   appendTransaction: (transactions, oldState, state) =>
-    transactions.some((tr) => isUserEdit(tr) || (tr.docChanged && isHostWrite(tr)))
+    transactions.some(
+      (tr) => !tr.getMeta('history$') && (isUserEdit(tr) || (tr.docChanged && isHostWrite(tr))),
+    )
       ? dropFilledFieldHighlight(transactions, oldState.doc, state.doc, state.tr)
       : null,
 })

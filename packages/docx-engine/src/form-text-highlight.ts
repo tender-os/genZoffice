@@ -38,10 +38,14 @@ function formTextFields(paraXml: string): FieldSpan[] {
   return fields
 }
 
-/** Vound fork: a legacy text field holding a value loses the author's fill-here w:highlight, begin to end */
-export function withoutFilledFieldHighlight(paraXml: string): string {
+/** Vound fork: a legacy text field holding a value, or one the host settled (by its index), loses the author's
+ *  fill-here w:highlight, begin to end */
+export function withoutFilledFieldHighlight(
+  paraXml: string,
+  settled: ReadonlySet<number | undefined> = new Set(),
+): string {
   return formTextFields(paraXml)
-    .filter((field) => field.holdsValue)
+    .filter((field, index) => field.holdsValue || settled.has(index))
     .reverse()
     .reduce(
       (xml, field) =>

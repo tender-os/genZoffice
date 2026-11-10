@@ -177,6 +177,8 @@ export interface Run {
   placeholder?: true
   /** Vound fork: which legacy text form field of its paragraph this run is the result of, counted from 0 */
   formText?: number
+  /** Vound fork: the host settled this run's legacy text form field (accepted or left blank), so it saves without the author's highlight */
+  formTextSettled?: true
   /**
    * Run-level formatting revision (w:rPrChange): records the review info and the modeled
    * subset of the pre-revision formatting. Accept = keep the current formatting and clear

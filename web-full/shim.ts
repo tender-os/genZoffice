@@ -28,6 +28,7 @@ import { embedLang } from './embedLocale'
 import { fillWithAiLabel, fillWithAiMessage } from './fillWithAi'
 import { caretIds } from './fieldReporting'
 import { applyFieldValue, placeCaret } from './fieldWrite'
+import { settleField } from './fieldSettle'
 import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, setMarkers, resetMarkers } from './markersPlugin'
 import { enterReviewMode, leaveReviewMode } from './reviewMode'
 import { reviewFitWidth, reviewFitZoom } from './reviewGutter'
@@ -217,6 +218,9 @@ export function installDesktopShim() {
         }
         case 'vound:placeCaret':
           if (hostEditor) placeCaret(hostEditor.view, msg.block)
+          break
+        case 'vound:settleField':
+          if (hostEditor) settleField(hostEditor.view, msg.block)
           break
         case 'vound:editScope':
           setEditScope(msg.scope)

@@ -337,7 +337,8 @@ export function patchFieldParagraphText(
   runs: ReadonlyArray<WtMappedRun>,
 ): string | null {
   const patched = patchedFieldParagraph(originalParaXml, runs)
-  return patched === null ? null : withoutFilledFieldHighlight(patched)
+  const settled = new Set(runs.flatMap((run) => (run.formTextSettled ? [run.formText] : [])))
+  return patched === null ? null : withoutFilledFieldHighlight(patched, settled)
 }
 
 function patchedFieldParagraph(
@@ -380,7 +381,7 @@ function patchedFieldParagraph(
 
 type WtMappedRun = Pick<
   Run,
-  'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder' | 'sdtCheckboxXml' | 'formText'
+  'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder' | 'sdtCheckboxXml' | 'formText' | 'formTextSettled'
 >
 
 /** Vound fork: each legacy text field's text in its own result; null when the text around the fields changed,

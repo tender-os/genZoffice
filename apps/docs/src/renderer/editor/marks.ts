@@ -472,7 +472,7 @@ export const FormTextFieldMark = Mark.create({
   name: 'formTextField',
   excludes: '',
   addAttributes() {
-    return { index: { default: 0, rendered: false } }
+    return { index: { default: 0, rendered: false }, settled: { default: false, rendered: false } }
   },
   renderHTML() {
     return ['span', { class: 'doc-form-text' }, 0]
