@@ -162,15 +162,14 @@ describe('review field markers', () => {
     expect(getComputedStyle(cell).getPropertyValue('background')).not.toContain('--vs-hatch')
   })
 
-  it("draw an emptied control's box in its field's tone, and amber outside any field", () => {
-    const accepted = block('p', 'vound-slot vound-slot-accepted vound-slot-field')
-    const box = accepted.appendChild(document.createElement('span'))
+  it.each(['accepted', 'proposed', 'gap', 'rejected'])("draw no box or underline of their own for an emptied control in a %s field, the amber box outside any field", (tone) => {
+    const field = block('p', `vound-slot vound-slot-${tone} vound-slot-field`)
+    const box = field.appendChild(document.createElement('span'))
     box.className = 'vound-empty-control'
-    expect(getComputedStyle(box).getPropertyValue('background')).toBe('var(--vs-tint)')
-    expect(getComputedStyle(box).getPropertyValue('border-bottom-color')).toBe('var(--vs-bar)')
-    // the slot sets them, the box inherits them
-    expect(variable(accepted, '--vs-tint')).toBe('var(--vound-accepted-tint)')
-    expect(variable(accepted, '--vs-bar')).toBe('var(--vound-accepted-bar)')
+    const style = getComputedStyle(box)
+    expect(style.getPropertyValue('background')).toBe('none')
+    expect(style.getPropertyValue('border-bottom-style')).toBe('none')
+    expect(style.getPropertyValue('min-width')).toBe('1em')
 
     const loose = block('p').appendChild(document.createElement('span'))
     loose.className = 'vound-empty-control'
