@@ -20,6 +20,10 @@
  *                  { type: 'vound:setFieldValue', requestId, block, value, replaces: 'gap', gap }
  *                                                                              replace what lies between gap.before
  *                                                                              and gap.after in one block
+ *                  { type: 'vound:setFieldStyle', requestId, block, previous, replaces?, formText?, style }
+ *                  { type: 'vound:setFieldStyle', requestId, block, replaces: 'gap', gap, style }
+ *                                                                              restyle a field's text: the selection inside
+ *                                                                              it, else all of it (fieldStyle.ts)
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
  *                  { type: 'vound:settleField', block: BlockRef }              the block's legacy text fields are accepted or
  *                                                                              left blank: they lose the author's highlight
@@ -33,11 +37,13 @@
  *                  { type: 'vound:saved', name: string, bytes: ArrayBuffer }   every save (⌘S, File › Save, 'save' command)
  *                  { type: 'vound:dirty', dirty: boolean }                     unsaved changes appeared or were saved; sent on change
  *                  { type: 'vound:error', message: string }                    open or save failed
- *                  { type: 'vound:fieldAction', id, action: FieldAction }      a chip button was pressed (id = slot id); in
+ *                  { type: 'vound:fieldAction', id, action: FieldAction, anchor? }
+ *                                                                              a chip button was pressed (id = slot id); in
  *                                                                              review mode also Mod-Enter (accept) and
  *                                                                              Mod-Shift-Backspace (reject) with the caret
  *                                                                              in a field offering that action (Mod = ⌘
- *                                                                              on the Mac, Ctrl elsewhere)
+ *                                                                              on the Mac, Ctrl elsewhere); anchor: where
+ *                                                                              the Format button is (action 'format')
  *                  { type: 'vound:blockEdited', ids: string[], texts: EditedText[] }
  *                                                                              a user edit changed the text of a marked
  *                                                                              block; texts: each id's block text before
@@ -47,6 +53,9 @@
  *                  { type: 'vound:fieldValueResult', requestId, ok, reason?, gap? }
  *                                                                              the answer to vound:setFieldValue; gap
  *                                                                              anchors the written place for the next write
+ *                  { type: 'vound:fieldStyleResult', requestId, ok, reason?, style? }
+ *                                                                              the answer to vound:setFieldStyle; style: what
+ *                                                                              the restyled text shows now
  *                  { type: 'vound:fillWithAi', ids, selected, paragraph }      the reviewer asked AI to fill the caret's place
  *                  { type: 'vound:editRefused', where }                         an edit was refused; where: 'boxLine' (the words
  *                                                                              on a box's line) or 'outsideFields'
@@ -66,7 +75,7 @@
  */
 export type MarkerTone = 'proposed' | 'gap' | 'conditional' | 'refused' | 'accepted' | 'rejected' | 'otherParty'
 /** What a field's chip offers; the host sends the set per field. */
-export const FIELD_ACTIONS = ['accept', 'reject', 'fill', 'ask', 'restore', 'blank'] as const
+export const FIELD_ACTIONS = ['accept', 'reject', 'fill', 'ask', 'restore', 'blank', 'format'] as const
 export type FieldAction = (typeof FIELD_ACTIONS)[number]
 /** A highlight on one paragraph of the opened document, named by its source paragraph index: the
  *  paragraph's w:p among all w:p of the original document.xml. `cell` highlights the table cell
@@ -92,6 +101,10 @@ export type BlockRef = { paragraph: number; scope: 'paragraph' | 'cell' }
 /** 'fields': only the blocks of markers offering actions take edits. 'everything': the whole document does. */
 export type EditScope = 'fields' | 'everything'
 export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBlock'
+/** Where a chip button sits in the editor's viewport, in CSS pixels: the host opens its Format menu beside it. */
+export type FieldAnchor = { left: number; top: number; width: number; height: number }
+/** A field's text style: the Latin face (w:rFonts w:ascii, w:hAnsi) and the size in points (w:sz, w:szCs). */
+export type FieldTextStyle = { fontFamily?: string; fontSize?: number }
 /** The visible text of a block right before and right after a field's place, as much as makes the place
  *  unique; '' anchors to the start or the end of the block's text (paragraphs joined by line feeds). */
 export type FieldGap = { before: string; after: string }
@@ -120,6 +133,8 @@ export type HostToEditor =
   | { type: 'vound:focus'; id: string | null }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
   | { type: 'vound:setFieldValue'; requestId: string; block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
+  | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; previous: string; replaces?: 'wholeField'; formText?: number; style: FieldTextStyle }
+  | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; replaces: 'gap'; gap: FieldGap; style: FieldTextStyle }
   | { type: 'vound:placeCaret'; block: BlockRef }
   | { type: 'vound:settleField'; block: BlockRef }
   | { type: 'vound:reopenField'; block: BlockRef }
@@ -130,11 +145,12 @@ export type EditorToHost =
   | { type: 'vound:saved'; name: string; bytes: ArrayBuffer }
   | { type: 'vound:dirty'; dirty: boolean }
   | { type: 'vound:error'; message: string }
-  | { type: 'vound:fieldAction'; id: string; action: FieldAction }
+  | { type: 'vound:fieldAction'; id: string; action: FieldAction; anchor?: FieldAnchor }
   | { type: 'vound:blockEdited'; ids: string[]; texts: EditedText[] }
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
+  | { type: 'vound:fieldStyleResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; style?: FieldTextStyle }
   | { type: 'vound:editRefused'; where: RefusalPlace }
   | { type: 'vound:history'; canUndo: boolean; canRedo: boolean }
   | { type: 'vound:zoom'; zoom: number }

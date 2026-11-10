@@ -1,7 +1,8 @@
 // The keyboard shortcuts review mode blocks: the document tools whose results the host does not follow
-// (track changes, comments, footnotes and endnotes, fields, AI proofread) and File › Open, whose file would
-// replace the reviewed document. Formatting passes, as in Word: bold, italic, underline, alignment, font
-// size, the font, paragraph and hyperlink dialogs, spacing, styles, indents and clearing formatting.
+// (track changes, comments, footnotes and endnotes, fields, AI proofread), File › Open, whose file would
+// replace the reviewed document, and the font dialog and font size keys, since the host's Format control
+// (fieldStyle.ts) is the one way to set a field's face and size. Formatting passes, as in Word: bold, italic,
+// underline, alignment, the paragraph and hyperlink dialogs, spacing, styles, indents and clearing formatting.
 // Matching mirrors App.tsx: Mod is Command or Control on every platform; letters it reads from e.key,
 // digits and punctuation from e.code.
 export type ShortcutKeys = Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'shiftKey' | 'altKey'>
@@ -21,6 +22,10 @@ const combos = (mac: boolean): Combo[] => [
   ...codes({ mod: 'any', alt: true }, 'KeyA', 'KeyF', mac ? 'KeyE' : 'KeyD'),
   // date and time fields ⌥⇧D / ⌥⇧T
   ...codes({ mod: 'none', alt: true, shift: true }, 'KeyD', 'KeyT'),
+  // the font dialog ⌘D; font size grow and shrink ⇧⌘. ⇧⌘, and the one-point nudge ⌘] ⌘[
+  { mod: 'any', shift: false, alt: false, key: 'd' },
+  ...codes({ mod: 'any', shift: true, alt: false }, 'Period', 'Comma'),
+  ...codes({ mod: 'any', shift: false, alt: false }, 'BracketRight', 'BracketLeft'),
   // update fields F9 and field codes ⌥F9; AI proofread F7
   { code: 'F9' },
   { shift: false, code: 'F7' },

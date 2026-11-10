@@ -4,7 +4,7 @@
 import { combineTransactionSteps, getChangedRanges } from '@tiptap/core'
 import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Mark, Node as PmNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Decoration, type EditorView } from '@tiptap/pm/view'
 import { isHostWrite, isUserEdit } from './fieldReporting'
 
@@ -62,6 +62,10 @@ function isReplacedWhole(doc: PmNode, field: { from: number; to: number }) {
 const typedMarks = (node: PmNode) =>
   node.marks.filter((mark) => mark.type.name !== PLACEHOLDER_MARK)
 
+/** with the text style the host's Format control stored for the text typed next (fieldStyle.ts) */
+const withStoredStyle = (state: EditorState, marks: readonly Mark[]) =>
+  state.storedMarks?.find((mark) => mark.type.name === 'docTextStyle')?.addToSet(marks) ?? marks
+
 /** text typed into a blank field or at a field's start stays in that field; elsewhere the editor's own typing keeps its mark */
 function typeIntoField(view: EditorView, from: number, to: number, text: string) {
   const { doc, tr, schema } = view.state
@@ -69,7 +73,7 @@ function typeIntoField(view: EditorView, from: number, to: number, text: string)
   if (!field) return false
   const replaced = isReplacedWhole(doc, field) ? field : { from, to }
   if (replaced.from !== field.from) return false
-  const typed = schema.text(text, typedMarks(doc.nodeAt(field.from)!))
+  const typed = schema.text(text, withStoredStyle(view.state, typedMarks(doc.nodeAt(field.from)!)))
   tr.replaceWith(replaced.from, replaced.to, typed)
   view.dispatch(
     tr.setSelection(TextSelection.create(tr.doc, replaced.from + text.length)).scrollIntoView(),

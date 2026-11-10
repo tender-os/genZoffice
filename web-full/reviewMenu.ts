@@ -1,9 +1,10 @@
 // The context-menu entries the embed leaves out (the reviewMenu transform in vite.config.ts asks menuShows
 // before each one): the AI entries and hiding text from the AI everywhere in the embed, since the AI is
 // hidden; in review mode also formatted Paste (Paste as plain text stays), the field commands and New
-// Comment, whose results the host does not follow, and every command that changes a form's structure:
-// changes to tender documents can exclude a bid, and the host's change list compares text only.
-// Formatting, clipboard, hyperlinks and adding table rows stay.
+// Comment, whose results the host does not follow, the Font dialog, since the host's Format control sets a
+// field's face and size, and every command that changes a form's structure: changes to tender documents can
+// exclude a bid, and the host's change list compares text only. Paragraph formatting, clipboard, hyperlinks
+// and adding table rows stay.
 
 /** the entries' string keys in apps/docs ContextMenu.tsx */
 export const AI_MENU_KEYS = ['appSynonyms', 'appTranslate', 'redactMenuLabel', 'redactShowLabel'] as const
@@ -13,6 +14,7 @@ export const REVIEW_MENU_KEYS = [
   'appToggleFieldCodes',
   'appEditField',
   'appNewComment',
+  'appFontMenu',
   'ribbonTableDeleteMenu',
   'ribbonMergeCells',
   'ribbonSplitCellsDialog',

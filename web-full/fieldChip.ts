@@ -6,7 +6,7 @@
 // edge past the table and bends up into the margin, so it covers no text and no neighbour owns it; in a
 // multi-column section the tether is left out, the next column may lie in its way. A block holding several
 // fields gets one labelled row per field, in the order of its data-vound-slot ids. A press posts
-// vound:fieldAction; the host decides what it does.
+// vound:fieldAction; the host decides what it does. Format (T) also sends where it is, for the host's menu.
 //
 // The chip and tether live in a zero-height layer inside the page's scroll container, so they scroll with
 // the document; a scroll or a resize hides them anyway, and 220ms after it the caret's field shows its chip
@@ -39,6 +39,11 @@ const CIRCLE_SLASH_SVG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<circle cx="12" cy="12" r="10"/><line x1="9" x2="15" y1="15" y2="9"/></svg>'
 
+/** lucide type, the host's icon for the Format menu */
+const TYPE_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+  '<path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/></svg>'
+
 type ButtonIcon = { text: string } | { svg: string }
 /** each button's icon and its German title, which a title from the host replaces */
 const BUTTONS: Record<FieldAction, { icon: ButtonIcon; title: string }> = {
@@ -48,6 +53,7 @@ const BUTTONS: Record<FieldAction, { icon: ButtonIcon; title: string }> = {
   ask: { icon: { svg: SPARKLES_SVG }, title: 'Agent fragen' },
   restore: { icon: { text: '↺' }, title: 'KI-Wert wiederherstellen' },
   blank: { icon: { svg: CIRCLE_SLASH_SVG }, title: 'Als bewusst leer markieren' },
+  format: { icon: { svg: TYPE_SVG }, title: 'Format' },
 }
 
 /** tones of a field with no value yet: their tether is amber */
@@ -326,8 +332,14 @@ export function mountFieldChip(view: EditorView, post: (msg: EditorToHost) => vo
     // the markers may have changed since the chip was filled: post only what the field still offers
     const marker = markersOf(view).find((candidate) => candidate.id === button.dataset.id)
     const action = marker?.actions.find((candidate) => candidate === button.dataset.action)
+    if (!marker || !action) {
+      hide()
+      return
+    }
+    // the host's Format menu opens beside the button, so the button's place goes along before the chip hides
+    const { left, top, width, height } = button.getBoundingClientRect()
     hide()
-    if (marker && action) post({ type: 'vound:fieldAction', id: marker.id, action })
+    post({ type: 'vound:fieldAction', id: marker.id, action, ...(action === 'format' ? { anchor: { left, top, width, height } } : {}) })
   }
 
   ownerDocument.addEventListener('mouseover', onOver)

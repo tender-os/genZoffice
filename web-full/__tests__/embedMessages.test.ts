@@ -60,6 +60,28 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ ...gapWrite, value: null })).toBeNull()
   })
 
+  it('reads setFieldStyle over a field\'s text or its gap, with the style\'s known properties', () => {
+    const byText = { type: 'vound:setFieldStyle', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'Berlin', style: { fontFamily: 'Arial', fontSize: 10.5 } }
+    expect(readHostMessage(byText)).toEqual(byText)
+    expect(readHostMessage({ ...byText, replaces: 'wholeField' })).toEqual({ ...byText, replaces: 'wholeField' })
+    expect(readHostMessage({ ...byText, formText: 2 })).toEqual({ ...byText, formText: 2 })
+    expect(readHostMessage({ ...byText, formText: -1 })).toEqual(byText)
+    const byGap = { type: 'vound:setFieldStyle', requestId: 'r2', block: { paragraph: 0, scope: 'cell' }, replaces: 'gap', gap: { before: '', after: '' }, style: {} }
+    expect(readHostMessage(byGap)).toEqual(byGap)
+    expect(readHostMessage({ ...byText, style: { fontSize: 12, bold: true } })).toEqual({ ...byText, style: { fontSize: 12 } })
+  })
+
+  it('rejects setFieldStyle without a style or with a face or size Word cannot hold', () => {
+    const valid = { type: 'vound:setFieldStyle', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'a', style: { fontSize: 12 } }
+    expect(readHostMessage({ ...valid, style: undefined })).toBeNull()
+    expect(readHostMessage({ ...valid, style: { fontSize: 0 } })).toBeNull()
+    expect(readHostMessage({ ...valid, style: { fontSize: 1639 } })).toBeNull()
+    expect(readHostMessage({ ...valid, style: { fontSize: 10.25 } })).toBeNull()
+    expect(readHostMessage({ ...valid, style: { fontFamily: '' } })).toBeNull()
+    expect(readHostMessage({ ...valid, style: { fontFamily: 'A'.repeat(32) } })).toBeNull()
+    expect(readHostMessage({ ...valid, previous: undefined })).toBeNull()
+  })
+
   it('rejects setFieldValue with a negative paragraph or a non-string previous', () => {
     const valid = { type: 'vound:setFieldValue', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'a', value: 'b' }
     expect(readHostMessage({ ...valid, block: { paragraph: -1, scope: 'paragraph' } })).toBeNull()

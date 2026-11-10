@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import { FIELD_ACTIONS, HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
+import { FIELD_ACTIONS, HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type FieldTextStyle, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -72,6 +72,35 @@ function readGap(value: unknown): FieldGap | null {
   return { before: value.before, after: value.after }
 }
 
+/** Word's limits: a face name of at most 31 characters, a size of 1 to 1638 points in half points. */
+const isFontFamily = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 31
+const isFontSize = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isInteger(value * 2) && value >= 1 && value <= 1638
+
+/** A field style with exactly the known properties, or null when one is out of range. */
+function readStyle(value: unknown): FieldTextStyle | null {
+  if (!isRecord(value)) return null
+  const { fontFamily, fontSize } = value
+  if (fontFamily !== undefined && !isFontFamily(fontFamily)) return null
+  if (fontSize !== undefined && !isFontSize(fontSize)) return null
+  return { ...(fontFamily === undefined ? {} : { fontFamily }), ...(fontSize === undefined ? {} : { fontSize }) }
+}
+
+/** A restyle names its field as a write does: by its gap, or by its text. */
+function readSetFieldStyle(data: Record<string, unknown>): HostToEditor | null {
+  const { requestId, previous } = data
+  const block = readBlock(data.block)
+  const style = readStyle(data.style)
+  if (!block || !style || typeof requestId !== 'string') return null
+  if (data.replaces === 'gap') {
+    const gap = readGap(data.gap)
+    return gap ? { type: 'vound:setFieldStyle', requestId, block, replaces: 'gap', gap, style } : null
+  }
+  if (typeof previous !== 'string') return null
+  const restyle = { type: 'vound:setFieldStyle', requestId, block, previous, style, ...(isSourceIndex(data.formText) ? { formText: data.formText } : {}) } as const
+  return data.replaces === 'wholeField' ? { ...restyle, replaces: 'wholeField' } : restyle
+}
+
 /** The host message in `data`, or null when it is not one the editor accepts. */
 export function readHostMessage(data: unknown): HostToEditor | null {
   if (!isRecord(data)) return null
@@ -106,6 +135,7 @@ export function readHostMessage(data: unknown): HostToEditor | null {
     const write = { type: 'vound:setFieldValue', requestId, block, previous, value } as const
     return data.replaces === 'wholeField' ? { ...write, replaces: 'wholeField' } : write
   }
+  if (data.type === 'vound:setFieldStyle') return readSetFieldStyle(data)
   if (data.type === 'vound:placeCaret') {
     const block = readBlock(data.block)
     return block ? { type: 'vound:placeCaret', block } : null

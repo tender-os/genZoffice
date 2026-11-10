@@ -14,6 +14,7 @@
 // is (revealQueue.ts).
 // Field writes: vound:setFieldValue and vound:placeCaret act on the handed-over editor (fieldWrite.ts); every
 // setFieldValue is answered with vound:fieldValueResult.
+// Field styles: vound:setFieldStyle restyles a field's text (fieldStyle.ts), answered with vound:fieldStyleResult.
 // Language: an embedding host picks the UI language with ?lang= (embedLocale.ts); stand-alone stays English.
 // Zoom: the app's width fit asks reviewFitWidth and reviewFitZoom (the reviewFitZoom transform in
 // vite.config.ts); in review mode they keep the field chip's gutter free and cap the fit at 100 %.
@@ -27,6 +28,7 @@ import { isLockedToFields, setEditScope } from './editScope'
 import { embedLang } from './embedLocale'
 import { fillWithAiLabel, fillWithAiMessage } from './fillWithAi'
 import { caretIds } from './fieldReporting'
+import { applyFieldStyle } from './fieldStyle'
 import { applyFieldValue, placeCaret } from './fieldWrite'
 import { reopenField, settleField } from './fieldSettle'
 import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, setMarkers, resetMarkers } from './markersPlugin'
@@ -214,6 +216,11 @@ export function installDesktopShim() {
         case 'vound:setFieldValue': {
           const result = hostEditor ? applyFieldValue(hostEditor.view, msg) : noEditor
           toHost({ type: 'vound:fieldValueResult', requestId: msg.requestId, ...result })
+          break
+        }
+        case 'vound:setFieldStyle': {
+          const result = hostEditor ? applyFieldStyle(hostEditor.view, msg) : noEditor
+          toHost({ type: 'vound:fieldStyleResult', requestId: msg.requestId, ...result })
           break
         }
         case 'vound:placeCaret':

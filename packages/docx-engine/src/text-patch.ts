@@ -379,7 +379,7 @@ function patchedFieldParagraph(
   })
 }
 
-type WtMappedRun = Pick<
+export type WtMappedRun = Pick<
   Run,
   'text' | 'noteRef' | 'sym' | 'math' | 'del' | 'fldBeginXml' | 'placeholder' | 'sdtCheckboxXml' | 'formText' | 'formTextSettled'
 >
@@ -420,7 +420,7 @@ function withFormTextValues(xml: string, runs: ReadonlyArray<WtMappedRun>): stri
 }
 
 /** A run's text that lives in w:t: note markers, symbols, formulas, tracked deletions and legacy box glyphs do not. */
-function wtTextOf(run: WtMappedRun): string {
+export function wtTextOf(run: WtMappedRun): string {
   if (run.placeholder && run.text === EMPTY_CONTROL_TEXT) return ''
   // a checkbox control's first character is its glyph; anything after it was typed beside the control
   if (run.sdtCheckboxXml) return [...run.text].slice(1).join('')

@@ -3,6 +3,8 @@ import { keepsFormFields } from './form-field-guard'
 import { onlyFormTextResult, withFormTextAnchors } from './form-text-anchor'
 import { withoutDefaultResults, withoutFilledFieldHighlight } from './form-text-highlight'
 import { patchFieldParagraphText } from './text-patch'
+import { withRestyledRuns } from './restyled-runs'
+import { editedNodeTexts } from './edited-node-texts'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import {
   sdtCheckboxGlyphs,
@@ -576,7 +578,11 @@ function patchedFieldTexts(original: string, patch: FieldTextPatch): string {
 
   const replacements: Array<{ node: XmlTextNode; text: string }> = []
   if (patch.left !== undefined) {
-    distributeText(patch.left, leftNodes).forEach((text, i) => {
+    // a field line's edit stays in the run it was typed in (Vound fork); a TOC title keeps its layout
+    const nodeTexts = leftNodes.map((node) => node.text)
+    const edited = lastTab === -1 ? editedNodeTexts(patch.left, nodeTexts) : null
+    const texts = edited ?? distributeText(patch.left, leftNodes)
+    texts.forEach((text, i) => {
       replacements.push({ node: leftNodes[i], text })
     })
   }
@@ -729,7 +735,7 @@ function patchCellXml(tcXml: string, paras: readonly CellParaPatch[]): string | 
     // original bytes around the changed w:t (see patchFieldParagraphText); not for the
     // halves of a split paragraph, which would each get the field
     if (groupSize(i) === 1 && !entry.xml && !entry.format) {
-      const surgical = patchFieldParagraphText(template, entry.runs)
+      const surgical = patchStyledFieldParagraph(template, entry.runs)
       if (surgical !== null) return surgical
     }
     const pPr = entry.format
@@ -3470,6 +3476,13 @@ function modelRPrChildren(run: Run, insideLink: boolean): PPrChild[] {
   const rPrChange = revisionRPrChangeXml(run)
   if (rPrChange) out.push({ name: 'w:rPrChange', xml: rPrChange })
   return out
+}
+
+/** Vound fork: patchFieldParagraphText, with the face and size of restyled runs */
+export function patchStyledFieldParagraph(xml: string, runs: ReadonlyArray<Run>): string | null {
+  const patched = patchFieldParagraphText(xml, runs)
+  if (patched === null) return null
+  return withRestyledRuns(patched, runs)
 }
 
 /**

@@ -22,9 +22,10 @@ export const FIELD_TEXT_SELECTOR = '.doc-field-text'
 export type FieldValueResult = { ok: true; gap?: FieldGap } | { ok: false; reason: FieldValueRefusal }
 // replaces: the block holds nothing but this write's form field, so the write takes the whole field, whatever
 // the reviewer typed since the host last read `previous`; 'gap' finds the place by its anchors instead
-export type FieldValueWrite =
-  | { block: BlockRef; previous: string; value: string; replaces?: 'wholeField' }
-  | { block: BlockRef; value: string; replaces: 'gap'; gap: FieldGap }
+export type FieldTarget =
+  | { block: BlockRef; previous: string; replaces?: 'wholeField' }
+  | { block: BlockRef; replaces: 'gap'; gap: FieldGap }
+export type FieldValueWrite = FieldTarget & { value: string }
 
 /** the most characters a side of a returned gap takes */
 const GAP_CONTEXT_CAP = 32
@@ -208,6 +209,31 @@ function planText(units: TextUnit[], write: { previous: string; replaces?: 'whol
   return whole && !('refused' in whole) ? whole : plan(units, write.previous)
 }
 
+/** the units of the target's block and the place the target names in them */
+function planTarget(doc: PmNode, target: FieldTarget): { units: TextUnit[]; planned: Planned } | null {
+  const block = locateBlock(doc, target.block)
+  if (!block) return null
+  const units = unitsOf(block.node, block.pos)
+  return { units, planned: target.replaces === 'gap' ? planGap(units, target.gap) : planText(units, target) }
+}
+
+/** Where a target's text lies: document positions in a paragraph, or offsets in a field passthrough's result
+ *  text (at `pos`). */
+export type FieldTextPlace = { kind: 'text'; from: number; to: number } | { kind: 'field'; pos: number; from: number; to: number }
+
+/** the place of the text a target names, or why it names none */
+export function fieldTextPlace(doc: PmNode, target: FieldTarget): FieldTextPlace | { refused: FieldValueRefusal } {
+  const located = planTarget(doc, target)
+  if (!located) return { refused: 'noBlock' }
+  const { planned } = located
+  if ('refused' in planned) return planned
+  const { unit, from, to } = planned
+  if (unit.kind === 'fixed') return { refused: 'notEditable' }
+  if (unit.kind === 'field') return { kind: 'field', pos: unit.pos, from, to }
+  const { fromPos, toPos } = textRange(unit, from, to)
+  return { kind: 'text', from: fromPos, to: from === to ? fromPos : toPos }
+}
+
 /** the gap of the value once written in place of from..to of the unit */
 function writtenGap(units: TextUnit[], unit: TextUnit, from: number, to: number, value: string) {
   const joined = joinedText(units)
@@ -218,10 +244,9 @@ function writtenGap(units: TextUnit[], unit: TextUnit, from: number, to: number,
 
 /** vound:setFieldValue: write the value into the block, or refuse and leave the document as it is */
 export function applyFieldValue(view: EditorView, write: FieldValueWrite): FieldValueResult {
-  const block = locateBlock(view.state.doc, write.block)
-  if (!block) return { ok: false, reason: 'noBlock' }
-  const units = unitsOf(block.node, block.pos)
-  const planned = write.replaces === 'gap' ? planGap(units, write.gap) : planText(units, write)
+  const located = planTarget(view.state.doc, write)
+  if (!located) return { ok: false, reason: 'noBlock' }
+  const { units, planned } = located
   if ('refused' in planned) return { ok: false, reason: planned.refused }
   if (planned.unit.kind === 'fixed') return { ok: false, reason: 'notEditable' }
   const gap = writtenGap(units, planned.unit, planned.from, planned.to, write.value)

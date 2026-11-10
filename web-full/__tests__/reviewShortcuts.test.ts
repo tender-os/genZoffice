@@ -24,15 +24,12 @@ describe('blockedInReview', () => {
     const formatting = [
       // bold, italic, underline; alignment left, center, right, justify
       ...['b', 'i', 'u', 'l', 'e', 'r', 'j'].map((key) => letter(key, ctrl)),
-      // font dialog, hyperlink, paragraph dialog
-      letter('d', ctrl), letter('k', ctrl), letter('µ', { ...ctrl, altKey: true, code: 'KeyM' }),
+      // hyperlink, paragraph dialog
+      letter('k', ctrl), letter('µ', { ...ctrl, altKey: true, code: 'KeyM' }),
       // line spacing 1 / 2 / 1.5
       ...['1', '2', '5'].map((digit) => keys({ ...ctrl, key: digit, code: `Digit${digit}` })),
       // paragraph styles Normal, Heading 1-3
       ...['0', '1', '2', '3'].map((digit) => keys({ ...ctrl, altKey: true, key: digit, code: `Digit${digit}` })),
-      // font size grow / shrink, one-point nudge
-      keys({ ...ctrl, shiftKey: true, key: '>', code: 'Period' }), keys({ ...ctrl, shiftKey: true, key: '<', code: 'Comma' }),
-      keys({ ...ctrl, key: ']', code: 'BracketRight' }), keys({ ...ctrl, key: '[', code: 'BracketLeft' }),
       // superscript / subscript
       keys({ ...ctrl, key: '.', code: 'Period' }), keys({ ...ctrl, key: ',', code: 'Comma' }), keys({ ...ctrl, shiftKey: true, key: '+', code: 'Equal' }),
       // hanging indent, indent / outdent, clear character and paragraph formatting, change case
@@ -41,6 +38,16 @@ describe('blockedInReview', () => {
     ]
     expect(formatting.filter((event) => blockedInReview(event, false))).toEqual([])
     expect(formatting.map((event) => ({ ...event, ctrlKey: false, metaKey: true })).filter((event) => blockedInReview(event, true))).toEqual([])
+  })
+
+  it('blocks the font dialog and the font size keys: the host\'s Format control sets face and size', () => {
+    const fontKeys = [
+      letter('d', ctrl),
+      keys({ ...ctrl, shiftKey: true, key: '>', code: 'Period' }), keys({ ...ctrl, shiftKey: true, key: '<', code: 'Comma' }),
+      keys({ ...ctrl, key: ']', code: 'BracketRight' }), keys({ ...ctrl, key: '[', code: 'BracketLeft' }),
+    ]
+    expect(fontKeys.filter((event) => !blockedInReview(event, false))).toEqual([])
+    expect(fontKeys.map((event) => ({ ...event, ctrlKey: false, metaKey: true })).filter((event) => !blockedInReview(event, true))).toEqual([])
   })
 
   it('keeps undo, redo, clipboard, select-all, save, find, zoom, navigation and typing', () => {
