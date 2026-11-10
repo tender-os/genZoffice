@@ -25,6 +25,11 @@
  *                                                                              restyle a field's text: the selection inside
  *                                                                              it, else all of it (fieldStyle.ts)
  *                  { type: 'vound:placeCaret', block: BlockRef }               caret at the end of the block's text
+ *                  { type: 'vound:settleField', block: BlockRef }              the block's legacy text fields are accepted or
+ *                                                                              left blank: they lose the author's highlight
+ *                                                                              (fieldSettle.ts), an undoable host write
+ *                  { type: 'vound:reopenField', block: BlockRef }              the block's settled fields are open again: the
+ *                                                                              author's highlight comes back
  *                  { type: 'vound:editScope', scope: EditScope }               review mode: what the reviewer may type in (editScope.ts)
  *                  { type: 'vound:reveal', requestId, text, pageHint? }        scroll to a cited passage and mark it (reveal.ts);
  *                                                                              pageHint (1-based) picks among several matches
@@ -131,6 +136,8 @@ export type HostToEditor =
   | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; previous: string; replaces?: 'wholeField'; formText?: number; style: FieldTextStyle }
   | { type: 'vound:setFieldStyle'; requestId: string; block: BlockRef; replaces: 'gap'; gap: FieldGap; style: FieldTextStyle }
   | { type: 'vound:placeCaret'; block: BlockRef }
+  | { type: 'vound:settleField'; block: BlockRef }
+  | { type: 'vound:reopenField'; block: BlockRef }
   | { type: 'vound:editScope'; scope: EditScope }
   | { type: 'vound:reveal'; requestId: string; text: string; pageHint?: number }
 export type EditorToHost =

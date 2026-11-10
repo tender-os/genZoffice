@@ -42,6 +42,8 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
 | host → editor | `{ type: 'vound:setFieldStyle', requestId, block: BlockRef, previous, replaces?, formText?, style }` or with `replaces: 'gap', gap` instead of `previous`: restyle a field's text (`style = { fontFamily?, fontSize? }`); answered with `vound:fieldStyleResult` (see Field styles) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
+| host → editor | `{ type: 'vound:settleField', block: BlockRef }` the block's legacy text fields were accepted or left blank: they lose the form author's highlight on screen and in the saved file, and a field still showing its default text is emptied, as one host write the reviewer can undo; a field passthrough's fields too, whose default text the save empties |
+| host → editor | `{ type: 'vound:reopenField', block: BlockRef }` the block's settled fields are open again (↺ on a blank field): the author's highlight and an emptied default text come back, as one host write |
 | host → editor | `{ type: 'vound:reveal', requestId, text, pageHint? }` scroll to a cited passage and mark it (see Reveal); answered with `vound:revealResult` |
 | editor → host | `{ type: 'vound:ready' }` after the editor subscribed to open requests |
 | editor → host | `{ type: 'vound:saved', name, bytes: ArrayBuffer }` on every save (⌘S, File › Save, the save command) |

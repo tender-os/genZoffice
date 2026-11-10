@@ -30,6 +30,7 @@ import { fillWithAiLabel, fillWithAiMessage } from './fillWithAi'
 import { caretIds } from './fieldReporting'
 import { applyFieldStyle } from './fieldStyle'
 import { applyFieldValue, placeCaret } from './fieldWrite'
+import { reopenField, settleField } from './fieldSettle'
 import { markersKey, markersOnSave, markersPlugin, scrollToMarker, setCurrent, setMarkers, resetMarkers } from './markersPlugin'
 import { enterReviewMode, leaveReviewMode } from './reviewMode'
 import { reviewFitWidth, reviewFitZoom } from './reviewGutter'
@@ -224,6 +225,12 @@ export function installDesktopShim() {
         }
         case 'vound:placeCaret':
           if (hostEditor) placeCaret(hostEditor.view, msg.block)
+          break
+        case 'vound:settleField':
+          if (hostEditor) settleField(hostEditor.view, msg.block)
+          break
+        case 'vound:reopenField':
+          if (hostEditor) reopenField(hostEditor.view, msg.block)
           break
         case 'vound:editScope':
           setEditScope(msg.scope)

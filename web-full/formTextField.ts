@@ -6,10 +6,11 @@ import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import type { Mark, Node as PmNode } from '@tiptap/pm/model'
 import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Decoration, type EditorView } from '@tiptap/pm/view'
-import { isUserEdit } from './fieldReporting'
+import { isHostWrite, isUserEdit } from './fieldReporting'
 
 const FIELD_MARK = 'formTextField'
 const PLACEHOLDER_MARK = 'ctrlPlaceholder'
+const STYLE_MARK = 'docTextStyle'
 const EN_SPACE = ' '
 
 const markOf = (node: PmNode, name: string) => node.marks.find((mark) => mark.type.name === name)
@@ -126,5 +127,138 @@ export const formTextPlugin = new Plugin({
   appendTransaction: (transactions, oldState, state) =>
     transactions.some(isUserEdit)
       ? keepEmptiedFields(transactions, oldState.doc, state.doc, state.tr)
+      : null,
+})
+
+/** the author's fill-here highlight off the text of one field */
+function unhighlightField(doc: PmNode, field: { from: number; to: number }, tr: Transaction) {
+  doc.nodesBetween(field.from, field.to, (node, at) => {
+    const style = markOf(node, STYLE_MARK)
+    if (!node.isText || !style?.attrs.highlight) return
+    const unhighlighted = style.type.create({ ...style.attrs, highlight: null })
+    tr.addMark(Math.max(at, field.from), Math.min(at + node.nodeSize, field.to), unhighlighted)
+  })
+}
+
+/** each legacy text field of the textblocks in [from, to] */
+function fieldsBetween(doc: PmNode, from: number, to: number) {
+  const fields: ReturnType<typeof fieldsOf> = []
+  doc.nodesBetween(from, to, (block, pos) => {
+    if (!block.isTextblock) return true
+    fields.push(...fieldsOf(block, pos + 1))
+    return false
+  })
+  return fields
+}
+
+/** The transaction that takes the author's fill-here highlight off every field the changes left holding a value.
+ *  Appended to the edit, it shares its undo step, so undoing the value brings the highlight back. */
+function dropFilledFieldHighlight(
+  transactions: readonly Transaction[],
+  before: PmNode,
+  doc: PmNode,
+  tr: Transaction,
+) {
+  for (const { newRange } of getChangedRanges(combineTransactionSteps(before, [...transactions]))) {
+    for (const field of fieldsBetween(doc, newRange.from, newRange.to)) {
+      if (!isReplacedWhole(doc, field)) unhighlightField(doc, field, tr)
+    }
+  }
+  return tr.docChanged ? tr : null
+}
+
+type FieldText = { node: PmNode; from: number; to: number; field: Mark }
+
+/** each text node of one legacy text field, with its field mark */
+function fieldTexts(doc: PmNode, field: { from: number; to: number }) {
+  const nodes: FieldText[] = []
+  doc.nodesBetween(field.from, field.to, (node, at) => {
+    const mark = markOf(node, FIELD_MARK)
+    if (node.isText && mark) nodes.push({ node, from: at, to: at + node.nodeSize, field: mark })
+  })
+  return nodes
+}
+
+/** the legacy text fields of the textblocks in [from, to] by their text nodes, last first so a replaced field
+ *  keeps the earlier positions */
+const fieldsFromEnd = (doc: PmNode, from: number, to: number) =>
+  fieldsBetween(doc, from, to)
+    .reverse()
+    .map((field) => fieldTexts(doc, field))
+
+const showsDefaultText = (texts: FieldText[]) =>
+  texts.every(({ node }) => !!markOf(node, PLACEHOLDER_MARK) && node.text !== EMPTY_CONTROL_TEXT)
+
+const withAttrs = (mark: Mark, attrs: Record<string, unknown>) =>
+  mark.type.create({ ...mark.attrs, ...attrs })
+
+/** a node's marks with its field mark changed by `fieldAttrs` and its highlight set (null takes it off) */
+function marksWith(node: PmNode, fieldAttrs: Record<string, unknown>, highlight: string | null) {
+  const style = markOf(node, STYLE_MARK)
+  const kept = node.marks.flatMap((mark) => {
+    if (mark.type.name === FIELD_MARK) return [withAttrs(mark, fieldAttrs)]
+    return mark === style ? [] : [mark]
+  })
+  if (!style && !highlight) return kept
+  return node.type.schema.marks[STYLE_MARK].create({ ...style?.attrs, highlight }).addToSet(kept)
+}
+
+const highlightOf = (node: PmNode): string => markOf(node, STYLE_MARK)?.attrs.highlight ?? ''
+
+/** Settles every legacy text field in [from, to] on `tr`. The field mark keeps the author's highlight it takes off,
+ *  so the save drops it and a reopen brings it back; a field still showing its default text is emptied, the
+ *  default kept the same way. */
+export function settleFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
+  for (const texts of fieldsFromEnd(doc, from, to)) {
+    if (texts.length === 0 || texts.some(({ field }) => field.attrs.settled !== null)) continue
+    if (showsDefaultText(texts)) {
+      const [first] = texts
+      const emptiedDefault = texts.map(({ node }) => node.text).join('')
+      const fieldAttrs = { settled: highlightOf(first.node), emptiedDefault }
+      const filler = doc.type.schema.text(
+        EMPTY_CONTROL_TEXT,
+        marksWith(first.node, fieldAttrs, null),
+      )
+      tr.replaceWith(first.from, texts[texts.length - 1].to, filler)
+      continue
+    }
+    for (const { node, from: start, to: end, field } of texts) {
+      const style = markOf(node, STYLE_MARK)
+      tr.removeMark(start, end, field)
+      tr.addMark(start, end, withAttrs(field, { settled: highlightOf(node) }))
+      if (style?.attrs.highlight) tr.addMark(start, end, withAttrs(style, { highlight: null }))
+    }
+  }
+  return tr
+}
+
+/** Reopens every settled legacy text field in [from, to] on `tr`: open again, with the author's highlight and
+ *  an emptied default text back. */
+export function reopenFormTextFields(doc: PmNode, from: number, to: number, tr: Transaction) {
+  for (const texts of fieldsFromEnd(doc, from, to)) {
+    for (const { node, from: start, to: end, field } of [...texts].reverse()) {
+      const { settled: highlight, emptiedDefault } = field.attrs
+      if (highlight === null) continue
+      const marks = marksWith(node, { settled: null, emptiedDefault: null }, highlight || null)
+      if (emptiedDefault !== null) {
+        tr.replaceWith(start, end, doc.type.schema.text(emptiedDefault, marks))
+        continue
+      }
+      tr.removeMark(start, end, field)
+      for (const mark of marks) tr.addMark(start, end, mark)
+    }
+  }
+  return tr
+}
+
+export const filledFieldHighlightKey = new PluginKey('voundFilledFieldHighlight')
+
+export const filledFieldHighlightPlugin = new Plugin({
+  key: filledFieldHighlightKey,
+  appendTransaction: (transactions, oldState, state) =>
+    transactions.some(
+      (tr) => !tr.getMeta('history$') && (isUserEdit(tr) || (tr.docChanged && isHostWrite(tr))),
+    )
+      ? dropFilledFieldHighlight(transactions, oldState.doc, state.doc, state.tr)
       : null,
 })
