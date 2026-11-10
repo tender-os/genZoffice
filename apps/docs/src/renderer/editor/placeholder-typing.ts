@@ -91,10 +91,12 @@ function fillersReplaced(transactions: readonly Transaction[], before: PmNode, s
 export const placeholderTypingPlugin = new Plugin({
   key: new PluginKey('placeholderTyping'),
   appendTransaction(transactions, oldState, state) {
-    if (!transactions.some((tr) => tr.docChanged) || transactions.some((tr) => tr.getMeta('history$'))) return null
+    if (!transactions.some((tr) => tr.docChanged)) return null
     // the editor taking over a saved file's parse is no typing: a filler or placeholder it brings keeps its mark
     if (transactions.some((tr) => tr.getMeta('addToHistory') === false)) return null
-    const ranges = typedOver(transactions, oldState.doc, state)
+    // an undo or redo brings text back as it was; only a filler beside it goes, which a redo puts back (Vound fork)
+    const undone = transactions.some((tr) => tr.getMeta('history$'))
+    const ranges = undone ? [] : typedOver(transactions, oldState.doc, state)
     const fillers = fillersReplaced(transactions, oldState.doc, state)
     if (ranges.length === 0 && fillers.length === 0) return null
     const tr = state.tr

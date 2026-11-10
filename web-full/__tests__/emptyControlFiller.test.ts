@@ -120,7 +120,7 @@ describe('the filler of an emptied control never reaches the file', () => {
   it('a filler that lost its mark is still dropped when the control takes text', async () => {
     const { parsed, editor, range } = await emptied()
     const bare = editor.state.schema.text(`${EMPTY_CONTROL_TEXT}${VALUE}`)
-    const change = editor.state.tr.replaceWith(range.from, range.to, bare).setMeta('history$', {})
+    const change = editor.state.tr.replaceWith(range.from, range.to, bare).setMeta('addToHistory', false)
     editor.view.dispatch(change)
     expect(await wtsOf(await save(parsed, editor), 'w:sdt')).toEqual([VALUE])
   })

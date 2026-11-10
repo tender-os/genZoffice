@@ -107,8 +107,8 @@ html.vound-review {
   --vound-other-party-bar: hsl(18 100% 48%);
   --vound-other-party-halo: hsla(18 100% 48% / .14);
   --vound-other-party-hover: hsla(18 100% 48% / .45);
-  --vound-accepted-tint: hsl(195 90% 96%);
-  --vound-accepted-bar: hsl(195 85% 42%);
+  --vound-accepted-tint: hsl(152 55% 95%);
+  --vound-accepted-bar: hsl(152 55% 38%);
   --vound-rejected-tint: #fff;
   --vound-rejected-bar: hsl(350 72% 52%);
   --vound-rejected-edge: hsla(350 72% 52% / .35);

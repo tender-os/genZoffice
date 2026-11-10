@@ -32,6 +32,9 @@ or none, means English); the stand-alone page stays English.
 |---|---|
 | host → editor | `{ type: 'vound:open', name, bytes: ArrayBuffer, mode?: 'review' \| 'view' }` open a document (transfer the buffer); `mode: 'review'` opens it in review mode, `mode: 'view'` read-only (see View mode), any other mode or none in the normal editor |
 | host → editor | `{ type: 'vound:command', command: 'save' }` save now, the same path as ⌘S |
+| host → editor | `{ type: 'vound:command', command: 'undo' \| 'redo' }` undo or redo, and focus the document |
+| host → editor | `{ type: 'vound:command', command: 'zoomIn' \| 'zoomOut' \| 'zoomFitWidth' }` zoom a step, or to the page width, which then follows resizes |
+| host → editor | `{ type: 'vound:setZoom', zoom }` zoom to this percent, clamped to the editor's range |
 | host → editor | `{ type: 'vound:markers', markers: SlotMarker[] }` replace all slot markers (`{ id, paragraph, scope: 'paragraph' \| 'cell', tone, label, actions }`; `actions` ⊂ `accept`, `reject`, `fill`, `ask`, `restore`; without them a marker gets `label: id`, `actions: []`) |
 | host → editor | `{ type: 'vound:scrollTo', id }` scroll a marker to the middle of the view and make it current |
 | host → editor | `{ type: 'vound:focus', id: string \| null }` make a marker current without scrolling, or none |
@@ -43,6 +46,8 @@ or none, means English); the stand-alone page stays English.
 | editor → host | `{ type: 'vound:saved', name, bytes: ArrayBuffer }` on every save (⌘S, File › Save, the save command) |
 | editor → host | `{ type: 'vound:dirty', dirty: boolean }` when unsaved changes appear or a save clears them |
 | editor → host | `{ type: 'vound:error', message }` open or save failed |
+| editor → host | `{ type: 'vound:history', canUndo, canRedo }` what there is to undo or redo: once the editor is ready, then on each change |
+| editor → host | `{ type: 'vound:zoom', zoom }` the zoom in percent, on each change |
 | editor → host | `{ type: 'vound:fieldAction', id, action }` a field chip's button was pressed (`id` is the slot id) |
 | editor → host | `{ type: 'vound:blockEdited', ids, texts }` a user edit changed the text of a marked block; `ids` are its slot ids, `texts` each id's block text right before and right after the edit (an undo of typing brings `after` back to the text before it). Review mode only; host writes are not reported |
 | editor → host | `{ type: 'vound:caretBlock', ids, leftWith? }` the caret entered a marked block, or left one (`ids: []`, `leftWith: 'Tab' \| 'other'`). Review mode only |

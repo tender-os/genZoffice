@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import type { BlockRef, FieldAction, FieldGap, HostToEditor, MarkerTone, OpenMode, SlotMarker } from './embed-protocol'
+import { HOST_COMMANDS, type BlockRef, type FieldAction, type FieldGap, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -69,8 +69,10 @@ export function readHostMessage(data: unknown): HostToEditor | null {
     const mode = openModes.find((known) => known === data.mode)
     return mode ? { ...open, mode } : open
   }
-  if (data.type === 'vound:command' && (data.command === 'save' || data.command === 'fillWithAi')) {
-    return { type: 'vound:command', command: data.command }
+  const command = HOST_COMMANDS.find((known) => known === data.command)
+  if (data.type === 'vound:command' && command) return { type: 'vound:command', command }
+  if (data.type === 'vound:setZoom' && typeof data.zoom === 'number' && Number.isFinite(data.zoom)) {
+    return { type: 'vound:setZoom', zoom: data.zoom }
   }
   if (data.type === 'vound:markers') {
     const markers = readMarkers(data.markers)

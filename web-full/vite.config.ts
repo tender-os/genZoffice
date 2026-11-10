@@ -79,6 +79,20 @@ function hostReportsDirty(): Plugin {
   }
 }
 
+// The host shows the zoom (vound:zoom): the app reports it to the shim on every change, fits after resizes included.
+const zoomNeedle = 'const [zoom, setZoom] = useState(100)'
+const zoomReport = '\nuseEffect(() => { window.desktop.reportZoom?.(zoom) }, [zoom]);\n'
+function hostReportsZoom(): Plugin {
+  return {
+    name: 'genoffice-host-zoom',
+    transform(code, id) {
+      if (!id.endsWith('/apps/docs/src/renderer/App.tsx')) return null
+      if (code.split(zoomNeedle).length !== 2) throw new Error('host-zoom: App.tsx zoom state not found once, update the transform')
+      return { code: code.replace(zoomNeedle, zoomNeedle + zoomReport), map: null }
+    },
+  }
+}
+
 // The markers plugin (markersPlugin.ts) needs the app's editor. App.tsx creates exactly one with
 // useEditor; hand it to the shim once it exists, after the dirty report (same needle, appended after it).
 function hostEditorHandle(): Plugin {
@@ -203,7 +217,7 @@ export default defineConfig({
   // relative asset URLs so the built host can be served under any path (e.g. /editor/)
   base: './',
   build: { outDir: resolve(__dirname, 'dist'), emptyOutDir: true, target: 'es2022' },
-  plugins: [react(), hostEndpoints(), hostDecidesEditability(), hostReportsDirty(), hostEditorHandle(), reviewFitZoom(), appMenuOnly(), reviewMenu(), headerStripFont()],
+  plugins: [react(), hostEndpoints(), hostDecidesEditability(), hostReportsDirty(), hostReportsZoom(), hostEditorHandle(), reviewFitZoom(), appMenuOnly(), reviewMenu(), headerStripFont()],
   resolve: {
     alias: {
       '@genoffice/docx-engine/lazy-media': resolve(root, 'packages/docx-engine/src/lazy-media.ts'),

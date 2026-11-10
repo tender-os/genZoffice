@@ -155,7 +155,46 @@ export function viewDecorations(state: EditorState) {
   return markers.set.add(state.doc, [Decoration.node(block.from, block.to, { class: HOT_CLASS }, { hot: true })])
 }
 
-const dispatchMeta = (view: EditorView, meta: MarkersMeta) => view.dispatch(view.state.tr.setMeta(markersKey, meta))
+/** whether the DOM holds a selection the editor has not read yet, as right after a click */
+function unreadDomSelection(view: EditorView) {
+  const selection = view.dom.ownerDocument.getSelection()
+  if (!view.hasFocus() || !selection?.anchorNode || !view.dom.contains(selection.anchorNode)) return false
+  return view.posAtDOM(selection.anchorNode, selection.anchorOffset) !== view.state.selection.anchor
+}
+
+const waiting = new WeakMap<EditorView, MarkersMeta[]>()
+
+/** the updates that waited, in order, once the editor read the selection or a moment passed */
+function dispatchWaiting(view: EditorView) {
+  const metas = waiting.get(view) ?? []
+  waiting.delete(view)
+  if (view.isDestroyed) return
+  for (const meta of metas) view.dispatch(view.state.tr.setMeta(markersKey, meta))
+}
+
+/** A marker update redraws the document, and a redraw puts the editor's selection into the DOM. Right after a
+ *  click that is the old caret, so typing would land in the field the reviewer just left: the update waits
+ *  until the editor read the click's selection (its selectionchange listener runs before this one). */
+function dispatchMeta(view: EditorView, meta: MarkersMeta) {
+  const queue = waiting.get(view)
+  if (queue) {
+    queue.push(meta)
+    return
+  }
+  if (!unreadDomSelection(view)) {
+    view.dispatch(view.state.tr.setMeta(markersKey, meta))
+    return
+  }
+  waiting.set(view, [meta])
+  const doc = view.dom.ownerDocument
+  const run = () => {
+    clearTimeout(timer)
+    doc.removeEventListener('selectionchange', run)
+    dispatchWaiting(view)
+  }
+  const timer = setTimeout(run, 100)
+  doc.addEventListener('selectionchange', run)
+}
 
 /** replace all markers (vound:markers) */
 export function setMarkers(view: EditorView, markers: SlotMarker[]) {

@@ -35,6 +35,7 @@ import { menuShows } from './reviewMenu'
 import { enterViewMode, leaveViewMode } from './viewMode'
 import { clearReveal, revealKey, revealPlugin } from './reveal'
 import { createRevealQueue } from './revealQueue'
+import { historyReportKey, historyReportPlugin, MENU_COMMANDS, refocusOnReturn, SET_ZOOM_COMMAND } from './hostCommands'
 type Handler = (...args: unknown[]) => void
 const calls: string[] = []
 let openHandler: Handler | null = null
@@ -101,6 +102,7 @@ function handOverEditor(editor: Editor) {
   // registering a keyed plugin twice throws; a re-run effect hands over the same editor again
   if (!markersKey.getState(editor.state)) editor.registerPlugin(markersPlugin)
   if (!revealKey.getState(editor.state)) editor.registerPlugin(revealPlugin(reveals.documentChanged))
+  if (!historyReportKey.get(editor.state)) editor.registerPlugin(historyReportPlugin(toHost))
   if (pendingMarkers) setMarkers(editor.view, pendingMarkers)
   pendingMarkers = null
   applyMode(editor)
@@ -139,6 +141,8 @@ const known: Record<string, unknown> = {
   writeRecoveryCopy: async () => ({ ok: true }),
   onOpenDocx: (h: Handler) => { openHandler = h; if (embedded) toHost({ type: 'vound:ready' }); return () => { openHandler = null } },
   hostDirty,
+  // the app reports its zoom on every change (vite.config.ts, hostReportsZoom)
+  reportZoom: (zoom: number) => toHost({ type: 'vound:zoom', zoom }),
   onMenuCommand: (h: Handler) => { menuHandler = h; return () => { menuHandler = null } },
   hostEditor: handOverEditor,
   reviewFitWidth: (canvasWidth: number) => reviewFitWidth(canvasWidth, openMode === 'review'),
@@ -172,6 +176,7 @@ export function installDesktopShim() {
   }
   w.__full = api
   if (embedded) {
+    refocusOnReturn(() => hostEditor?.view ?? null)
     window.addEventListener('message', (event: MessageEvent<unknown>) => {
       if (!acceptsHostMessage(event, { origin: window.location.origin, parent: window.parent })) return
       const msg = readHostMessage(event.data)
@@ -189,8 +194,11 @@ export function installDesktopShim() {
         case 'vound:command':
           if (msg.command === 'fillWithAi') {
             if (hostEditor) toHost(fillWithAiMessage(hostEditor.view))
-          } else if (menuHandler) menuHandler(msg.command)
+          } else if (menuHandler) menuHandler(MENU_COMMANDS[msg.command])
           else toHost({ type: 'vound:error', message: 'editor has no command handler yet' })
+          break
+        case 'vound:setZoom':
+          if (menuHandler) menuHandler(SET_ZOOM_COMMAND, String(msg.zoom))
           break
         case 'vound:markers':
           if (hostEditor) setMarkers(hostEditor.view, msg.markers)
