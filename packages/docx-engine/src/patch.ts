@@ -86,6 +86,7 @@ import type {
 import { PAGE_MARK, TOTAL_PAGES_MARK } from './types'
 import { keepsFormFields } from './form-field-guard'
 import { patchParagraphTexts } from './text-patch'
+import { withParagraphAlignment } from './paragraph-cell-alignment'
 import { withoutPlaceholderFlag } from './parse-sdt'
 import { balanceFieldChars } from './field-balance'
 import {
@@ -1593,14 +1594,21 @@ export async function saveDocx(
       if (fb.docxIndex !== undefined) fbDocxIndex = fb.docxIndex
       // Vound fork: an in-place text edit of a paragraph holding a field or a content
       // control patches the original XML instead of rebuilding it (patchFieldParagraphText)
-      const originalPara =
+      const originalBlock =
         fb.docxIndex !== undefined && !fb.block.sdtShell
-          ? parsed.blocks.find((b) => b.docxIndex === fb.docxIndex)?.originalXml
+          ? parsed.blocks.find((b) => b.docxIndex === fb.docxIndex)
           : undefined
-      const surgical =
+      const originalPara = originalBlock?.originalXml
+      const patched =
         originalPara && /^<w:p[\s>]/.test(originalPara)
           ? patchStyledFieldParagraph(originalPara, fb.block.runs)
           : null
+      // Vound fork: the alignment the reviewer gave such a paragraph (the host's Format control)
+      const align = fb.block.format?.align
+      const surgical =
+        patched && align && align !== originalBlock?.format?.align
+          ? withParagraphAlignment(patched, align)
+          : patched
       xml = surgical ?? generateParagraphXml(fb.block, genCtx)
       // Vound fork: a rebuild that would lose a form field or a control keeps the original paragraph
       if (originalPara && !keepsFormFields(originalPara, xml)) xml = originalPara

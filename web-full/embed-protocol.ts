@@ -104,7 +104,30 @@ export type FieldValueRefusal = 'absent' | 'ambiguous' | 'notEditable' | 'noBloc
 /** Where a chip button sits in the editor's viewport, in CSS pixels: the host opens its Format menu beside it. */
 export type FieldAnchor = { left: number; top: number; width: number; height: number }
 /** A field's text style: the Latin face (w:rFonts w:ascii, w:hAnsi) and the size in points (w:sz, w:szCs). */
-export type FieldTextStyle = { fontFamily?: string; fontSize?: number }
+export const FIELD_ALIGNMENTS = ['left', 'center', 'right'] as const
+/** a field paragraph's alignment (w:jc) */
+export type FieldAlignment = (typeof FIELD_ALIGNMENTS)[number]
+export const FIELD_VERTICAL_ALIGNMENTS = ['top', 'center', 'bottom'] as const
+/** the vertical alignment of the table cell around a field (w:vAlign) */
+export type FieldVerticalAlignment = (typeof FIELD_VERTICAL_ALIGNMENTS)[number]
+/** A restyle: `fontSize: null` takes the field's own size away, so it shows the document's again; the vertical
+ *  alignment applies to a field in a table cell only. */
+export type FieldTextStyle = {
+  fontFamily?: string
+  fontSize?: number | null
+  alignment?: FieldAlignment
+  verticalAlignment?: FieldVerticalAlignment
+}
+/** What a field's text shows: face and size, `sizing` whether the size is the field's own or the document's, the
+ *  paragraph's alignment, and the cell's vertical alignment when the field is in a table cell. A property shown
+ *  in more than one way is left out. */
+export type FieldShownStyle = {
+  fontFamily?: string
+  fontSize?: number
+  sizing?: 'own' | 'document'
+  alignment?: FieldAlignment
+  verticalAlignment?: FieldVerticalAlignment
+}
 /** The visible text of a block right before and right after a field's place, as much as makes the place
  *  unique; '' anchors to the start or the end of the block's text (paragraphs joined by line feeds). */
 export type FieldGap = { before: string; after: string }
@@ -150,7 +173,7 @@ export type EditorToHost =
   | { type: 'vound:caretBlock'; ids: string[]; leftWith?: 'Tab' | 'other' }
   | { type: 'vound:fillWithAi'; ids: string[]; selected: string; paragraph: string }
   | { type: 'vound:fieldValueResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; gap?: FieldGap }
-  | { type: 'vound:fieldStyleResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; style?: FieldTextStyle }
+  | { type: 'vound:fieldStyleResult'; requestId: string; ok: boolean; reason?: FieldValueRefusal; style?: FieldShownStyle }
   | { type: 'vound:editRefused'; where: RefusalPlace }
   | { type: 'vound:history'; canUndo: boolean; canRedo: boolean }
   | { type: 'vound:zoom'; zoom: number }

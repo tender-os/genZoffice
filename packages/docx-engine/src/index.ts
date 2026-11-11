@@ -136,6 +136,8 @@ export {
   type TocEntry,
 } from './generate'
 export { withRestyledRuns, withResultFaceAndSize } from './restyled-runs'
+export { withCellVerticalAlignment, withParagraphAlignment } from './paragraph-cell-alignment'
+export { xmlSegments } from './generate'
 export {
   buildChartPartXml,
   buildChartWorkbookXlsxBase64,

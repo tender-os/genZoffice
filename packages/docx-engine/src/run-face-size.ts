@@ -1,7 +1,8 @@
 import { escapeXmlAttr } from './xml-utils'
 
 /** the Latin face (w:rFonts w:ascii, w:hAnsi) and the size in half-points (w:sz, w:szCs) of a run */
-export type FaceAndSize = { fontAscii?: string; sizeHalfPoints?: number }
+/** a size of null takes the run's own size away */
+export type FaceAndSize = { fontAscii?: string; sizeHalfPoints?: number | null }
 
 // CT_RPr children that come after w:sz and w:szCs
 const AFTER_SIZE = [
@@ -41,7 +42,7 @@ export function declaredFaceAndSize(runXml: string) {
 }
 
 /** an rPr child put where CT_RPr orders it: before the first of `before` it holds, else at the end */
-function placed(inner: string, child: string, before: readonly string[]) {
+export function placed(inner: string, child: string, before: readonly string[]) {
   const at = before
     .map((tag) => inner.search(new RegExp(`<w:${tag}[\\s/>]`)))
     .filter((index) => index !== -1)
@@ -63,8 +64,9 @@ function withFace(inner: string, face: string) {
   return inner.replace(fonts, `${kept} w:ascii="${value}" w:hAnsi="${value}"/>`)
 }
 
-function withSize(inner: string, halfPoints: number) {
+function withSize(inner: string, halfPoints: number | null) {
   const unsized = inner.replace(/<w:szCs\b[^>]*\/>/, '').replace(/<w:sz\b[^>]*\/>/, '')
+  if (halfPoints === null) return unsized
   return placed(unsized, `<w:sz w:val="${halfPoints}"/><w:szCs w:val="${halfPoints}"/>`, AFTER_SIZE)
 }
 

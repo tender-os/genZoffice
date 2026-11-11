@@ -1,28 +1,29 @@
-// The host's Format control (vound:setFieldStyle): the font and size of a field's text. The target names the
-// field as a write does (fieldWrite.ts), else as an empty field (fieldStylePlace.ts); the selection is restyled
-// when it lies inside the field, else the whole field, and a field passthrough's display (fieldStyleBlock.ts).
-// Every restyle is one undoable transaction with HOST_WRITE_META, saved as the run's w:rFonts and w:sz; an empty
-// place stores the style for the text typed there next. The answer is the style the text shows now; an empty style
-// changes nothing and only answers.
+// The host's Format control (vound:setFieldStyle): the face and size of a field's text, its paragraph's alignment and
+// the vertical alignment of the table cell around it. The target names the field as a write does (fieldWrite.ts),
+// else as an empty field (fieldStylePlace.ts); the selection is restyled when it lies inside the field, else the
+// whole field, and a field passthrough's display (fieldStyleBlock.ts). Every restyle is one undoable transaction with
+// HOST_WRITE_META, saved as the run's w:rFonts and w:sz, the paragraph's w:jc and the cell's w:vAlign; an empty place
+// stores the face and size for the text typed there next. The answer is what the text shows now
+// (fieldShownStyle.ts); an empty style changes nothing and only answers.
 import type { Node as PmNode } from '@tiptap/pm/model'
-import { TextSelection } from '@tiptap/pm/state'
+import { TextSelection, type Transaction } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
-import type { FieldTextStyle, FieldValueRefusal } from './embed-protocol'
-import { fieldBlockElements, restyleFieldBlock } from './fieldStyleBlock'
+import type { FieldShownStyle, FieldTextStyle, FieldValueRefusal } from './embed-protocol'
+import { cellAround, shownAlignment, shownFaceAndSize, textElements, textSegments, verticalOf, type Range } from './fieldShownStyle'
+import { restyleFieldBlock, shownFieldBlock } from './fieldStyleBlock'
 import { emptyFieldPlace } from './fieldStylePlace'
 import { fieldTextPlace, HOST_WRITE_META, type FieldTarget, type FieldTextPlace } from './fieldWrite'
 
 /** `formText`: the index of the legacy text form field in its paragraph, for a field its text does not name once */
 export type FieldStyleRequest = FieldTarget & { formText?: number; style: FieldTextStyle }
-export type FieldStyleResult = { ok: true; style: FieldTextStyle } | { ok: false; reason: FieldValueRefusal }
-type Range = { from: number; to: number }
+export type FieldStyleResult = { ok: true; style: FieldShownStyle } | { ok: false; reason: FieldValueRefusal }
 
-const PT_PER_PX = 0.75
+const halfPointsOf = (points: number | null) => (points === null ? null : Math.round(points * 2))
 
-/** the docTextStyle attributes of a style: the Latin face and the size in half-points */
-const markAttrsOf = (style: FieldTextStyle) => ({
+/** the docTextStyle attributes of a style: the Latin face, and the size in half-points or null for none of its own */
+export const markAttrsOf = (style: FieldTextStyle) => ({
   ...(style.fontFamily === undefined ? {} : { fontAscii: style.fontFamily }),
-  ...(style.fontSize === undefined ? {} : { sizeHalfPoints: Math.round(style.fontSize * 2) }),
+  ...(style.fontSize === undefined ? {} : { sizeHalfPoints: halfPointsOf(style.fontSize) }),
 })
 
 /** the selection when it lies inside the field, else the field */
@@ -31,81 +32,81 @@ function restyledRange(view: EditorView, field: Range): Range {
   return !empty && from >= field.from && to <= field.to ? { from, to } : field
 }
 
-function textSegments(doc: PmNode, { from, to }: Range) {
-  const segments: Range[] = []
-  doc.nodesBetween(from, to, (node, pos) => {
-    if (node.isText) segments.push({ from: Math.max(pos, from), to: Math.min(pos + node.nodeSize, to) })
-    return !node.isText
+/** the paragraphs the range lies in, or the one an empty range sits in */
+function paragraphsOf(doc: PmNode, range: Range) {
+  const paragraphs: { node: PmNode; pos: number }[] = []
+  doc.nodesBetween(range.from, range.to, (node, pos) => {
+    if (node.isTextblock) paragraphs.push({ node, pos })
+    return !node.isTextblock
   })
-  return segments
+  if (paragraphs.length > 0) return paragraphs
+  const $from = doc.resolve(range.from)
+  return $from.parent.isTextblock ? [{ node: $from.parent, pos: $from.before() }] : []
 }
 
-function restyle(view: EditorView, range: Range, attrs: ReturnType<typeof markAttrsOf>) {
-  const { doc, schema, tr } = view.state
-  const type = schema.marks.docTextStyle
+function withMarks(tr: Transaction, range: Range, attrs: ReturnType<typeof markAttrsOf>) {
+  const type = tr.doc.type.schema.marks.docTextStyle
   if (range.from === range.to) {
-    const marks = doc.resolve(range.from).marks()
+    const marks = tr.doc.resolve(range.from).marks()
     const existing = type.isInSet(marks)
     const stored = [...marks.filter((mark) => mark.type !== type), type.create({ ...existing?.attrs, ...attrs })]
-    view.dispatch(tr.setSelection(TextSelection.create(doc, range.from)).setStoredMarks(stored))
-    view.focus()
-    return
+    return tr.setSelection(TextSelection.create(tr.doc, range.from)).setStoredMarks(stored)
   }
-  for (const segment of textSegments(doc, range)) {
-    const existing = type.isInSet(doc.resolve(segment.from + 1).marks())
+  for (const segment of textSegments(tr.doc, range)) {
+    const existing = type.isInSet(tr.doc.resolve(segment.from + 1).marks())
     tr.addMark(segment.from, segment.to, type.create({ ...existing?.attrs, ...attrs }))
   }
+  return tr
+}
+
+function restyleText(view: EditorView, range: Range, style: FieldTextStyle) {
+  const { doc } = view.state
+  const attrs = markAttrsOf(style)
+  const tr = Object.keys(attrs).length > 0 ? withMarks(view.state.tr, range, attrs) : view.state.tr
+  const { alignment, verticalAlignment } = style
+  if (alignment) for (const { node, pos } of paragraphsOf(doc, range)) tr.setNodeMarkup(pos, undefined, { ...node.attrs, align: alignment })
+  const cell = verticalAlignment ? cellAround(doc, range.from) : null
+  if (cell) tr.setNodeMarkup(cell.pos, undefined, { ...cell.node.attrs, vAlign: verticalAlignment, tcPrEdited: true })
+  if (!tr.docChanged && !tr.storedMarksSet) return
   view.dispatch(tr.setMeta(HOST_WRITE_META, true))
+  if (range.from === range.to) view.focus()
 }
 
-function elementAt(view: EditorView, pos: number) {
-  const { node } = view.domAtPos(pos)
-  return node instanceof Element ? node : node.parentElement
+/** whether the range's text sets its own size, every part of it */
+function ownSize(view: EditorView, range: Range) {
+  const { doc, storedMarks } = view.state
+  const sizeOf = (marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[]) =>
+    marks.find((mark) => mark.type.name === 'docTextStyle')?.attrs.sizeHalfPoints
+  const segments = textSegments(doc, range)
+  if (segments.length === 0) return sizeOf(storedMarks ?? doc.resolve(range.from).marks()) != null
+  return segments.every((segment) => sizeOf(doc.resolve(segment.from + 1).marks()) != null)
 }
 
-const firstFamily = (css: string) => (css.split(',')[0] ?? '').trim().replaceAll('"', '').replaceAll("'", '')
-
-/** points of a computed font size: px in a browser, the declared pt in jsdom */
-function pointsOf(css: string) {
-  const value = parseFloat(css)
-  if (!Number.isFinite(value)) return undefined
-  const points = css.endsWith('px') ? value * PT_PER_PX : value
-  return Math.round(points * 2) / 2
+function shownText(view: EditorView, range: Range): FieldShownStyle {
+  const { doc } = view.state
+  const paragraph = paragraphsOf(doc, range)[0]
+  const dom = paragraph ? view.nodeDOM(paragraph.pos) : null
+  const alignment = shownAlignment(dom instanceof Element ? dom : null)
+  const cell = cellAround(doc, range.from)
+  return {
+    ...shownFaceAndSize(textElements(view, range)),
+    sizing: ownSize(view, range) ? 'own' : 'document',
+    ...(alignment ? { alignment } : {}),
+    ...(cell ? { verticalAlignment: verticalOf(cell.node) } : {}),
+  }
 }
 
-const only = <T>(values: T[]) => (new Set(values).size === 1 ? values[0] : undefined)
-
-/** the elements that show the range's text, or the one around an empty range */
-function textElements(view: EditorView, range: Range) {
-  const segments = textSegments(view.state.doc, range)
-  const positions = segments.length > 0 ? segments.map((segment) => segment.from + 1) : [range.from]
-  return positions.flatMap((pos) => {
-    const element = elementAt(view, pos)
-    return element ? [element] : []
-  })
-}
-
-/** the face and size the elements show, each left out when they show more than one */
-function shownStyle(elements: Element[]): FieldTextStyle {
-  const styles = elements.map((element) => getComputedStyle(element))
-  const fontFamily = only(styles.map((style) => firstFamily(style.fontFamily)))
-  const fontSize = only(styles.map((style) => pointsOf(style.fontSize)))
-  return { ...(fontFamily ? { fontFamily } : {}), ...(fontSize === undefined ? {} : { fontSize }) }
-}
-
-type Restyled = ReturnType<typeof markAttrsOf>
-
-/** the place restyled when there is a style, and what it shows then */
-function styleAt(view: EditorView, place: FieldTextPlace, attrs: Restyled | null): FieldTextStyle {
+/** the place restyled, and what it shows then */
+function styleAt(view: EditorView, place: FieldTextPlace, style: FieldTextStyle): FieldShownStyle {
   switch (place.kind) {
     case 'text': {
       const range = restyledRange(view, place)
-      if (attrs) restyle(view, range, attrs)
-      return shownStyle(textElements(view, range))
+      restyleText(view, range, style)
+      return shownText(view, range)
     }
     case 'field':
-      if (attrs) restyleFieldBlock(view, place, attrs)
-      return shownStyle(fieldBlockElements(view, place))
+      restyleFieldBlock(view, place, style)
+      return shownFieldBlock(view, place)
   }
 }
 
@@ -120,7 +121,5 @@ function placeOf(view: EditorView, request: FieldStyleRequest) {
 export function applyFieldStyle(view: EditorView, request: FieldStyleRequest): FieldStyleResult {
   const place = placeOf(view, request)
   if ('refused' in place) return { ok: false, reason: place.refused }
-  const attrs = markAttrsOf(request.style)
-  const restyled = Object.keys(attrs).length > 0 ? attrs : null
-  return { ok: true, style: styleAt(view, place, restyled) }
+  return { ok: true, style: styleAt(view, place, request.style) }
 }

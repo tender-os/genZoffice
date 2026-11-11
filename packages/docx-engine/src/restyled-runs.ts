@@ -6,7 +6,10 @@ import type { Run } from './types'
 import { escapeXmlText } from './xml-utils'
 
 /** a run of the editor's model, with the text the file holds in w:t and its face and size */
-export type RestyledRun = WtMappedRun & Pick<Run, 'fontAscii' | 'sizeHalfPoints' | 'themeRFonts'>
+/** a run of the editor's model, with the text the file holds in w:t and its face and size; a size of null, or none
+ *  on a run whose properties had one (rawRPr), is a size the editor took away */
+export type RestyledRun = WtMappedRun &
+  Pick<Run, 'fontAscii' | 'themeRFonts' | 'rawRPr'> & { sizeHalfPoints?: number | null }
 
 type FileRun = { start: number; end: number; xml: string; text: string; simple: boolean }
 
@@ -39,6 +42,12 @@ function fileRuns(xml: string): FileRun[] {
 
 const modelText = (run: RestyledRun) => wtTextOf(run).replace(/[\t\n]/g, '')
 
+/** the size the model asks of a run: its own, none when it was taken away, undefined when it says nothing */
+function sizeAsked(run: RestyledRun) {
+  if (run.sizeHalfPoints !== undefined) return run.sizeHalfPoints
+  return run.rawRPr?.includes('<w:sz ') ? null : undefined
+}
+
 /** the face and size the model asks of a file run that does not already show them, or null */
 function wantedOf(run: RestyledRun, file: FileRun): FaceAndSize | null {
   const declared = declaredFaceAndSize(file.xml)
@@ -47,11 +56,12 @@ function wantedOf(run: RestyledRun, file: FileRun): FaceAndSize | null {
       ? run.themeRFonts?.fontAscii
       : declared.fontAscii
   const newFace = run.fontAscii !== undefined && run.fontAscii !== face
-  const newSize = run.sizeHalfPoints !== undefined && run.sizeHalfPoints !== declared.sizeHalfPoints
+  const size = sizeAsked(run)
+  const newSize = size !== undefined && size !== (declared.sizeHalfPoints ?? null)
   if (!newFace && !newSize) return null
   return {
     ...(newFace ? { fontAscii: run.fontAscii } : {}),
-    ...(newSize ? { sizeHalfPoints: run.sizeHalfPoints } : {}),
+    ...(newSize ? { sizeHalfPoints: size } : {}),
   }
 }
 

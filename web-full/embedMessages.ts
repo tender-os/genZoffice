@@ -1,6 +1,6 @@
 // The editor's side of the embed contract (embed-protocol.ts): which incoming messages it trusts and
 // how it reads them. Pure, so the rules are tested without a browser.
-import { FIELD_ACTIONS, HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type FieldTextStyle, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
+import { FIELD_ACTIONS, FIELD_ALIGNMENTS, FIELD_VERTICAL_ALIGNMENTS, HOST_COMMANDS, MARKER_ENTRIES, type BlockRef, type FieldAction, type FieldGap, type FieldTextStyle, type HostToEditor, type MarkerTone, type OpenMode, type SlotMarker } from './embed-protocol'
 
 /** Only the embedding page, and only on the editor's own origin, may drive the editor. */
 export const acceptsHostMessage = (
@@ -80,10 +80,18 @@ const isFontSize = (value: unknown): value is number =>
 /** A field style with exactly the known properties, or null when one is out of range. */
 function readStyle(value: unknown): FieldTextStyle | null {
   if (!isRecord(value)) return null
-  const { fontFamily, fontSize } = value
+  const { fontFamily, fontSize, alignment, verticalAlignment } = value
   if (fontFamily !== undefined && !isFontFamily(fontFamily)) return null
-  if (fontSize !== undefined && !isFontSize(fontSize)) return null
-  return { ...(fontFamily === undefined ? {} : { fontFamily }), ...(fontSize === undefined ? {} : { fontSize }) }
+  if (fontSize !== undefined && fontSize !== null && !isFontSize(fontSize)) return null
+  const horizontal = FIELD_ALIGNMENTS.find((known) => known === alignment)
+  const vertical = FIELD_VERTICAL_ALIGNMENTS.find((known) => known === verticalAlignment)
+  if ((alignment !== undefined && !horizontal) || (verticalAlignment !== undefined && !vertical)) return null
+  return {
+    ...(fontFamily === undefined ? {} : { fontFamily }),
+    ...(fontSize === undefined ? {} : { fontSize }),
+    ...(horizontal ? { alignment: horizontal } : {}),
+    ...(vertical ? { verticalAlignment: vertical } : {}),
+  }
 }
 
 /** A restyle names its field as a write does: by its gap, or by its text. */
