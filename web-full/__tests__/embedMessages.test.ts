@@ -71,6 +71,13 @@ describe('readHostMessage', () => {
     expect(readHostMessage({ ...byText, style: { fontSize: 12, bold: true } })).toEqual({ ...byText, style: { fontSize: 12 } })
   })
 
+  it('reads the alignments and a size of null in setFieldStyle, and rejects an alignment Word does not take here', () => {
+    const restyle = { type: 'vound:setFieldStyle', requestId: 'r1', block: { paragraph: 4, scope: 'cell' }, previous: 'a', style: { fontSize: null, alignment: 'center', verticalAlignment: 'bottom' } }
+    expect(readHostMessage(restyle)).toEqual(restyle)
+    expect(readHostMessage({ ...restyle, style: { alignment: 'justify' } })).toBeNull()
+    expect(readHostMessage({ ...restyle, style: { verticalAlignment: 'middle' } })).toBeNull()
+  })
+
   it('rejects setFieldStyle without a style or with a face or size Word cannot hold', () => {
     const valid = { type: 'vound:setFieldStyle', requestId: 'r1', block: { paragraph: 4, scope: 'paragraph' }, previous: 'a', style: { fontSize: 12 } }
     expect(readHostMessage({ ...valid, style: undefined })).toBeNull()

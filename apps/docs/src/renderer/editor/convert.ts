@@ -78,6 +78,7 @@ import { charScaleXAttr, parseGlowAttr, parseTextEffectAttr } from './text-effec
 import { SHAPE_INLINE_WRAP, shapeWrapOf } from './floating-z-order'
 import { facesChanged } from './cell-face-size'
 import { passthroughFaceAndSize } from './passthrough-face-size'
+import { withCellFormats } from './cell-formats'
 
 /** minimal ProseMirror JSON shapes */
 export interface PmMark {
@@ -2297,7 +2298,7 @@ function regeneratedTableXml(model: TableModel, original: Block) {
   const rebuilt = generateTableModelXml(model, source)
   if (source === undefined || keepsFormFields(source, rebuilt)) return rebuilt
   const texts = tableTextsPatchFromModel(model, original)
-  return texts ? patchTableCellTexts(source, texts) : source
+  return withCellFormats(texts ? patchTableCellTexts(source, texts) : source, model, original)
 }
 
 export function pmDocToSavePlan(inputDoc: PmNode, originalBlocks: Block[]): SavePlan {

@@ -40,7 +40,7 @@ or none, means English); the stand-alone page stays English.
 | host → editor | `{ type: 'vound:focus', id: string \| null }` make a marker current without scrolling, or none |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, previous, value }` replace a field's value in one block (`BlockRef = { paragraph, scope: 'paragraph' \| 'cell' }`, named like a marker); answered with `vound:fieldValueResult` (see Field writes) |
 | host → editor | `{ type: 'vound:setFieldValue', requestId, block: BlockRef, value, replaces: 'gap', gap: { before, after } }` replace what lies between the gap's anchors in one block (see Field writes) |
-| host → editor | `{ type: 'vound:setFieldStyle', requestId, block: BlockRef, previous, replaces?, formText?, style }` or with `replaces: 'gap', gap` instead of `previous`: restyle a field's text (`style = { fontFamily?, fontSize? }`); answered with `vound:fieldStyleResult` (see Field styles) |
+| host → editor | `{ type: 'vound:setFieldStyle', requestId, block: BlockRef, previous, replaces?, formText?, style }` or with `replaces: 'gap', gap` instead of `previous`: restyle a field's text (`style = { fontFamily?, fontSize?, alignment?, verticalAlignment? }`, `fontSize: null` for the document's size); answered with `vound:fieldStyleResult` (see Field styles) |
 | host → editor | `{ type: 'vound:placeCaret', block: BlockRef }` put the caret at the end of the block's text, focus the editor and scroll it into view |
 | host → editor | `{ type: 'vound:settleField', block: BlockRef }` the block's legacy text fields were accepted or left blank: they lose the form author's highlight on screen and in the saved file, and a field still showing its default text is emptied, as one host write the reviewer can undo; a field passthrough's fields too, whose default text the save empties |
 | host → editor | `{ type: 'vound:reopenField', block: BlockRef }` the block's settled fields are open again (↺ on a blank field): the author's highlight and an emptied default text come back, as one host write |
@@ -354,7 +354,12 @@ spaces are then the `previous` of the next write.
 
 ## Field styles
 
-`vound:setFieldStyle` (`fieldStyle.ts`) sets the face and size of a field's text. It names the field as a write
+`vound:setFieldStyle` (`fieldStyle.ts`) sets the face and size of a field's text, the alignment of its paragraph
+(`w:jc`, `alignment`: left, center, right) and the vertical alignment of the table cell around it (`w:vAlign`,
+`verticalAlignment`: top, center, bottom; nothing outside a table cell). `fontSize: null` takes the field's own size
+away (`w:sz`, `w:szCs`), so the text shows the document's size again. The answer says whether the size is the
+field's own (`sizing: 'own'`) or the document's (`'document'`), and gives the cell's vertical alignment only in a
+cell. It names the field as a write
 does, by its text or its gap, in one block (see Field writes); a selection that lies inside that place is
 restyled alone, else the whole place. The face goes into the Latin slot (`w:rFonts w:ascii`, `w:hAnsi`), the
 size into `w:sz` and `w:szCs`; every other run property stays. The restyle is one transaction with
@@ -379,7 +384,9 @@ each `w:r` of a paragraph with a field or a content control takes the face and s
 editor, split into one run per formatting when it holds only its text. A cell paragraph whose runs changed only
 in face or size is written by the cell text patch like an edited one (`cell-face-size.ts`), and a restyled
 passthrough's runs and the face and size of its form field results are written into its paragraph
-(`passthrough-face-size.ts`).
+(`passthrough-face-size.ts`). The alignment of a paragraph kept for its fields is written into its `w:pPr`, and
+in a table kept for its fields each changed cell's `w:vAlign` and paragraph's `w:jc` (`cell-formats.ts`,
+`paragraph-cell-alignment.ts`).
 
 ## Develop
 
