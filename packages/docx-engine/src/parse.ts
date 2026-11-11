@@ -5098,7 +5098,9 @@ function tcwColumnWidths(tbl: XNode): number[] | undefined {
       // duplicated w:tcW: Word keeps the last occurrence (generators leave stale first values)
       const a = attrsOf(findChildren(tcPr ?? {}, 'w:tcW').at(-1) ?? {})
       const w = !a['w:type'] || a['w:type'] === 'dxa' ? Number(a['w:w']) || 0 : 0
-      if (span === 1 && w > 0) cols[idx] = Math.max(cols[idx] || 0, w)
+      // a vMerge continuation draws inside the restart cell above, so its tcW is never layout input
+      if (span === 1 && w > 0 && !continuesVerticalMerge(tcPr))
+        cols[idx] = Math.max(cols[idx] || 0, w)
       idx += span
     }
     colCount = Math.max(colCount, idx + edges.after)
@@ -5106,6 +5108,12 @@ function tcwColumnWidths(tbl: XNode): number[] | undefined {
   if (colCount === 0) return undefined
   for (let i = 0; i < colCount; i++) if (!(cols[i] > 0)) return undefined
   return cols.slice(0, colCount)
+}
+
+/** true for a w:vMerge cell that continues the merge started above */
+function continuesVerticalMerge(tcPr: XNode | undefined): boolean {
+  const vMerge = findChild(tcPr ?? {}, 'w:vMerge')
+  return !!vMerge && attrsOf(vMerge)['w:val'] !== 'restart'
 }
 
 /** true when no direct cell of the table declares w:tcW (generator output) */
@@ -7315,7 +7323,6 @@ function hfTableRowParagraphs(
       const widthIsPct = a['w:type'] === 'pct'
       const declared = !widthIsPct && Number.isFinite(v) && v > 0 ? v : 0
       const fromGrid = gridCols.slice(col, col + span).reduce((s, w) => s + w, 0)
-      const vMerge = findChild(tcPr ?? {}, 'w:vMerge')
       const cell: HfRawCell = {
         tc,
         tcPr,
@@ -7323,7 +7330,7 @@ function hfTableRowParagraphs(
         span,
         widthTwips: declared || fromGrid,
         widthIsPct,
-        vMergeContinue: Boolean(vMerge) && attrsOf(vMerge!)['w:val'] !== 'restart',
+        vMergeContinue: continuesVerticalMerge(tcPr),
         borders: mergedBorderLinesOf(tcPr, 'w:tcBorders', false),
       }
       col += span
