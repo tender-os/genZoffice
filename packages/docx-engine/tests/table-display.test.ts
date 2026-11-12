@@ -285,6 +285,22 @@ describe('fixed-layout grid vs tcW arbitration', () => {
     expect(doc.blocks[0].table!.colWidthsTwips).toEqual([4000, 6000])
   })
 
+  it('a vMerge continuation cell does not widen its column with a stale tcW', async () => {
+    const cell = (tcPr: string) => `<w:tc><w:tcPr>${tcPr}</w:tcPr><w:p/></w:tc>`
+    const xml =
+      '<w:tbl><w:tblPr><w:tblW w:w="8970" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>' +
+      '<w:tblGrid><w:gridCol w:w="2871"/><w:gridCol w:w="6099"/></w:tblGrid>' +
+      '<w:tr>' +
+      cell('<w:tcW w:w="2869" w:type="dxa"/><w:vMerge w:val="restart"/>') +
+      cell('<w:tcW w:w="6095" w:type="dxa"/>') +
+      '</w:tr><w:tr>' +
+      cell('<w:tcW w:w="8964" w:type="dxa"/><w:vMerge/>') +
+      cell('<w:tcW w:w="6095" w:type="dxa"/>') +
+      '</w:tr></w:tbl>'
+    const doc = await parseDocx(await buildDocx({ bodyXml: xml }))
+    expect(doc.blocks[0].table!.colWidthsTwips).toEqual([2869, 6095])
+  })
+
   it('tcW preference never touches saved bytes: roundtrip keeps the original tblGrid', async () => {
     const bytes = await buildDocx({ bodyXml: fixedTable('<w:tblLayout w:type="fixed"/>') })
     const doc = await parseDocx(bytes)
