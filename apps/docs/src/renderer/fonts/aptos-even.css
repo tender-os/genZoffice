@@ -1,0 +1,138 @@
+/* Aptos drawn at one size per cut: the general scale and line box of the fitted
+ * 'Aptos * GO' faces without their per-letter buckets. The buckets match Word's
+ * advances by resizing letters (c and s at 124%, t and r at 96%), which reads as
+ * mixed type on screen; one size keeps every letter in proportion, and lines run
+ * about 1-2% wider than Word's (up to 3.6% on digit-heavy lines), so a line can
+ * wrap earlier than in Word. */
+@font-face {
+  font-family: 'Aptos Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Regular.ttf');
+  size-adjust: 106.3%;
+  ascent-override: 75.15%;
+  descent-override: 25.05%;
+  line-gap-override: 22.11%;
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Bold.ttf');
+  size-adjust: 110.1%;
+  ascent-override: 72.52%;
+  descent-override: 24.17%;
+  line-gap-override: 21.34%;
+  font-weight: bold;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Italic.ttf');
+  size-adjust: 106.7%;
+  ascent-override: 74.88%;
+  descent-override: 24.96%;
+  line-gap-override: 22.04%;
+  font-weight: normal;
+  font-style: italic;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-BoldItalic.ttf');
+  size-adjust: 110.4%;
+  ascent-override: 72.37%;
+  descent-override: 24.12%;
+  line-gap-override: 21.3%;
+  font-weight: bold;
+  font-style: italic;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Display Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Regular.ttf');
+  size-adjust: 98.7%;
+  ascent-override: 75.89%;
+  descent-override: 25.3%;
+  line-gap-override: 22.33%;
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Display Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Bold.ttf');
+  size-adjust: 102.2%;
+  ascent-override: 73.33%;
+  descent-override: 24.44%;
+  line-gap-override: 21.58%;
+  font-weight: bold;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Display Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Italic.ttf');
+  size-adjust: 99.2%;
+  ascent-override: 75.54%;
+  descent-override: 25.18%;
+  line-gap-override: 22.23%;
+  font-weight: normal;
+  font-style: italic;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Display Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-BoldItalic.ttf');
+  size-adjust: 102.6%;
+  ascent-override: 73.03%;
+  descent-override: 24.34%;
+  line-gap-override: 21.49%;
+  font-weight: bold;
+  font-style: italic;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Narrow Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Regular.ttf');
+  size-adjust: 97.7%;
+  ascent-override: 76.76%;
+  descent-override: 25.59%;
+  line-gap-override: 22.59%;
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Narrow Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Bold.ttf');
+  size-adjust: 99.8%;
+  ascent-override: 75.15%;
+  descent-override: 25.05%;
+  line-gap-override: 22.11%;
+  font-weight: bold;
+  font-style: normal;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Narrow Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-Italic.ttf');
+  size-adjust: 97.7%;
+  ascent-override: 76.77%;
+  descent-override: 25.59%;
+  line-gap-override: 22.59%;
+  font-weight: normal;
+  font-style: italic;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Aptos Narrow Even GO';
+  src: url('@genoffice/ui/fonts/Carlito-BoldItalic.ttf');
+  size-adjust: 98.8%;
+  ascent-override: 75.87%;
+  descent-override: 25.29%;
+  line-gap-override: 22.33%;
+  font-weight: bold;
+  font-style: italic;
+  font-display: block;
+}

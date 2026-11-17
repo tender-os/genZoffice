@@ -44,6 +44,11 @@ rather than hand-edit it. Pitch stays Calibri's 1.22 (`lineHeightFactor`).
 `tests/aptos-alias-metrics.test.ts` holds the Word-probed sentence widths
 (2026-09-03, 2026-10-20).
 
+The editor draws Aptos with the "Aptos * Even GO" faces in `aptos-even.css`: each
+cut's general face alone, so every letter keeps one size. The per-letter buckets
+match Word's line widths but resize letters (c and s at 124%), which reads as mixed
+type; one size runs lines about 1-2% wider than Word.
+
 ## CJK fallback
 
 | Font                                    | Role                                       |
