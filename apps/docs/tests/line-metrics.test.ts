@@ -1390,12 +1390,12 @@ describe('Lucida Handwriting (Office/Windows script face)', () => {
 describe('Aptos (M365 cloud face)', () => {
   afterEach(() => setDocFontTable(null))
 
-  it('takes the size-adjusted Carlito aliases and the Calibri factor (Word probes 2026-08-22/09-03)', () => {
+  it('takes the one-size Carlito aliases and the Calibri factor (Word probes 2026-08-22/09-03)', () => {
     expect(cssFontFamily('Aptos')).toBe(
-      "'Aptos','Aptos GO','GenOffice PUA Blank','Noto Sans CJK SC',sans-serif",
+      "'Aptos','Aptos Even GO','GenOffice PUA Blank','Noto Sans CJK SC',sans-serif",
     )
     expect(cssFontFamily('Aptos Display')).toBe(
-      "'Aptos Display','Aptos Display GO','GenOffice PUA Blank','Noto Sans CJK SC',sans-serif",
+      "'Aptos Display','Aptos Display Even GO','GenOffice PUA Blank','Noto Sans CJK SC',sans-serif",
     )
     expect(lineHeightFactor('Aptos')).toBe(1.22)
     expect(lineHeightFactor('Aptos Display')).toBe(1.22)
@@ -1403,7 +1403,7 @@ describe('Aptos (M365 cloud face)', () => {
 
   it('Aptos Narrow takes its own alias (letters ~Carlito, space -17%)', () => {
     expect(cssFontFamily('Aptos Narrow')).toBe(
-      "'Aptos Narrow','Aptos Narrow GO','GenOffice PUA Blank','Noto Sans CJK SC',sans-serif",
+      "'Aptos Narrow','Aptos Narrow Even GO','GenOffice PUA Blank','Noto Sans CJK SC',sans-serif",
     )
   })
 
@@ -1417,7 +1417,7 @@ describe('Aptos (M365 cloud face)', () => {
 
   it('the Aptos branch wins over its fontTable altName (Arial in the wild)', () => {
     setDocFontTable([{ name: 'Aptos', altName: 'Arial' }])
-    expect(cssFontFamily('Aptos')).toContain("'Aptos GO'")
+    expect(cssFontFamily('Aptos')).toContain("'Aptos Even GO'")
     expect(cssFontFamily('Aptos')).not.toContain('Liberation Sans')
   })
 

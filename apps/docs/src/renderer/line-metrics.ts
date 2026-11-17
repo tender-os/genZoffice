@@ -687,6 +687,9 @@ export const BUNDLED_FONTS = new Set([
   'Aptos GO',
   'Aptos Display GO',
   'Aptos Narrow GO',
+  'Aptos Even GO',
+  'Aptos Display Even GO',
+  'Aptos Narrow Even GO',
   'Century Gothic GO',
   'Cambria Math GO',
   'Caladea',
@@ -1191,13 +1194,14 @@ export function cssFontFamily(font: string): string {
   // (Carlito would otherwise supply a box .notdef for them).
   if (f.includes('aptos')) {
     // body, Display and Narrow cuts have fitted aliases; Mono/Serif are unprobed
+    // the one-size 'Even' faces (aptos-even.css): per-letter sizes read as mixed type
     const alias = /mono|serif/.test(f)
       ? 'Carlito GO'
       : f.includes('display')
-        ? 'Aptos Display GO'
+        ? 'Aptos Display Even GO'
         : f.includes('narrow')
-          ? 'Aptos Narrow GO'
-          : 'Aptos GO'
+          ? 'Aptos Narrow Even GO'
+          : 'Aptos Even GO'
     return `${chain(font, alias, 'GenOffice PUA Blank', CJK_SANS)},sans-serif`
   }
   // Cambria Math text runs lay out with Cambria's advances in Word (fonts.css

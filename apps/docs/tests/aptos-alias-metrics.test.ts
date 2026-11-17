@@ -202,3 +202,21 @@ describe('Symbol Bullet GO alias', () => {
     expect(Math.abs((desc * adjust) / 0.3355 - 1)).toBeLessThan(0.02)
   })
 })
+
+describe('Aptos Even GO draws every letter at one size', () => {
+  const evenCss = readFileSync(join(__dirname, '../src/renderer/fonts/aptos-even.css'), 'utf8')
+  const blocks = (source: string, family: string) =>
+    [...source.matchAll(/@font-face\s*\{[^}]*\}/g)]
+      .map((m) => m[0])
+      .filter((f) => f.includes(`font-family: '${family}'`))
+  const withoutFamily = (face: string) => face.replace(/font-family: '[^']+';/, '')
+
+  it('each cut is the fitted general face, without the per-letter buckets', () => {
+    for (const family of ['Aptos', 'Aptos Display', 'Aptos Narrow']) {
+      const even = blocks(evenCss, `${family} Even GO`)
+      const general = blocks(css, `${family} GO`).filter((f) => !f.includes('unicode-range'))
+      expect(even).toHaveLength(4)
+      expect(even.map(withoutFamily)).toEqual(general.map(withoutFamily))
+    }
+  })
+})
