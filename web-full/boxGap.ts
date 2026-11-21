@@ -1,8 +1,4 @@
-// A box at the start of a hanging line with nothing separating it from what follows: Word sets the text right after
-// the box, left of the indent, so it starts outside the field's highlight, which begins at the indent. In review mode
-// the box is drawn as wide as the hanging indent, so the caret and the text start at the indent. Display only: these
-// are decorations, nothing reaches the document or a save. A line whose box is followed by a tab or a space
-// keeps Word's layout: its tab already reaches the indent, and its label is the form's own.
+import type { StyleInfo } from '@genoffice/docx-engine'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, type EditorView } from '@tiptap/pm/view'
 
@@ -10,7 +6,6 @@ export const BOX_GAP_CLASS = 'vound-box-gap'
 
 const BOX_MARKS = ['instrField', 'ctrlCheckbox']
 const BOX_GLYPHS = ['☐', '☒', '☑']
-const SEPARATORS = ['\t', ' ', ' ']
 
 /** an empty element right after the box: a caret after it sits outside the widened box, at the indent */
 const gapEnd = (view: EditorView) => view.dom.ownerDocument.createElement('span')
@@ -25,11 +20,18 @@ export function opensWithBox(node: PmNode) {
   )
 }
 
-/** the decorations that start the text of the paragraph at `pos` at its hanging indent; none for any other */
-export function boxGapDecorations(node: PmNode, pos: number) {
-  const hangingTwips = -Number(node.attrs.indentFirstLine ?? 0)
-  if (node.type.name !== 'docParagraph' || hangingTwips <= 0 || !opensWithBox(node)) return []
-  if (SEPARATORS.includes(node.textContent[1])) return []
+/** Keeps a checkbox label inside the review highlight on hanging lines. */
+export function boxGapDecorations(
+  node: PmNode,
+  pos: number,
+  styles: ReadonlyMap<string, StyleInfo> | undefined,
+) {
+  if (node.type.name !== 'docParagraph' || !opensWithBox(node)) return []
+  if (node.textContent[1] === '\t') return []
+  const { styleId, indentFirstLine } = node.attrs
+  const style = typeof styleId === 'string' ? styles?.get(styleId) : undefined
+  const hangingTwips = -Number(indentFirstLine ?? style?.display?.indentFirstLineTwips ?? 0)
+  if (hangingTwips <= 0) return []
   const glyph = pos + 1
   return [
     Decoration.inline(glyph, glyph + 1, {

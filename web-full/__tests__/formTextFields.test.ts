@@ -10,7 +10,7 @@ import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions
 import { editScopePlugin, setEditScope } from '../editScope'
 import { formTextFieldAt, formTextPlugin } from '../formTextField'
 import { markersPlugin, setMarkers } from '../markersPlugin'
-import { reviewModePlugin } from '../reviewMode'
+import { createReviewModePlugin } from '../reviewMode'
 
 const EN_SPACE = ' '
 const plain = (text: string) => `<w:r><w:t xml:space="preserve">${text}</w:t></w:r>`
@@ -63,7 +63,7 @@ async function open(bodyXml: string, markedParagraphs: number[]) {
   editor.commands.setContent(blocksToPmDoc(parsed.blocks) as never)
   const first = <T>(plugin: T, plugins: T[]) => [plugin, ...plugins]
   editor.registerPlugin(markersPlugin)
-  editor.registerPlugin(reviewModePlugin, first)
+  editor.registerPlugin(createReviewModePlugin(editor.storage.listNumbering), first)
   editor.registerPlugin(formTextPlugin, first)
   editor.registerPlugin(editScopePlugin(vi.fn()), first)
   setMarkers(

@@ -12,7 +12,7 @@ import { editorExtensions } from '../../apps/docs/src/renderer/editor/extensions
 import { BOX_GAP_CLASS } from '../boxGap'
 import { editScopePlugin } from '../editScope'
 import { markersPlugin, setMarkers } from '../markersPlugin'
-import { reviewModePlugin } from '../reviewMode'
+import { createReviewModePlugin } from '../reviewMode'
 
 const W14 = 'xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"'
 const HANGING = '<w:pPr><w:ind w:left="400" w:hanging="400"/></w:pPr>'
@@ -31,14 +31,18 @@ const VALUE = '1233213'
 const editors: Editor[] = []
 afterEach(() => editors.splice(0).forEach((editor) => editor.destroy()))
 
-async function open(bodyXml: string) {
-  const parsed = await parseDocx(await buildDocx({ bodyXml }))
+async function open(bodyXml: string, extraStylesXml?: string) {
+  const parsed = await parseDocx(await buildDocx({ bodyXml, extraStylesXml }))
   const editor = new Editor({
     element: document.createElement('div'),
     extensions: editorExtensions,
   })
+  editor.storage.listNumbering.styles = parsed.styles
   editor.commands.setContent(blocksToPmDoc(parsed.blocks) as never)
-  editor.registerPlugin(reviewModePlugin, (plugin, plugins) => [plugin, ...plugins])
+  editor.registerPlugin(createReviewModePlugin(editor.storage.listNumbering), (plugin, plugins) => [
+    plugin,
+    ...plugins,
+  ])
   editors.push(editor)
   return { parsed, editor }
 }
@@ -70,7 +74,7 @@ const savedXml = async (parsed: Awaited<ReturnType<typeof parseDocx>>, editor: E
   return (await JSZip.loadAsync(bytes)).file('word/document.xml')!.async('string')
 }
 
-describe('a box on a hanging line with nothing after it', () => {
+describe('a checkbox on a hanging line', () => {
   it.each([
     [
       'a legacy box and a text field in a cell',
@@ -85,11 +89,35 @@ describe('a box on a hanging line with nothing after it', () => {
 
   it.each([
     ['a tab', `<w:p>${HANGING}${legacyBox}<w:r><w:tab/></w:r>${formText}</w:p>`],
-    ['a space and a label', `<w:p>${HANGING}${legacyBox}${plain(' Einzelbieter')}</w:p>`],
     ['no hanging indent', `<w:p>${legacyBox}${formText}</w:p>`],
   ])('with %s keeps the layout of the form', async (_, body) => {
     const { editor } = await open(body)
     expect(gap(editor)).toBeNull()
+  })
+
+  it.each([
+    ['a space', ' '],
+    ['a nonbreaking space', '\u00a0'],
+  ])(
+    'leaves room after the checkbox before %s without changing the document',
+    async (_, separator) => {
+      const line = `<w:p>${HANGING}${legacyBox}${plain(`${separator}Bidder`)}</w:p>`
+      const { parsed, editor } = await open(line)
+      expect(gap(editor)?.style.minWidth).toBe('20pt')
+      expect(await savedXml(parsed, editor)).toContain(line)
+    },
+  )
+
+  it('uses the inherited hanging indent for a spaced checkbox label', async () => {
+    const styles =
+      '<w:style w:type="paragraph" w:styleId="CheckboxBase">' +
+      HANGING +
+      '</w:style>' +
+      '<w:style w:type="paragraph" w:styleId="CheckboxRow"><w:basedOn w:val="CheckboxBase"/></w:style>'
+    const line = `<w:p><w:pPr><w:pStyle w:val="CheckboxRow"/></w:pPr>${legacyBox}${plain(' Bidder')}</w:p>`
+    const { parsed, editor } = await open(inCell(line), styles)
+    expect(gap(editor)?.style.minWidth).toBe('20pt')
+    expect(await savedXml(parsed, editor)).toContain(line)
   })
 
   it('the gap stays while the text is typed', async () => {
