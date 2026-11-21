@@ -16,7 +16,7 @@ import { formTextPlugin } from '../formTextField'
 import { historyReportPlugin, MENU_COMMANDS, refocusOnReturn } from '../hostCommands'
 import { markersPlugin, setCurrent, setMarkers } from '../markersPlugin'
 import { undoCaretPlugin } from '../undoCaret'
-import { EMPTY_CONTROL_CLASS, reviewModePlugin } from '../reviewMode'
+import { EMPTY_CONTROL_CLASS, createReviewModePlugin } from '../reviewMode'
 
 const plain = (text: string) => `<w:r><w:t xml:space="preserve">${text}</w:t></w:r>`
 const field = (text: string) =>
@@ -50,7 +50,7 @@ async function open(post = vi.fn(), scope: 'fields' | 'everything' = 'fields') {
     .run()
   const first = <T>(plugin: T, plugins: T[]) => [plugin, ...plugins]
   editor.registerPlugin(markersPlugin)
-  editor.registerPlugin(reviewModePlugin, first)
+  editor.registerPlugin(createReviewModePlugin(editor.storage.listNumbering), first)
   editor.registerPlugin(formTextPlugin, first)
   editor.registerPlugin(undoCaretPlugin)
   editor.registerPlugin(editScopePlugin(post), first)

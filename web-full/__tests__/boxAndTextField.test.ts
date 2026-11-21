@@ -11,7 +11,7 @@ import { editScopePlugin, setEditScope } from '../editScope'
 import { placeCaret } from '../fieldWrite'
 import { markersPlugin, setMarkers } from '../markersPlugin'
 import { placeholderAt } from '../placeholderText'
-import { reviewModePlugin } from '../reviewMode'
+import { createReviewModePlugin } from '../reviewMode'
 
 type Parsed = Awaited<ReturnType<typeof parseDocx>>
 const EMPTY_RESULT = '     '
@@ -46,7 +46,7 @@ async function open(bodyXml: string, scope: 'everything' | 'fields') {
   editor.commands.setContent(blocksToPmDoc(parsed.blocks) as never)
   const first = <T>(plugin: T, plugins: T[]) => [plugin, ...plugins]
   editor.registerPlugin(markersPlugin)
-  editor.registerPlugin(reviewModePlugin, first)
+  editor.registerPlugin(createReviewModePlugin(editor.storage.listNumbering), first)
   editor.registerPlugin(editScopePlugin(vi.fn()), first)
   editors.push(editor)
   setEditScope(scope)

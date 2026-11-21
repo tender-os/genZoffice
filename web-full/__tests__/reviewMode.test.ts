@@ -15,7 +15,7 @@ import { mountFieldChip } from '../fieldChip'
 import { fieldReportingKey } from '../fieldReporting'
 import { fieldRingKey } from '../fieldRing'
 import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
-import { EMPTY_CONTROL_CLASS, enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, reviewModePlugin } from '../reviewMode'
+import { EMPTY_CONTROL_CLASS, enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, createReviewModePlugin } from '../reviewMode'
 import { doc, fieldPara, para, placeholderPara, schema } from './markerSchema'
 
 // the chip itself is tested in fieldChip.test.ts; here only that review mode mounts and unmounts it
@@ -42,7 +42,7 @@ const arial = schema.marks.docTextStyle.create({ font: 'Arial' })
 /** one paragraph "Ort: " in Arial, caret at its end */
 function reviewView(props: Partial<EditorProps> = {}) {
   const start = doc(schema.nodes.docParagraph.create(null, schema.text('Ort: ', [arial])))
-  const state = EditorState.create({ schema, doc: start, plugins: [reviewModePlugin] })
+  const state = EditorState.create({ schema, doc: start, plugins: [createReviewModePlugin()] })
   view = new EditorView(document.createElement('div'), {
     ...props,
     state: state.apply(state.tr.setSelection(TextSelection.create(state.doc, 6))),
@@ -159,7 +159,7 @@ describe('enterReviewMode', () => {
     enterReviewMode(ed, post)
     enterReviewMode(ed, post)
     expect(document.documentElement.classList.contains('vound-review')).toBe(true)
-    expect(ed.state.plugins.filter((p) => p === reviewModePlugin)).toHaveLength(1)
+    expect(ed.state.plugins.filter((p) => p.spec.key === reviewModeKey)).toHaveLength(1)
     expect(ed.state.plugins.filter((p) => p.spec.key === fieldReportingKey)).toHaveLength(1)
     // Tab is the reviewer's "next field" in review mode: no indent, no tab character
     const tab = new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true, cancelable: true })
@@ -199,7 +199,7 @@ describe('a field block selected as a whole in review mode', () => {
   })
 
   it('refuses typing, Backspace, Delete, paste and cut over it', () => {
-    const v = selectedField([reviewModePlugin])
+    const v = selectedField([createReviewModePlugin()])
     expect(typeText(v, 'x')).toBe(true)
     expect(key(v, 'Backspace').defaultPrevented).toBe(true)
     expect(key(v, 'Delete').defaultPrevented).toBe(true)
@@ -215,7 +215,7 @@ describe('a field block selected as a whole in review mode', () => {
   })
 
   it('leaves typing in a text selection alone', () => {
-    const v = selectedField([reviewModePlugin])
+    const v = selectedField([createReviewModePlugin()])
     v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, 7)))
     expect(typeText(v, 'x')).toBeFalsy()
     // a collapsed caret's Backspace is the browser's own deletion: nothing takes the key
@@ -245,7 +245,7 @@ describe('the field chip in review mode', () => {
 describe("typing into Word's empty form field result in review mode", () => {
   const enSpaces = '\u2002'.repeat(5)
   function caretIn(text: string, offset: number) {
-    const state = EditorState.create({ schema, doc: doc(para(0, 'Fax:'), para(1, text)), plugins: [reviewModePlugin] })
+    const state = EditorState.create({ schema, doc: doc(para(0, 'Fax:'), para(1, text)), plugins: [createReviewModePlugin()] })
     const start = state.doc.child(0).nodeSize + 1
     view = new EditorView(document.createElement('div'), { state: state.apply(state.tr.setSelection(TextSelection.create(state.doc, start + offset))) })
     return view
@@ -273,7 +273,7 @@ describe("typing into Word's empty form field result in review mode", () => {
   })
 
   it('gives an emptied control\'s stand-in a box to click', () => {
-    const state = EditorState.create({ schema, doc: doc(placeholderPara(0, 'Datum: ', EMPTY_CONTROL_TEXT)), plugins: [reviewModePlugin] })
+    const state = EditorState.create({ schema, doc: doc(placeholderPara(0, 'Datum: ', EMPTY_CONTROL_TEXT)), plugins: [createReviewModePlugin()] })
     view = new EditorView(document.createElement('div'), { state })
     expect(view.dom.querySelector(`.${EMPTY_CONTROL_CLASS}`)?.textContent).toBe(EMPTY_CONTROL_TEXT)
     view.destroy()
