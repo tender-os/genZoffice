@@ -12,6 +12,7 @@
 // shows no width, so the caret sits at the field's start (the en spaces stay in the document). Placeholder text
 // is selected whole when the caret lands in it (placeholderSelect.ts).
 import type { Editor } from '@tiptap/core'
+import type { ListNumberingStorage } from '../apps/docs/src/renderer/editor/extensions'
 import { NodeSelection, Plugin, PluginKey, TextSelection, type EditorState } from '@tiptap/pm/state'
 import type { Node as PmNode } from '@tiptap/pm/model'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
@@ -79,11 +80,11 @@ export const EMPTY_CONTROL_CLASS = 'vound-empty-control'
 export const FORM_FIELD_BLANK_CLASS = 'vound-blank'
 
 // ponytail: walks the whole document on every change; map the old set if long documents type slowly
-function blankDecorations(doc: PmNode) {
+function blankDecorations(doc: PmNode, styles: ListNumberingStorage['styles']) {
   const decorations: Decoration[] = []
   doc.descendants((node, pos) => {
     if (!node.isTextblock) return true
-    decorations.push(...boxGapDecorations(node, pos), ...hangingFieldDecorations(node, pos))
+    decorations.push(...boxGapDecorations(node, pos, styles), ...hangingFieldDecorations(node, pos))
     const blank = formFieldBlankStart(node)
     if (blank !== null) decorations.push(Decoration.inline(pos + 1 + blank, pos + node.nodeSize - 1, { class: FORM_FIELD_BLANK_CLASS }))
     node.forEach((child, offset) => {
@@ -94,11 +95,11 @@ function blankDecorations(doc: PmNode) {
   return DecorationSet.create(doc, decorations)
 }
 
-export const reviewModePlugin = new Plugin({
+export const createReviewModePlugin = (storage: Pick<ListNumberingStorage, 'styles'> = {}) => new Plugin({
   key: reviewModeKey,
   state: {
-    init: (_config, state) => blankDecorations(state.doc),
-    apply: (tr, blanks) => (tr.docChanged ? blankDecorations(tr.doc) : blanks),
+    init: (_config, state) => blankDecorations(state.doc, storage.styles),
+    apply: (tr, blanks) => (tr.docChanged ? blankDecorations(tr.doc, storage.styles) : blanks),
   },
   props: {
     decorations: (state) => reviewModeKey.getState(state),
@@ -145,7 +146,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   document.documentElement.classList.add('vound-review')
   // the same listener added twice is one listener
   window.addEventListener('keydown', blockShortcut, true)
-  if (!reviewModeKey.get(editor.state)) editor.registerPlugin(reviewModePlugin, first)
+  if (!reviewModeKey.get(editor.state)) editor.registerPlugin(createReviewModePlugin(editor.storage.listNumbering), first)
   if (!formTextKey.get(editor.state)) editor.registerPlugin(formTextPlugin, first)
   if (!filledFieldHighlightKey.get(editor.state)) editor.registerPlugin(filledFieldHighlightPlugin)
   if (!undoCaretKey.get(editor.state)) editor.registerPlugin(undoCaretPlugin)
