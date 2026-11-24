@@ -29,6 +29,19 @@ const FALLBACK_PAGE_H = 1056
 const THUMB_GUTTER = 12
 const THUMB_MAX_W = 200
 
+const CUT_CLASS = 'page-gap-cut'
+
+/** what ends a page, top to bottom: the page gaps, and the zero-height cuts inside a table row */
+function pageBreaks(wrap: HTMLElement): HTMLElement[] {
+  const drawn = (el: HTMLElement) =>
+    el.classList.contains(CUT_CLASS)
+      ? el.getClientRects().length > 0
+      : el.getBoundingClientRect().height > 0
+  return [...wrap.querySelectorAll<HTMLElement>(`.page-gap:not(.page-gap-carry), .${CUT_CLASS}`)]
+    .filter(drawn)
+    .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top)
+}
+
 /**
  * Word's Pages tab reads the printed pages; ours reads the canvas: every non-carry
  * page gap ends one paper and starts the next, so the thumbnails show exactly what
@@ -45,9 +58,8 @@ export function snapshotPages(pm: HTMLElement, zoom: number): ThumbSnapshot | nu
     parseFloat(getComputedStyle(docZoom).getPropertyValue('--page-h')) || FALLBACK_PAGE_H
   const starts = [0]
   const ends: number[] = []
-  for (const gap of pm.querySelectorAll<HTMLElement>('.page-gap:not(.page-gap-carry)')) {
+  for (const gap of pageBreaks(wrap)) {
     const r = gap.getBoundingClientRect()
-    if (r.height === 0) continue
     const cs = getComputedStyle(gap)
     const mb = parseFloat(cs.getPropertyValue('--gap-mb')) || 0
     const mt = parseFloat(cs.getPropertyValue('--gap-mt')) || 0

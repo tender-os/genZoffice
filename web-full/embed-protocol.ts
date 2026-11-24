@@ -63,6 +63,8 @@
  *                                                                              what there is to undo or redo: once the
  *                                                                              editor is ready, then on each change
  *                  { type: 'vound:zoom', zoom: number }                        the zoom in percent, on each change
+ *                  { type: 'vound:pageList', width: number }                   review mode: the width (CSS px) the page list
+ *                                                                              takes left of the document, 0 without it
  *                  { type: 'vound:revealResult', requestId, found: boolean }   the answer to vound:reveal, once the opened
  *                                                                              document is in the editor
  *                  { type: 'vound:opened' }                                    the document of the last vound:open is in the
@@ -177,6 +179,7 @@ export type EditorToHost =
   | { type: 'vound:editRefused'; where: RefusalPlace }
   | { type: 'vound:history'; canUndo: boolean; canRedo: boolean }
   | { type: 'vound:zoom'; zoom: number }
+  | { type: 'vound:pageList'; width: number }
   | { type: 'vound:revealResult'; requestId: string; found: boolean }
   | { type: 'vound:opened' }
 export const isEmbedded = (): boolean => window.parent !== window

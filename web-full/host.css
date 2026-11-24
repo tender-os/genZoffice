@@ -58,6 +58,38 @@ html.vound-review { --vound-gutter: 110px; }
   html.vound-review .editor-scroll { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(var(--vound-gutter), 1fr); align-content: start; align-items: start; }
   html.vound-review .editor-scroll > * { grid-column: 2; }
 }
+/* The page list left of the document (pageList.ts): fixed to the frame's left edge, with the workspace padded by
+   its width. Only where the document keeps 480px beside it, and for more than one page (html.vound-pages). Its
+   look is the PDF review's page rail. */
+html.vound-review {
+  --vound-pages-width: 96px;
+  --vound-pages-ground: hsl(220 14% 96.5%);
+  --vound-pages-paper: #fff;
+  --vound-pages-missing-ground: hsl(27 88% 87%);
+  --vound-pages-missing-edge: hsla(31 92% 53% / .45);
+  --vound-pages-missing-ink: hsl(27 84% 18%);
+  --vound-pages-review-ground: hsl(280 86% 90%);
+  --vound-pages-review-edge: hsla(275 89% 63% / .42);
+  --vound-pages-review-ink: hsl(280 76% 22%);
+}
+.vound-page-list { display: none; }
+@media screen and (min-width: 576px) {
+  html.vound-review.vound-pages .workspace { padding-left: var(--vound-pages-width); }
+  html.vound-review.vound-pages .vound-page-list { display: flex; }
+}
+.vound-page-list { position: fixed; inset: 0 auto 0 0; z-index: 5; width: var(--vound-pages-width); box-sizing: border-box; flex-direction: column; background: var(--vound-pages-ground); border-right: 1px solid var(--vound-chip-border); font: 500 10px/1.3 system-ui, sans-serif; color: var(--vound-chip-muted); }
+.vound-page-list-heading { flex: none; display: flex; align-items: center; height: 56px; padding: 0 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.vound-page-list-body { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding-bottom: 12px; }
+.vound-page { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; margin: 0; padding: 4px 8px 8px; border: 0; background: transparent; font: inherit; color: inherit; cursor: pointer; }
+.vound-page:focus-visible { outline: 2px solid var(--vound-proposed-bar); outline-offset: -2px; }
+.vound-page-paper { position: relative; display: block; width: 100%; overflow: hidden; background: var(--vound-pages-paper); box-shadow: 0 0 0 1px var(--vound-chip-border); }
+.vound-page[aria-current] .vound-page-paper { box-shadow: 0 0 0 2px var(--vound-chip-ink); }
+.vound-page[aria-current] .vound-page-number { color: var(--vound-chip-ink); font-weight: 600; }
+.vound-page-number { font-variant-numeric: tabular-nums; }
+.vound-page-bubbles { position: absolute; inset: auto 0 6px; display: flex; justify-content: center; gap: 6px; pointer-events: none; }
+.vound-page-bubble { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-width: 16px; height: 16px; padding: 0 4px; border: 1px solid; border-radius: 999px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.vound-page-bubble-missing { background: var(--vound-pages-missing-ground); border-color: var(--vound-pages-missing-edge); color: var(--vound-pages-missing-ink); }
+.vound-page-bubble-review { background: var(--vound-pages-review-ground); border-color: var(--vound-pages-review-edge); color: var(--vound-pages-review-ink); }
 /* Word's empty form field result (five en spaces) in review mode (reviewMode.ts): no width, so the caret and
    the typed text start at the field's left edge; the en spaces stay in the document */
 html.vound-review .vound-blank { letter-spacing: -0.5em; }

@@ -16,6 +16,7 @@ import { fieldReportingKey } from '../fieldReporting'
 import { fieldRingKey } from '../fieldRing'
 import { EMPTY_CONTROL_TEXT } from '@genoffice/docx-engine'
 import { EMPTY_CONTROL_CLASS, enterReviewMode, FORM_FIELD_BLANK_CLASS, leaveReviewMode, reviewModeKey, createReviewModePlugin } from '../reviewMode'
+import { stubLayoutObservers } from './layoutObservers.testkit'
 import { doc, fieldPara, para, placeholderPara, schema } from './markerSchema'
 
 // the chip itself is tested in fieldChip.test.ts; here only that review mode mounts and unmounts it
@@ -24,6 +25,7 @@ vi.mock('../fieldChip', () => ({ mountFieldChip: vi.fn(() => unmountChip) }))
 
 // jsdom has no ClipboardEvent; ProseMirror's pasteHTML creates one when it is not given an event
 beforeAll(() => {
+  stubLayoutObservers()
   if (typeof globalThis.ClipboardEvent === 'undefined') {
     Object.defineProperty(globalThis, 'ClipboardEvent', { value: class extends Event { clipboardData = null }, configurable: true })
   }

@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import type { EditorView } from '@tiptap/pm/view'
 import type { LineAnchor } from '../pagination'
@@ -11,6 +11,9 @@ import { TopLevelPositions } from './top-level-pos'
 const anchorRange = rangeSlot()
 
 const key = new PluginKey<DecorationSet>('paginationGaps')
+
+/** the page gaps and cuts of the last pagination pass; a new set when a pass moved one */
+export const pageGapsOf = (state: EditorState) => key.getState(state)
 
 /**
  * The decoration metas of one pagination pass, dispatched as a single
