@@ -52,6 +52,7 @@ or none, means English); the stand-alone page stays English.
 | editor → host | `{ type: 'vound:editRefused', where: 'boxLine' \| 'outsideFields' }` an edit was refused: it changed the words on a box's line, or text outside every field |
 | editor → host | `{ type: 'vound:history', canUndo, canRedo }` what there is to undo or redo: once the editor is ready, then on each change |
 | editor → host | `{ type: 'vound:zoom', zoom }` the zoom in percent, on each change |
+| editor → host | `{ type: 'vound:pageList', width }` the width in CSS px the page list takes left of the document, 0 without it (see Page list). Review mode only |
 | editor → host | `{ type: 'vound:fieldAction', id, action }` a field chip's button was pressed (`id` is the slot id) |
 | editor → host | `{ type: 'vound:blockEdited', ids, texts }` a user edit changed the text of a marked block; `ids` are its slot ids, `texts` each id's block text right before and right after the edit (an undo of typing brings `after` back to the text before it). Review mode only; host writes are not reported |
 | editor → host | `{ type: 'vound:caretBlock', ids, leftWith? }` the caret entered a marked block, or left one (`ids: []`, `leftWith: 'Tab' \| 'other'`). Review mode only |
@@ -141,6 +142,17 @@ its own bar, and the editor edits like Word without the ribbon. `host.css` hides
 status bar and the paste-options chip under `html.vound-review`, and pads the top of the page scroll
 container (`.editor-scroll`) by `--vound-review-top` (52px) for the host's bar. Typing, deleting, keyboard
 undo/redo, clipboard shortcuts, select-all, save, find, zoom and keyboard selection work as usual.
+
+### Page list
+
+Left of the document, review mode lists the pages (`pageList.ts`): a thumbnail each, with how many of the page's
+fields still need a value (`gap`, `conditional`, `refused`) and how many proposals are still to check. Pages and
+thumbnails come from the app's own Pages tab (`NavPageThumbs.tsx`, `snapshotPages`). A press scrolls to the page
+and leaves the caret where it is. The list hides for a one-page document and in a frame narrower than 576px; the
+editor posts its width with `vound:pageList`, so the host can centre its bar over the document.
+
+A thumbnail shows copies of the page's blocks. They carry the marker classes, not `data-vound-slot` or
+`data-src-p`: select a marked block of the document with `.editor-scroll .vound-slot`.
 
 Paste inserts the clipboard's plain text in the formatting of the insertion point (`pasteText.ts`):
 `text/plain`, or for an HTML-only clipboard the HTML's text with one line per block. Line breaks and

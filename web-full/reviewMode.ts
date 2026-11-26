@@ -5,7 +5,7 @@
 // and the AI entries (reviewMenu.ts). host.css hides the ribbon, its tab row and the status bar under
 // html.vound-review. Edits and caret moves in marked blocks are reported to the host (fieldReporting.ts), and
 // hovering a marked block shows its field chip (fieldChip.ts); the selected and hovered fields get a ring
-// around all their blocks (fieldRing.ts).
+// around all their blocks (fieldRing.ts). The page list left of the document jumps between pages (pageList.ts).
 // A form field selected as a whole block (a click on it selects it as an object) cannot be typed, deleted,
 // pasted or cut over: that would replace the block, and with it the field, by plain text. Typing into
 // Word's empty form field result (en spaces) replaces the blank instead of adding to it, and the blank
@@ -30,6 +30,7 @@ import {
 import { undoCaretKey, undoCaretPlugin } from './undoCaret'
 import { mountFieldChip } from './fieldChip'
 import { fieldRingKey, fieldRingPlugin } from './fieldRing'
+import { pageListKey, pageListPlugin } from './pageList'
 import { fieldReportingKey, fieldReportingPlugin } from './fieldReporting'
 import { placeholderSelectKey, placeholderSelectPlugin } from './placeholderSelect'
 import { formFieldBlankStart, isEmptyControlFiller } from './placeholderText'
@@ -155,6 +156,7 @@ export function enterReviewMode(editor: Editor, post: (msg: EditorToHost) => voi
   if (!editScopeKey.get(editor.state)) editor.registerPlugin(editScopePlugin(post), first)
   if (!fieldRingKey.get(editor.state)) editor.registerPlugin(fieldRingPlugin)
   if (!placeholderSelectKey.get(editor.state)) editor.registerPlugin(placeholderSelectPlugin)
+  if (!pageListKey.get(editor.state)) editor.registerPlugin(pageListPlugin(post))
   if (chip?.view === editor.view) return
   chip?.unmount()
   chip = { view: editor.view, unmount: mountFieldChip(editor.view, post) }
@@ -173,6 +175,7 @@ export function leaveReviewMode(editor: Editor): void {
   if (editScopeKey.get(editor.state)) editor.unregisterPlugin(editScopeKey)
   if (fieldRingKey.get(editor.state)) editor.unregisterPlugin(fieldRingKey)
   if (placeholderSelectKey.get(editor.state)) editor.unregisterPlugin(placeholderSelectKey)
+  if (pageListKey.get(editor.state)) editor.unregisterPlugin(pageListKey)
   chip?.unmount()
   chip = null
 }
