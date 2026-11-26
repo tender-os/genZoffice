@@ -10,19 +10,27 @@ const pages = [
 describe('countByPage', () => {
   it('counts each field on the page it starts on, by what the reviewer still has to do', () => {
     const counts = countByPage(pages, [
-      { tone: 'proposed', top: 100 },
-      { tone: 'accepted', top: 200 },
-      { tone: 'gap', top: 1900 },
-      { tone: 'conditional', top: 2000 },
-      { tone: 'refused', top: 2100 },
-      { tone: 'rejected', top: 2200 },
-      { tone: 'otherParty', top: 2300 },
+      { tone: 'proposed', y: 100 },
+      { tone: 'accepted', y: 200 },
+      { tone: 'gap', y: 1900 },
+      { tone: 'conditional', y: 2000 },
+      { tone: 'refused', y: 2100 },
+      { tone: 'rejected', y: 2200 },
+      { tone: 'otherParty', y: 2300 },
     ])
     expect(counts).toEqual([
       { fields: 2, missing: 0, toReview: 1 },
       { fields: 0, missing: 0, toReview: 0 },
       { fields: 5, missing: 3, toReview: 0 },
     ])
+  })
+})
+
+describe('the page a field is counted on', () => {
+  it('is the page below for a line drawn in the band between two papers', () => {
+    // page 1's paper ends at 1000, page 2's starts at 1028
+    const counts = countByPage(pages, [{ tone: 'gap', y: 1010 }])
+    expect(counts.map((page) => page.missing)).toEqual([0, 1, 0])
   })
 })
 

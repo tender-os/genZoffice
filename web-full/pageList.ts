@@ -23,8 +23,9 @@ const PAGE_TOP_GAP_PX = 8
 const SHOWN_CLASS = 'vound-pages'
 /** the marks and ids that find a field in the document; a thumbnail's copy must not answer to them */
 const DOCUMENT_ONLY_ATTRIBUTES = ['id', 'contenteditable', 'data-vound-slot', 'data-src-p']
-/** a page turn: a gap the canvas draws (a split floating table's carry spacer is none), or a cut in a table row */
-const PAGE_BREAK = '.page-gap:not(.page-gap-carry), .page-gap-cut'
+/** what the editor draws into the text that is no text of the document: page gaps with their header and footer
+ *  strips, cuts, chips */
+const DRAWN_WIDGET = '[contenteditable="false"]'
 
 const isDefined = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined
 
@@ -34,25 +35,19 @@ const zoomOf = (view: EditorView) => {
   return (docZoom && Number.parseFloat(getComputedStyle(docZoom).getPropertyValue('zoom'))) || 1
 }
 
-/** a page break drawn before any of the paragraph's text, where the paragraph's box starts on the page above */
-function leadingBreak(paragraph: HTMLElement): HTMLElement | null {
-  for (const child of paragraph.childNodes) {
-    if (child.textContent?.trim()) return child instanceof HTMLElement ? leadingBreak(child) : null
-    if (!(child instanceof HTMLElement)) continue
-    const found = child.matches(PAGE_BREAK) ? child : child.querySelector<HTMLElement>(PAGE_BREAK)
-    // a cut hidden as a direct table child draws nothing (styles.css)
-    if (found && found.getClientRects().length > 0) return found
+/** the middle of the paragraph's first line of text, in viewport px; the top of its box when it has no text.
+ *  The line, not the box: a box can start just above the end of a page whose last line it does not fit on, or
+ *  hold the page break (and the page's footer and header) before its text */
+function firstLineMiddle(paragraph: HTMLElement) {
+  const texts = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT)
+  for (let text = texts.nextNode(); text; text = texts.nextNode()) {
+    if (!text.textContent?.trim() || text.parentElement?.closest(DRAWN_WIDGET)) continue
+    const range = document.createRange()
+    range.selectNodeContents(text)
+    const line = [...range.getClientRects()].find((rect) => rect.height > 0)
+    if (line) return (line.top + line.bottom) / 2
   }
-  return null
-}
-
-/** where the paragraph's first line is drawn, in viewport px */
-function firstLineTop(paragraph: HTMLElement) {
-  const gap = leadingBreak(paragraph)
-  if (!gap) return paragraph.getBoundingClientRect().top
-  // the next page starts where the gap's band ends, less the page's top margin it draws (snapshotPages)
-  const marginTop = Number.parseFloat(getComputedStyle(gap).getPropertyValue('--gap-mt')) || 0
-  return gap.getBoundingClientRect().bottom - marginTop
+  return paragraph.getBoundingClientRect().top
 }
 
 /** the marked fields and where each is drawn, in unzoomed px from the top of the canvas. A field is where
@@ -63,17 +58,17 @@ function placedFields(view: EditorView, canvasTop: number, zoom: number): Placed
   if (!state) return []
   const marked = new Set<string>(state.set.find().flatMap((decoration) => decoration.spec.slotIds))
   const paragraphs = locateParagraphs(view.state.doc, state.markers.map((marker) => marker.paragraph))
-  const fieldTop = (marker: SlotMarker) => {
+  const fieldY = (marker: SlotMarker) => {
     const paragraph = paragraphs.get(marker.paragraph)
     const element = paragraph && view.nodeDOM(paragraph.pos)
-    return element instanceof HTMLElement ? (firstLineTop(element) - canvasTop) / zoom : null
+    return element instanceof HTMLElement ? (firstLineMiddle(element) - canvasTop) / zoom : null
   }
   // text the reviewer wrote outside a field is no field of the form
   return state.markers
     .filter((marker) => marker.entry !== 'ownText' && marked.has(marker.id))
     .map((marker) => {
-      const top = fieldTop(marker)
-      return top === null ? null : { tone: marker.tone, top }
+      const y = fieldY(marker)
+      return y === null ? null : { tone: marker.tone, y }
     })
     .filter(isDefined)
 }

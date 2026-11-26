@@ -18,6 +18,13 @@ const place = (element: Element, top: number, height: number, width = 800, left 
   element.getClientRects = () => [new DOMRect(left, top, width, height)] as unknown as DOMRectList
 }
 
+/** jsdom draws no text: the line boxes a range over a text node reports, set per node */
+const lines = new WeakMap<Node, DOMRect>()
+const placeLine = (paragraph: Element, top: number, height = 20) => {
+  const text = [...paragraph.childNodes].find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())!
+  lines.set(text, new DOMRect(0, top, 800, height))
+}
+
 const marker = (id: string, paragraph: number, scope: SlotMarker['scope'] = 'paragraph'): SlotMarker => ({
   id, paragraph, scope, tone: 'gap', label: id, actions: ['ask'],
 })
@@ -25,6 +32,7 @@ const marker = (id: string, paragraph: number, scope: SlotMarker['scope'] = 'par
 const pageGap = (page?: { left: number; width: number }) => {
   const gap = document.createElement('div')
   gap.className = 'page-gap'
+  gap.contentEditable = 'false'
   if (page) {
     gap.style.setProperty('--gap-page-x', `${page.left}px`)
     gap.style.setProperty('--gap-page-w', `${page.width}px`)
@@ -32,12 +40,18 @@ const pageGap = (page?: { left: number; width: number }) => {
   return gap
 }
 
-/** a page gap drawn inside the paragraph at `pos`, before its text */
+/** a page gap drawn inside the paragraph at `pos`, before its text, with the page's footer in it */
 const leadingGapAt = (pos: number) =>
   new Plugin({
     props: {
       decorations: (state) =>
-        DecorationSet.create(state.doc, [Decoration.widget(pos + 1, () => pageGap(), { side: -1 })]),
+        DecorationSet.create(state.doc, [
+          Decoration.widget(pos + 1, () => {
+            const gap = pageGap()
+            gap.textContent = 'Seite 1 von 2'
+            return gap
+          }, { side: -1 }),
+        ]),
     },
   })
 
@@ -74,6 +88,10 @@ const marked = () => pages().findIndex((page) => page.getAttribute('aria-current
 beforeEach(() => {
   vi.useFakeTimers()
   stubLayoutObservers()
+  Range.prototype.getClientRects = function (this: Range) {
+    const line = lines.get(this.startContainer)
+    return (line ? [line] : []) as unknown as DOMRectList
+  }
   vi.stubGlobal('matchMedia', () => ({ matches: true }))
   Element.prototype.scrollIntoView = () => {}
 })
@@ -94,6 +112,7 @@ describe('the page a field is counted on', () => {
       const [caption, field] = Array.from(v.dom.querySelectorAll('td p'))
       place(caption, 0, 100)
       place(field, 300, 100)
+      placeLine(field, 300)
       place(after, 400, 100)
       place(v.dom, 0, 500)
       place(wrap, 0, 500)
@@ -116,10 +135,28 @@ describe('the page a field is counted on', () => {
         Array.from(v.dom.children).forEach((block, i) => place(block, i * 100, 100))
         place(v.dom, 0, 400)
         place(wrap, 0, 400)
-        place(v.dom.querySelector('p .page-gap')!, 200, 30)
+        Array.from(v.dom.children).forEach((block, i) => placeLine(block, i * 100 + (i === 2 ? 30 : 0)))
+        const gap = v.dom.querySelector('p .page-gap')!
+        place(gap, 200, 30)
+        lines.set(gap.firstChild!, new DOMRect(0, 205, 800, 20))
       },
       [leadingGapAt(start)],
     )
+    setMarkers(view, [marker('a', 2)])
+    settle()
+    expect(labels()).toEqual(['Page 1: No input needed', 'Page 2: 1 missing'])
+  })
+
+  it('is the page after the end of a page whose last line its first line does not fit on', () => {
+    // page 1 ends at 190; paragraph 2's box starts at 185, its first line is drawn past the end
+    const { view, settle } = mount(doc(...paragraphs(0, 4)), (v, wrap) => {
+      Array.from(v.dom.children).forEach((block, i) => place(block, i === 2 ? 185 : i * 100, 100))
+      Array.from(v.dom.children).forEach((block, i) => placeLine(block, i === 2 ? 185 : i * 100))
+      place(v.dom, 0, 400)
+      place(wrap, 0, 400)
+      if (!wrap.querySelector(':scope > .page-gap')) wrap.append(pageGap())
+      place(wrap.querySelector(':scope > .page-gap')!, 190, 10)
+    })
     setMarkers(view, [marker('a', 2)])
     settle()
     expect(labels()).toEqual(['Page 1: No input needed', 'Page 2: 1 missing'])
