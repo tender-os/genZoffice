@@ -1,7 +1,10 @@
 // jsdom has no layout observers: these report every observed element as on screen, and resizes only when told.
+// It draws no text either.
 import { vi } from 'vitest'
 
 export function stubLayoutObservers() {
+  // nor does it draw text: a range has no line boxes (a test that needs lines sets its own)
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList
   vi.stubGlobal(
     'IntersectionObserver',
     class {

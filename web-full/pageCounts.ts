@@ -5,16 +5,23 @@ import type { MarkerTone } from './embed-protocol'
 
 export type PageCounts = { fields: number; missing: number; toReview: number }
 
-/** a field and where its first block starts, in the same unzoomed canvas px as the pages */
-export type PlacedField = { tone: MarkerTone; top: number }
+/** a field and where its first line is drawn, in the same unzoomed canvas px as the pages */
+export type PlacedField = { tone: MarkerTone; y: number }
 
 const MISSING_TONES: MarkerTone[] = ['gap', 'conditional', 'refused']
 
-/** each page's counts; a field counts on the page it starts on */
+/** the page canvas y is on; the band between two papers counts to the page below it */
+const pageAt = (pages: ThumbPage[], y: number) => {
+  const index = pageIndexAtY(pages, y)
+  const end = pages[index].top + pages[index].height
+  return index < pages.length - 1 && y >= end ? index + 1 : index
+}
+
+/** each page's counts; a field counts on the page its first line is on */
 export function countByPage(pages: ThumbPage[], fields: PlacedField[]): PageCounts[] {
   const counts = pages.map(() => ({ fields: 0, missing: 0, toReview: 0 }))
-  for (const { tone, top } of fields) {
-    const page = counts[pageIndexAtY(pages, top)]
+  for (const { tone, y } of fields) {
+    const page = counts[pageAt(pages, y)]
     page.fields += 1
     if (MISSING_TONES.includes(tone)) page.missing += 1
     if (tone === 'proposed') page.toReview += 1

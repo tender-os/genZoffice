@@ -33,7 +33,8 @@ function canvas(...breaks: HTMLElement[]) {
   return { pm, wrap }
 }
 
-const pagesOf = (pm: HTMLElement) => snapshotPages(pm, 1)?.pages
+/** where each page starts and how tall it is */
+const pagesOf = (pm: HTMLElement) => snapshotPages(pm, 1)?.pages.map(({ top, height }) => ({ top, height }))
 
 afterEach(() => {
   document.body.innerHTML = ''

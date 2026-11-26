@@ -7,6 +7,9 @@ import { useI18n } from '../i18n/locale'
 export interface ThumbPage {
   top: number
   height: number
+  /** the paper's left edge and width: a landscape section's pages are wider than the portrait ones */
+  left: number
+  width: number
 }
 
 interface ThumbBlock {
@@ -58,6 +61,10 @@ export function snapshotPages(pm: HTMLElement, zoom: number): ThumbSnapshot | nu
     parseFloat(getComputedStyle(docZoom).getPropertyValue('--page-h')) || FALLBACK_PAGE_H
   const starts = [0]
   const ends: number[] = []
+  // the first paper is the document's; each gap names the paper below it, as pageFramesFromGaps reads them
+  const paperRect = pm.getBoundingClientRect()
+  const paperX = (paperRect.left - wrapRect.left) / zoom
+  const papers = [{ left: paperX, width: paperRect.width / zoom }]
   for (const gap of pageBreaks(wrap)) {
     const r = gap.getBoundingClientRect()
     const cs = getComputedStyle(gap)
@@ -65,9 +72,13 @@ export function snapshotPages(pm: HTMLElement, zoom: number): ThumbSnapshot | nu
     const mt = parseFloat(cs.getPropertyValue('--gap-mt')) || 0
     ends.push((r.top - wrapRect.top) / zoom + mb)
     starts.push((r.bottom - wrapRect.top) / zoom - mt)
+    const x = parseFloat(gap.style.getPropertyValue('--gap-page-x'))
+    const w = parseFloat(gap.style.getPropertyValue('--gap-page-w'))
+    const above = papers[papers.length - 1]
+    papers.push(Number.isFinite(x) && Number.isFinite(w) ? { left: paperX + x, width: w } : above)
   }
   ends.push(starts[starts.length - 1] + pageH)
-  const pages = starts.map((top, i) => ({ top, height: Math.max(1, ends[i] - top) }))
+  const pages = starts.map((top, i) => ({ top, height: Math.max(1, ends[i] - top), ...papers[i] }))
   const blocks: ThumbBlock[] = []
   for (const el of Array.from(pm.children) as HTMLElement[]) {
     const r = el.getBoundingClientRect()
