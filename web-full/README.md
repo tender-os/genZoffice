@@ -147,8 +147,12 @@ undo/redo, clipboard shortcuts, select-all, save, find, zoom and keyboard select
 
 Left of the document, review mode lists the pages (`pageList.ts`): a thumbnail each, with how many of the page's
 fields still need a value (`gap`, `conditional`, `refused`) and how many proposals are still to check. Pages and
-thumbnails come from the app's own Pages tab (`NavPageThumbs.tsx`, `snapshotPages`). A press scrolls to the page
-and leaves the caret where it is. The list hides for a one-page document and in a frame narrower than 576px; the
+thumbnails come from the app's own Pages tab (`NavPageThumbs.tsx`, `snapshotPages`); each thumbnail has its own
+page's width, so a landscape section's pages show wider than the portrait ones. A field counts on the page where
+its paragraph's first line is drawn, not where the marked block starts: a cell split by a page break, or a
+paragraph with the break drawn before its text, starts on the page above. A press scrolls to the page and leaves
+the caret where it is. The page at the top of the view is the one marked, so a short page that was pressed is
+marked too; once the view is scrolled to the end, the last page is. The list hides for a one-page document and in a frame narrower than 576px; the
 editor posts its width with `vound:pageList`, so the host can centre its bar over the document.
 
 A thumbnail shows copies of the page's blocks. They carry the marker classes, not `data-vound-slot` or

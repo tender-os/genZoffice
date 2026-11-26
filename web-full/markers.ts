@@ -79,6 +79,12 @@ function blockTarget(doc: PmNode, scope: BlockRef['scope'], matches: Located[]) 
   return scope === 'cell' ? enclosingCell(doc, matches[0].pos) : matches[0]
 }
 
+/** the paragraph each of `indices` names, in one pass; an index naming no node or several names none */
+export function locateParagraphs(doc: PmNode, indices: number[]) {
+  const { found } = nodesByIndex(doc, new Set(indices))
+  return new Map([...found].flatMap(([index, matches]) => (matches.length === 1 ? [[index, matches[0]] as const] : [])))
+}
+
 /** the node a field write or caret placement targets, found as a marker on it would be; null when the
  *  index names no node or several, or a cell scope finds no enclosing cell */
 export function locateBlock(doc: PmNode, block: BlockRef): Located | null {

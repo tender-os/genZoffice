@@ -10,7 +10,8 @@ import type { EditorView } from '@tiptap/pm/view'
 import { pageIndexAtY, snapshotPages, type ThumbPage, type ThumbSnapshot } from '../apps/docs/src/renderer/components/NavPageThumbs'
 import { pageGapsOf } from '../apps/docs/src/renderer/editor/pagination-gaps'
 import { embedLang } from './embedLocale'
-import type { EditorToHost } from './embed-protocol'
+import type { EditorToHost, SlotMarker } from './embed-protocol'
+import { locateParagraphs } from './markers'
 import { markersKey } from './markersPlugin'
 import { countByPage, pageListLabels, pageTitle, type PageCounts, type PlacedField } from './pageCounts'
 
@@ -22,6 +23,8 @@ const PAGE_TOP_GAP_PX = 8
 const SHOWN_CLASS = 'vound-pages'
 /** the marks and ids that find a field in the document; a thumbnail's copy must not answer to them */
 const DOCUMENT_ONLY_ATTRIBUTES = ['id', 'contenteditable', 'data-vound-slot', 'data-src-p']
+/** a page turn: a gap the canvas draws (a split floating table's carry spacer is none), or a cut in a table row */
+const PAGE_BREAK = '.page-gap:not(.page-gap-carry), .page-gap-cut'
 
 const isDefined = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined
 
@@ -31,23 +34,46 @@ const zoomOf = (view: EditorView) => {
   return (docZoom && Number.parseFloat(getComputedStyle(docZoom).getPropertyValue('zoom'))) || 1
 }
 
-/** the marked fields and where each starts, in unzoomed px from the top of the canvas */
+/** a page break drawn before any of the paragraph's text, where the paragraph's box starts on the page above */
+function leadingBreak(paragraph: HTMLElement): HTMLElement | null {
+  for (const child of paragraph.childNodes) {
+    if (child.textContent?.trim()) return child instanceof HTMLElement ? leadingBreak(child) : null
+    if (!(child instanceof HTMLElement)) continue
+    const found = child.matches(PAGE_BREAK) ? child : child.querySelector<HTMLElement>(PAGE_BREAK)
+    // a cut hidden as a direct table child draws nothing (styles.css)
+    if (found && found.getClientRects().length > 0) return found
+  }
+  return null
+}
+
+/** where the paragraph's first line is drawn, in viewport px */
+function firstLineTop(paragraph: HTMLElement) {
+  const gap = leadingBreak(paragraph)
+  if (!gap) return paragraph.getBoundingClientRect().top
+  // the next page starts where the gap's band ends, less the page's top margin it draws (snapshotPages)
+  const marginTop = Number.parseFloat(getComputedStyle(gap).getPropertyValue('--gap-mt')) || 0
+  return gap.getBoundingClientRect().bottom - marginTop
+}
+
+/** the marked fields and where each is drawn, in unzoomed px from the top of the canvas. A field is where
+ *  its paragraph's first line is, not where the marked block starts: a cell split by a page break starts on
+ *  the page above the paragraph that holds the field */
 function placedFields(view: EditorView, canvasTop: number, zoom: number): PlacedField[] {
   const state = markersKey.getState(view.state)
   if (!state) return []
-  const tops = new Map<string, number>()
-  for (const decoration of state.set.find()) {
-    const block = view.nodeDOM(decoration.from)
-    if (!(block instanceof HTMLElement)) continue
-    const top = (block.getBoundingClientRect().top - canvasTop) / zoom
-    for (const id of decoration.spec.slotIds) tops.set(id, Math.min(tops.get(id) ?? top, top))
+  const marked = new Set<string>(state.set.find().flatMap((decoration) => decoration.spec.slotIds))
+  const paragraphs = locateParagraphs(view.state.doc, state.markers.map((marker) => marker.paragraph))
+  const fieldTop = (marker: SlotMarker) => {
+    const paragraph = paragraphs.get(marker.paragraph)
+    const element = paragraph && view.nodeDOM(paragraph.pos)
+    return element instanceof HTMLElement ? (firstLineTop(element) - canvasTop) / zoom : null
   }
   // text the reviewer wrote outside a field is no field of the form
   return state.markers
-    .filter((marker) => marker.entry !== 'ownText')
+    .filter((marker) => marker.entry !== 'ownText' && marked.has(marker.id))
     .map((marker) => {
-      const top = tops.get(marker.id)
-      return top === undefined ? null : { tone: marker.tone, top }
+      const top = fieldTop(marker)
+      return top === null ? null : { tone: marker.tone, top }
     })
     .filter(isDefined)
 }
@@ -73,7 +99,7 @@ function drawPage(target: HTMLElement, snapshot: ThumbSnapshot, page: ThumbPage)
       const slot = document.createElement('div')
       slot.className = 'nav-thumb-slot'
       slot.style.top = `${block.top - page.top}px`
-      slot.style.left = `${block.left}px`
+      slot.style.left = `${block.left - page.left}px`
       slot.style.width = `${block.width}px`
       slot.append(copyOf(block.el))
       return slot
@@ -131,6 +157,8 @@ function mountPageList(view: EditorView, post: (msg: EditorToHost) => void) {
   list.append(heading, body)
   document.body.append(list)
 
+  /** the host's bar over the top of the document (host.css) */
+  const barHeight = () => Number.parseFloat(getComputedStyle(root).getPropertyValue('--vound-review-top')) || 0
   const thumbs: Thumb[] = []
   let snapshot: ThumbSnapshot | null = null
   let activeIndex = -1
@@ -156,12 +184,17 @@ function mountPageList(view: EditorView, post: (msg: EditorToHost) => void) {
     { root: body, rootMargin: '200px 0px' },
   )
 
+  /** the page at the top of the view, where a jump puts the pressed page however short it is; the last page
+   *  once the view cannot scroll further, as it may never reach the top */
+  const pageInView = (shown: ThumbSnapshot, scrolled: HTMLElement, drawn: HTMLElement) => {
+    if (scrolled.scrollTop + scrolled.clientHeight >= scrolled.scrollHeight - 1) return shown.pages.length - 1
+    const top = scrolled.getBoundingClientRect().top + barHeight() + PAGE_TOP_GAP_PX + 1
+    return pageIndexAtY(shown.pages, (top - drawn.getBoundingClientRect().top) / zoomOf(view))
+  }
   const markActive = () => {
     scrollFrame = 0
     if (!snapshot || !scroller || !canvas) return
-    const bounds = scroller.getBoundingClientRect()
-    const middle = (bounds.top + bounds.height / 2 - canvas.getBoundingClientRect().top) / zoomOf(view)
-    const index = pageIndexAtY(snapshot.pages, middle)
+    const index = pageInView(snapshot, scroller, canvas)
     if (index === activeIndex) return
     thumbs[activeIndex]?.button.removeAttribute('aria-current')
     activeIndex = index
@@ -213,9 +246,9 @@ function mountPageList(view: EditorView, post: (msg: EditorToHost) => void) {
   const updateThumb = (index: number, shown: ThumbSnapshot, counts: PageCounts) => {
     const { button, paper, sheet, bubbles, number } = thumbs[index]
     const page = shown.pages[index]
-    const scale = paper.clientWidth / shown.pageW
+    const scale = paper.clientWidth / page.width
     paper.style.height = `${page.height * scale}px`
-    sheet.style.cssText = `${shown.vars};width:${shown.pageW}px;height:${page.height}px;transform:scale(${scale})`
+    sheet.style.cssText = `${shown.vars};width:${page.width}px;height:${page.height}px;transform:scale(${scale})`
     const title = pageTitle(counts, labels)
     const name = `${labels.page(index + 1)}: ${title}`
     if (button.title !== title) button.title = title
@@ -248,11 +281,10 @@ function mountPageList(view: EditorView, post: (msg: EditorToHost) => void) {
 
   const jumpTo = (page: ThumbPage) => {
     if (!scroller || !canvas) return
-    const barHeight = Number.parseFloat(getComputedStyle(root).getPropertyValue('--vound-review-top')) || 0
     const canvasTop = canvas.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     scroller.scrollTo({
-      top: canvasTop + page.top * zoomOf(view) - barHeight - PAGE_TOP_GAP_PX,
+      top: canvasTop + page.top * zoomOf(view) - barHeight() - PAGE_TOP_GAP_PX,
       behavior: reduced ? 'auto' : 'smooth',
     })
   }
